@@ -1,0 +1,5 @@
+.DS_Store
+.grok/
+node_modules/
+*.log
+/.playwright-mcp
