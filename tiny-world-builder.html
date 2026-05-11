@@ -1131,6 +1131,11 @@
         <output id="render-cloud-speed-value"></output>
       </div>
       <div class="range-row">
+        <span>Cloud height</span>
+        <input id="render-cloud-height" type="range" min="2" max="14" step="0.5" />
+        <output id="render-cloud-height-value"></output>
+      </div>
+      <div class="range-row">
         <span>Tilt blur</span>
         <input id="render-tilt-blur" type="range" min="0" max="8" step="0.5" />
         <output id="render-tilt-blur-value"></output>
@@ -1222,6 +1227,7 @@
     visibleSize: 'tinyworld:render:visibleSize',
     clouds: 'tinyworld:render:clouds',
     cloudSpeed: 'tinyworld:render:cloudSpeed',
+    cloudHeight: 'tinyworld:render:cloudHeight',
     tiltBlur: 'tinyworld:render:tiltBlur',
     tiltFocus: 'tinyworld:render:tiltFocus',
     ghostOpacity: 'tinyworld:render:ghostOpacity',
@@ -1244,6 +1250,7 @@
     visibleSize: '16',
     clouds: '0.61',
     cloudSpeed: '0.35',
+    cloudHeight: '7',
     tiltBlur: '3.5',
     tiltFocus: '18',
     ghostOpacity: '0.22',
@@ -1282,6 +1289,7 @@
   let renderVisibleSize = Math.round(storedNumber(RENDER_LS.visibleSize, 16, 8, 20));
   let renderCloudAmount = storedNumber(RENDER_LS.clouds, 0.61, 0, 1);
   let renderCloudSpeed = storedNumber(RENDER_LS.cloudSpeed, 0.35, 0, 1);
+  let renderCloudHeight = storedNumber(RENDER_LS.cloudHeight, 7, 2, 14);
   let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 3.5, 0, 8);
   let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 18, 15, 80);
   let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 0.22, 0.05, 1);
@@ -1400,10 +1408,14 @@
   }
 
   function applyCloudSettings() {
-    if (!cloudLayer) return;
-    cloudLayer.style.opacity = String(Math.max(0, Math.min(1, renderCloudAmount)) * 0.42);
-    cloudLayer.style.animationDuration = (140 - renderCloudSpeed * 115).toFixed(0) + 's';
-    cloudLayer.style.animationPlayState = renderCloudSpeed <= 0.01 || renderCloudAmount <= 0.01 ? 'paused' : 'running';
+    if (cloudLayer) {
+      // Hide the old CSS cloud overlay — real voxel clouds replace it.
+      cloudLayer.style.opacity = '0';
+      cloudLayer.style.animationPlayState = 'paused';
+    }
+    // syncCloudPopulation no-ops if the cloud block hasn't run yet
+    // (var-hoisted state — see comment near the cloud block).
+    syncCloudPopulation();
   }
 
   function applyTiltShiftSettings() {
@@ -1671,6 +1683,9 @@
     sunflowerPetal:  new THREE.MeshLambertMaterial({ color: 0xf2c849 }),
     sunflowerCenter: new THREE.MeshLambertMaterial({ color: 0x5a3a18 }),
 
+    cloud:     new THREE.MeshLambertMaterial({ color: 0xfdfcf8 }),
+    cloudShade:new THREE.MeshLambertMaterial({ color: 0xdcd9d0 }),
+
     hover:     new THREE.MeshBasicMaterial({ color: 0x2a2722, transparent: true, opacity: 0.18, depthWrite: false }),
     hoverErase:new THREE.MeshBasicMaterial({ color: 0xb84838, transparent: true, opacity: 0.28, depthWrite: false }),
   };
@@ -1739,8 +1754,11 @@
     const tf = terrainLevelForCell(c);
     const bt = c.buildingType || null;
     const fs = c.fenceSide || null;
-    if (c.terrain !== 'grass' || c.kind || f !== 1 || tf !== 1 || bt || fs) {
-      return [x, z, c.terrain, c.kind, f, bt, tf, fs];
+    const extras = (c.extras && c.extras.length) ? c.extras.map(e => ({ k: e.kind, s: e.fenceSide || null, f: e.floors || 1 })) : null;
+    if (c.terrain !== 'grass' || c.kind || f !== 1 || tf !== 1 || bt || fs || extras) {
+      const out = [x, z, c.terrain, c.kind, f, bt, tf, fs];
+      if (extras) out.push(extras);
+      return out;
     }
     return null;
   }
@@ -1878,8 +1896,26 @@
     return (n.n ? 1 : 0) + (n.s ? 1 : 0) + (n.e ? 1 : 0) + (n.w ? 1 : 0);
   }
 
-  function makeRock(neighbors, level = 1, seedX = 0, seedZ = 0) {
+  function makeRock(neighbors, level = 1, seedX = 0, seedZ = 0, inWater = false) {
     const g = new THREE.Group();
+    if (inWater) {
+      // Rocks dropped in water sink slightly and get a darker ring
+      // where they break the surface. The whole group is offset down
+      // so the stones sit lower; the ring stays at tile-top y = 0.
+      g.userData.waterSunk = true;
+      const sink = 0.07;
+      g.position.y -= 0; // ring math runs in local space below
+      const ringInner = 0.18;
+      const ringOuter = 0.46;
+      const ringGeo = new THREE.RingGeometry(ringInner, ringOuter, 18);
+      const ringMat = new THREE.MeshLambertMaterial({ color: 0x1c4a78, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.002; // just above tile top so it doesn't z-fight
+      g.add(ring);
+      // Shift the actual stone subgroup down so they appear partly submerged.
+      g.userData.waterSinkY = sink;
+    }
     const n = neighbors || { n: false, s: false, e: false, w: false };
     const links = countNeighbors(n);
     const extra = Math.max(0, Math.min(MAX_FLOORS, level || 1) - 1);
@@ -1897,14 +1933,6 @@
       m.rotation.set(-0.12 + jitter(12) * 0.18, s.ry, 0.08 + jitter(13) * 0.16);
       g.add(m);
     });
-
-    const talus = new THREE.Mesh(
-      roundedBox((n.e || n.w ? 0.76 : 0.48) * grow, 0.09 + extra * 0.015, (n.n || n.s ? 0.76 : 0.48) * grow, 0.035),
-      M.rockDk
-    );
-    talus.position.set(jitter(14) * 0.04, 0.04 + extra * 0.007, jitter(15) * 0.04);
-    talus.rotation.y = (links >= 2 && ((n.e && n.w) || (n.n && n.s)) ? 0.02 : 0.18) + jitter(16) * 0.5;
-    g.add(talus);
 
     function sideLevel(dir) {
       return typeof n[dir] === 'number' ? n[dir] : (n[dir] ? 1 : 0);
@@ -1985,7 +2013,17 @@
       g.add(chip);
     }
 
-    g.userData = { kind: 'rock', neighborCount: links };
+    // Water rocks: sink every mesh (except the ring marker on top of
+    // the water surface) by waterSinkY so they appear partly submerged.
+    if (g.userData && g.userData.waterSunk) {
+      const sink = g.userData.waterSinkY || 0.07;
+      for (const child of g.children) {
+        if (child.geometry && child.geometry.type === 'RingGeometry') continue;
+        child.position.y -= sink;
+      }
+    }
+
+    g.userData = Object.assign(g.userData || {}, { kind: 'rock', neighborCount: links });
     castReceive(g);
     return g;
   }
@@ -2060,14 +2098,56 @@
         }
       }
     } else if (kind === 'tuft' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'pumpkin' || kind === 'carrot' || kind === 'sunflower') {
-      const s = 1 + extra * 0.035;
-      g.scale.set(s, 1 + extra * 0.04, s);
-      for (let i = 0; i < Math.min(extra, 5); i++) {
-        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.10 + i * 0.012, 0.035), M.cropStem);
-        const a = i * 2.1 + 0.2;
-        blade.position.set(Math.cos(a) * 0.31, 0.05 + i * 0.006, Math.sin(a) * 0.29);
-        blade.rotation.z = (i % 2 ? -1 : 1) * 0.18;
-        g.add(blade);
+      // Repeated clicks pack MORE crops onto the tile rather than
+      // scaling the original up — level 1 is a single sprout, level 8
+      // is a tight cluster of additional plants. Only a faint scale
+      // boost so the patch reads as "more here", not "a giant plant".
+      g.scale.set(1, 1, 1);
+      const stemMat = (kind === 'corn')      ? M.cornStalk
+                    : (kind === 'wheat')     ? M.wheatStalk
+                    : (kind === 'pumpkin')   ? M.pumpkinStem
+                    : (kind === 'carrot')    ? M.cornStalk
+                    : (kind === 'sunflower') ? M.sunflowerStalk
+                    : (kind === 'tuft')      ? M.leaves
+                    : M.cropStem;
+      // Pumpkin: instead of stems, drop a couple of mini pumpkins
+      // around the main one so the patch feels like a pumpkin patch.
+      if (kind === 'pumpkin') {
+        const miniCount = Math.min(extra, 5);
+        for (let i = 0; i < miniCount; i++) {
+          const a = i * 1.05 + 0.3;
+          const r = 0.32 + (i % 2 ? 0.04 : 0);
+          const sz = 0.14 + Math.random() * 0.04;
+          const mini = new THREE.Mesh(roundedBox(sz, sz * 0.85, sz, 0.04), i % 2 ? M.pumpkin : M.pumpkinDk);
+          mini.position.set(Math.cos(a) * r, sz * 0.45, Math.sin(a) * r);
+          mini.rotation.y = a;
+          g.add(mini);
+          const tinyStem = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.04, 0.025), M.pumpkinStem);
+          tinyStem.position.set(Math.cos(a) * r, sz * 0.85 + 0.02, Math.sin(a) * r);
+          g.add(tinyStem);
+        }
+      } else {
+        // Inner ring + outer ring of additional stems. Two rings packed
+        // tighter than before — denser per level, no scaling.
+        const innerCount = Math.min(extra * 3, 12);
+        for (let i = 0; i < innerCount; i++) {
+          const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13 + (i % 3) * 0.02, 0.04), stemMat);
+          const a = i * 0.55 + extra * 0.18;
+          const r = 0.16 + (i % 2 ? 0.04 : 0);
+          blade.position.set(Math.cos(a) * r, 0.06 + (i % 3) * 0.01, Math.sin(a) * r);
+          blade.rotation.z = (i % 2 ? -1 : 1) * 0.16;
+          g.add(blade);
+        }
+        if (extra >= 2) {
+          const outerCount = Math.min((extra - 1) * 3, 12);
+          for (let i = 0; i < outerCount; i++) {
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.17 + (i % 3) * 0.02, 0.035), stemMat);
+            const a = i * 0.55 + 0.27 + extra * 0.1;
+            blade.position.set(Math.cos(a) * 0.34, 0.08 + (i % 3) * 0.01, Math.sin(a) * 0.34);
+            blade.rotation.z = (i % 2 ? 1 : -1) * 0.20;
+            g.add(blade);
+          }
+        }
       }
     } else if (kind === 'fence') {
       g.scale.y = 1 + Math.min(extra, 4) * 0.06;
@@ -3078,6 +3158,73 @@
     return g;
   }
 
+  // Road-aware fence variant — picked when the tile underneath is a
+  // path. Level 1: speed bump + zebra stripes. Level 2: zebra crossing
+  // with pillars at the sides. Level 3+: stone arch / gate spanning
+  // the road. Always oriented across the path direction.
+  function makeRoadGate(side = 'n', level = 1, pathOrientation = 'x') {
+    const g = new THREE.Group();
+    level = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    // Determine which axis the road runs along (x or z) so the gate
+    // spans across it. Default to span on the perpendicular axis.
+    const spanAlongX = pathOrientation === 'x';
+
+    // Zebra stripes — 5 thin white slabs across the road.
+    const stripeMat = M.wallCream || M.pathTrim || M.path;
+    for (let i = -2; i <= 2; i++) {
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(spanAlongX ? 0.85 : 0.14, 0.012, spanAlongX ? 0.14 : 0.85),
+        stripeMat
+      );
+      stripe.position.set(spanAlongX ? 0 : i * 0.17, 0.008, spanAlongX ? i * 0.17 : 0);
+      g.add(stripe);
+    }
+
+    if (level === 1) {
+      // Level 1 keeps just the zebra stripes — no speed bump.
+    } else if (level === 2) {
+      // Two short pillars flanking the crossing.
+      const pillarMat = M.castleStone || M.fenceSteel;
+      for (const s of [-1, 1]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.12), pillarMat);
+        pillar.position.set(spanAlongX ? s * 0.42 : 0, 0.17, spanAlongX ? 0 : s * 0.42);
+        g.add(pillar);
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.16), M.castleStoneD || M.fenceSteel);
+        cap.position.set(spanAlongX ? s * 0.42 : 0, 0.36, spanAlongX ? 0 : s * 0.42);
+        g.add(cap);
+      }
+    } else {
+      // Stone arch / gate spanning the road. Two pillars + a crossbar.
+      const pillarMat = M.castleStone || M.fenceSteel;
+      const beamMat   = M.castleStoneD || M.fenceSteel;
+      const pillarH   = 0.55 + Math.min(level - 3, 4) * 0.06;
+      for (const s of [-1, 1]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.14, pillarH, 0.14), pillarMat);
+        pillar.position.set(spanAlongX ? s * 0.42 : 0, pillarH / 2, spanAlongX ? 0 : s * 0.42);
+        g.add(pillar);
+      }
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(spanAlongX ? 1.00 : 0.16, 0.10, spanAlongX ? 0.16 : 1.00),
+        beamMat
+      );
+      beam.position.y = pillarH + 0.05;
+      g.add(beam);
+      // Banner / keystone in the middle.
+      const stone = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.20), pillarMat);
+      stone.position.y = pillarH + 0.20;
+      g.add(stone);
+      if (level >= 5) {
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.04), M.woodTrim || M.fenceSteel);
+        flag.position.y = pillarH + 0.38;
+        g.add(flag);
+      }
+    }
+
+    g.userData = { kind: 'fence', roadGate: true, level };
+    castReceive(g);
+    return g;
+  }
+
   function makeFence(side = 'n', level = 1) {
     const g = new THREE.Group();
     level = Math.max(1, Math.min(MAX_FLOORS, level || 1));
@@ -3238,6 +3385,87 @@
     return g;
   }
 
+  // Cinderella carriage — fairytale variant a pumpkin grows into once
+  // its tile hits MAX_FLOORS. The carriage replaces the regular three
+  // pumpkin lumps: rounded coach body in pumpkin orange, ribbed bands
+  // from the dark pumpkin material, four little wheels, a door window,
+  // and a gold ornament on the roof.
+  function makePumpkinCarriage() {
+    const g = new THREE.Group();
+
+    // Main coach body — flattened sphere standing on the dirt.
+    const bodyR = 0.30;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(bodyR, 14, 10), M.pumpkin);
+    body.scale.set(1.1, 0.95, 0.95);
+    body.position.y = bodyR * 0.95;
+    g.add(body);
+
+    // Six ribbed bands wrapping the coach so it still reads as a pumpkin.
+    const bandCount = 6;
+    for (let i = 0; i < bandCount; i++) {
+      const ang = (i / bandCount) * Math.PI;
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.02, bodyR * 1.8, bodyR * 2.0), M.pumpkinDk);
+      band.position.y = bodyR * 0.95;
+      band.rotation.y = ang;
+      g.add(band);
+    }
+
+    // Door panel + small window on the front face.
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.20, 0.04), M.pumpkinDk);
+    door.position.set(0, bodyR * 0.95, bodyR * 0.95 + 0.01);
+    g.add(door);
+    const windowPane = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.08, 0.02), M.windowB);
+    windowPane.position.set(0, bodyR * 1.15, bodyR * 0.95 + 0.03);
+    g.add(windowPane);
+    const doorKnob = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.02), M.knob);
+    doorKnob.position.set(0.06, bodyR * 0.92, bodyR * 0.95 + 0.04);
+    g.add(doorKnob);
+
+    // Curly green stem on top, then a gold finial — the storybook touch.
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 0.05), M.pumpkinStem);
+    stem.position.y = bodyR * 1.85;
+    g.add(stem);
+    const finial = new THREE.Mesh(roundedBox(0.07, 0.07, 0.07, 0.02), M.knob);
+    finial.position.y = bodyR * 2.0 + 0.04;
+    g.add(finial);
+    const finialTop = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.06, 0.025), M.knob);
+    finialTop.position.y = bodyR * 2.0 + 0.12;
+    g.add(finialTop);
+
+    // Four wheels (axle along x, so cylinder lies on its side via z-rotation).
+    const wheelGeo = new THREE.CylinderGeometry(0.10, 0.10, 0.045, 14);
+    const wheelOffsets = [
+      [ 0.22, -0.20], [ 0.22,  0.20],
+      [-0.22, -0.20], [-0.22,  0.20],
+    ];
+    wheelOffsets.forEach(([x, z]) => {
+      const wheel = new THREE.Mesh(wheelGeo, M.woodTrim);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.10, z);
+      g.add(wheel);
+      // Gold hub centred on the wheel face.
+      const hub = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.05), M.knob);
+      hub.position.set(x, 0.10, z);
+      g.add(hub);
+      // Spokes — three short bars across the face for a coach feel.
+      for (let s = 0; s < 3; s++) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.018, 0.012), M.knob);
+        spoke.position.set(x, 0.10, z);
+        spoke.rotation.x = (s / 3) * Math.PI;
+        g.add(spoke);
+      }
+    });
+
+    // Tiny gold trim band where the wheels meet the body.
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.025, 0.42), M.knob);
+    trim.position.y = 0.20;
+    g.add(trim);
+
+    g.userData = { kind: 'pumpkin', carriage: true, swayPhase: Math.random() * Math.PI * 2 };
+    castReceive(g);
+    return g;
+  }
+
   // Carrot rows — orange tips poking out of the dirt with green leafy tops.
   function makeCarrot() {
     const g = new THREE.Group();
@@ -3320,7 +3548,7 @@
 
   for (let x = 0; x < GRID; x++) {
     world[x] = [];
-    for (let z = 0; z < GRID; z++) world[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null };
+    for (let z = 0; z < GRID; z++) world[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
   }
 
   const MAX_FLOORS = 8;
@@ -3352,7 +3580,7 @@
     for (let x = 0; x < GRID; x++) {
       cells[x] = [];
       for (let z = 0; z < GRID; z++) {
-        cells[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null };
+        cells[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
       }
     }
     return cells;
@@ -3775,6 +4003,121 @@
     obj.userData.landing = true;
     dropAnims.push({ obj, baseY, distance, t: -delay, dur, easing });
   }
+  function dustCountForMesh(obj) {
+    if (!obj) return 3;
+    const k = obj.userData && obj.userData.kind;
+    let base = 3; // tiles + unknown
+    if (k === 'tuft')                                                                        base = 1;
+    else if (k === 'crop' || k === 'corn' || k === 'wheat' || k === 'carrot' || k === 'sunflower' || k === 'pumpkin') base = 2;
+    else if (k === 'tree')                                                                   base = 3;
+    else if (k === 'bridge')                                                                 base = 2;
+    else if (k === 'fence')                                                                  base = 3;
+    else if (k === 'rock')                                                                   base = 5;
+    else if (k === 'house') {
+      const bt = obj.userData.buildingType;
+      if (bt === 'skyscraper')                                base = 12;
+      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 8;
+      else                                                    base = 5;
+    }
+    const floors = (obj.userData && (obj.userData.level || obj.userData.floors)) || 1;
+    return Math.min(20, Math.max(1, base + Math.max(0, floors - 1)));
+  }
+
+  function emitImpactDust(obj) {
+    if (!obj) return;
+    const n = dustCountForMesh(obj);
+    spawnDustBurst(obj.position.x, obj.position.y, obj.position.z, n);
+  }
+
+  // Rough "mass" estimate used to size ripples and dust. Mirrors
+  // dustCountForMesh but tuned so a tuft is ~0, a tree is ~2, and a
+  // skyscraper is ~12+.
+  function massForMesh(obj) {
+    if (!obj || !obj.userData) return 0;
+    const k = obj.userData.kind;
+    let base = 0;
+    if (k === 'tile' || k === 'tuft')                                                                  base = 0;
+    else if (k === 'crop' || k === 'corn' || k === 'wheat' || k === 'carrot' || k === 'sunflower' || k === 'pumpkin') base = 1;
+    else if (k === 'tree')                                                                              base = 2;
+    else if (k === 'bridge')                                                                            base = 1.5;
+    else if (k === 'fence')                                                                             base = 2;
+    else if (k === 'rock')                                                                              base = 3.5;
+    else if (k === 'house') {
+      const bt = obj.userData.buildingType;
+      if (bt === 'skyscraper') base = 11;
+      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 7;
+      else base = 4;
+    }
+    const floors = obj.userData.level || obj.userData.floors || 1;
+    return base + Math.max(0, floors - 1) * 0.6;
+  }
+
+  // Surrounding-tile ripple when a heavy object lands. Tiles within
+  // `radius` cells of the impact bob in a damped sine wave whose
+  // amplitude falls off with distance and whose phase lags so the
+  // shockwave propagates outward visibly.
+  const rippleAnims = [];
+  const rippleTileOwner = new Map(); // tile -> active rippleAnim entry
+  function triggerRipple(originX, originZ, mass) {
+    if (!mass || mass < 2) return;
+    const radius = Math.min(3, Math.max(1, Math.round(mass / 3)));
+    const baseAmp = Math.min(0.12, 0.012 * mass);
+    for (const key in cellMeshes) {
+      const [kx, kz] = key.split(',').map(Number);
+      if (kx === originX && kz === originZ) continue;
+      const dx = kx - originX, dz = kz - originZ;
+      const dist = Math.max(Math.abs(dx), Math.abs(dz));
+      if (dist > radius) continue;
+      const tile = cellMeshes[key].tile;
+      if (!tile || (tile.userData && tile.userData.landing)) continue;
+      // Inherit the true rest Y from any in-flight ripple on this
+      // tile — otherwise we'd capture the displaced position and
+      // leave the tile permanently offset when the new ripple ends.
+      let restY = tile.position.y;
+      const prev = rippleTileOwner.get(tile);
+      if (prev) {
+        restY = prev.baseY;
+        const idx = rippleAnims.indexOf(prev);
+        if (idx >= 0) rippleAnims.splice(idx, 1);
+      }
+      // Snap the tile to its rest position before kicking off the new wave.
+      tile.position.y = restY;
+      const falloff = 1 - (dist - 1) / Math.max(1, radius); // 1 at dist=1, decays outward
+      const anim = {
+        tile,
+        baseY: restY,
+        amp: baseAmp * Math.max(0.15, falloff),
+        dur: 0.55 + dist * 0.10,
+        t: 0,
+        phaseDelay: dist * 0.04,
+        freq: 11 - dist * 1.2,
+      };
+      rippleAnims.push(anim);
+      rippleTileOwner.set(tile, anim);
+    }
+  }
+
+  function tickRippleAnims(dt) {
+    if (!rippleAnims.length) return;
+    for (let i = rippleAnims.length - 1; i >= 0; i--) {
+      const r = rippleAnims[i];
+      r.t += dt;
+      if (r.t >= r.dur || (r.tile.userData && r.tile.userData.landing)) {
+        r.tile.position.y = r.baseY;
+        rippleTileOwner.delete(r.tile);
+        rippleAnims.splice(i, 1);
+        continue;
+      }
+      const u = r.t / r.dur;
+      const damp = (1 - u) * (1 - u);
+      const phaseT = Math.max(0, r.t - r.phaseDelay);
+      // Negative sine so the compression wave pushes tiles DOWN
+      // first, then rebounds up — reads as a real impact.
+      const wave = -Math.sin(phaseT * r.freq) * r.amp * damp;
+      r.tile.position.y = r.baseY + wave;
+    }
+  }
+
   function tickDropAnims(dt) {
     for (let i = dropAnims.length - 1; i >= 0; i--) {
       const a = dropAnims[i];
@@ -3785,6 +4128,15 @@
       if (u >= 1) {
         a.obj.position.y = a.baseY;
         a.obj.userData.landing = false;
+        emitImpactDust(a.obj);
+        if (a.obj.userData && a.obj.userData.kind !== 'tile') {
+          const mass = massForMesh(a.obj);
+          const gx = a.obj.userData.gx;
+          const gz = a.obj.userData.gz;
+          const ox = (typeof gx === 'number') ? gx : Math.round(a.obj.position.x + GRID / 2 - 0.5);
+          const oz = (typeof gz === 'number') ? gz : Math.round(a.obj.position.z + GRID / 2 - 0.5);
+          triggerRipple(ox, oz, mass);
+        }
         dropAnims.splice(i, 1);
       }
     }
@@ -4155,12 +4507,15 @@
     const { animate = false, delay = 0 } = opts || {};
     const key = x + ',' + z;
     let entry = cellMeshes[key];
-    if (!entry) entry = cellMeshes[key] = { tile: null, object: null };
+    if (!entry) entry = cellMeshes[key] = { tile: null, object: null, extras: [] };
     if (entry.object) {
       worldGroup.remove(entry.object);
       disposeGroup(entry.object);
       entry.object = null;
     }
+    // Always rebuild extras when the main object is rebuilt — they
+    // depend on world[x][z].extras and visually sit alongside.
+    renderCellExtras(x, z);
 
     const kind = world[x][z].kind;
     if (!kind) return;
@@ -4171,19 +4526,27 @@
     let setGridUserData = true;
 
     if      (kind === 'tree')      mesh = makeTree();
-    else if (kind === 'rock')      mesh = makeRock(getRockNeighbors(x, z), level, x, z);
+    else if (kind === 'rock')      mesh = makeRock(getRockNeighbors(x, z), level, x, z, world[x][z].terrain === 'water');
     else if (kind === 'bridge')    mesh = makeBridge(getBridgeOrientation(x, z));
     else if (kind === 'tuft')      mesh = makeTuft();
     else if (kind === 'crop')      mesh = makeCrop();
     else if (kind === 'corn')      mesh = makeCorn();
     else if (kind === 'wheat')     mesh = makeWheat();
-    else if (kind === 'pumpkin')   mesh = makePumpkin();
+    else if (kind === 'pumpkin')   mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makePumpkinCarriage() : makePumpkin();
     else if (kind === 'carrot')    mesh = makeCarrot();
     else if (kind === 'sunflower') mesh = makeSunflower();
     else if (kind === 'fence') {
-      mesh = isCastleFence(x, z)
-        ? makeCastleWallSegment(getCastleWallNeighbors(x, z))
-        : makeFence(normalizeFenceSide(world[x][z].fenceSide), level);
+      if (world[x][z].terrain === 'path') {
+        // Pick orientation from neighbouring path cells so the gate
+        // spans across the road, not along it.
+        const pn = getPathNeighbors(x, z);
+        const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
+        mesh = makeRoadGate(normalizeFenceSide(world[x][z].fenceSide), level, pathAxis);
+      } else {
+        mesh = isCastleFence(x, z)
+          ? makeCastleWallSegment(getCastleWallNeighbors(x, z))
+          : makeFence(normalizeFenceSide(world[x][z].fenceSide), level);
+      }
     }
     else if (kind === 'house') {
       const floors = world[x][z].floors || 1;
@@ -4204,10 +4567,10 @@
       if (!cluster.isAnchor) return;          // non-anchor cluster cells render nothing
       if (cluster.kind === 'turret') {
         mesh = makeTurret(floors);
-      } else if (cluster.kind === 'solo' && !bType && floors >= 4) {
-        // Auto-promote tall solo houses (no manual buildingType) into a high-rise.
-        mesh = makeSkyscraper(floors);
       } else if (cluster.kind === 'solo') {
+        // Residential / cottage houses keep their own look as you stack
+        // floors — makeHouse handles tall counts. Skyscrapers are an
+        // explicit variant from the flyout, not an auto-promotion.
         mesh = makeHouse(floors);
       } else if (cluster.kind === 'linear') {
         mesh = makeStretchedHouse(cluster.length, cluster.orientation, floors);
@@ -4242,6 +4605,13 @@
       const p = tilePos(x, z);
       posX = p.x; posZ = p.z;
     }
+    // Uneven natural objects get a random 90° rotation per cell so the
+    // same kind doesn't look identical in every tile. Deterministic on
+    // (x, z) via cellRand so re-renders keep the same orientation.
+    if (kind === 'rock' || kind === 'tree' || kind === 'tuft') {
+      const r = Math.floor(cellRand(x, z, 71) * 4); // 0..3
+      mesh.rotation.y += r * (Math.PI / 2);
+    }
     const objectY = TOP_H + terrainRiseAt(x, z);
     mesh.position.set(posX, objectY, posZ);
     if (setGridUserData) {
@@ -4254,6 +4624,94 @@
     worldGroup.add(mesh);
     entry.object = mesh;
     if (animate) animateDrop(mesh, 2.0, 0.5, delay, easeOutBack);
+  }
+
+  // Build the secondary decorations (tufts / fences) that live alongside
+  // the cell's main `kind`. Extras stay smaller and live near the edge
+  // of the tile so they read as add-ons rather than the main occupant.
+  //
+  // opts.animateFrom: index of the first extra to drop-in. Extras
+  // before this index appear instantly (used when an adjacency
+  // re-render forces a full rebuild but we don't want existing
+  // decorations to bounce again).
+  function renderCellExtras(x, z, opts) {
+    const animateFrom = (opts && typeof opts.animateFrom === 'number') ? opts.animateFrom : Infinity;
+    const key = x + ',' + z;
+    let entry = cellMeshes[key];
+    if (!entry) entry = cellMeshes[key] = { tile: null, object: null, extras: [] };
+    if (!entry.extras) entry.extras = [];
+    // Dispose any previous extras.
+    for (const m of entry.extras) {
+      worldGroup.remove(m);
+      disposeGroup(m);
+    }
+    entry.extras.length = 0;
+    const cell = world[x] && world[x][z];
+    if (!cell || !cell.extras || !cell.extras.length) return;
+    const p = tilePos(x, z);
+    const objectY = TOP_H + terrainRiseAt(x, z);
+    cell.extras.forEach((ex, i) => {
+      let mesh = null;
+      if (ex.kind === 'tuft') mesh = makeTuft();
+      else if (ex.kind === 'fence') mesh = makeFence(normalizeFenceSide(ex.fenceSide), ex.floors || 1);
+      if (!mesh) return;
+      // Smaller, corner-offset extras so they sit alongside the main
+      // kind without overlapping its silhouette.
+      if (ex.kind === 'tuft') {
+        const cornerOff = 0.30;
+        const corners = [
+          [-cornerOff, -cornerOff], [cornerOff, -cornerOff],
+          [-cornerOff,  cornerOff], [cornerOff,  cornerOff],
+        ];
+        const [dx, dz] = corners[(i + Math.floor(cellRand(x, z, 90 + i) * 4)) % 4];
+        mesh.position.set(p.x + dx, objectY, p.z + dz);
+        mesh.scale.set(0.7, 0.7, 0.7);
+      } else {
+        // Fences keep their full side geometry (they live on the tile edge).
+        mesh.position.set(p.x, objectY, p.z);
+      }
+      mesh.userData.gx = x;
+      mesh.userData.gz = z;
+      mesh.userData.fadeRole = 'object';
+      mesh.userData.baseY = mesh.position.y;
+      mesh.userData.extraSlot = i;
+      prepareFadeable(mesh, { opacity: opacityAtWorldPosition(mesh.position.x, mesh.position.z), grayscale: isOutsideHomeGrid(x, z) });
+      worldGroup.add(mesh);
+      entry.extras.push(mesh);
+      if (i >= animateFrom) animateDrop(mesh, 1.6, 0.42, 0.04 * (i - animateFrom), easeOutBack);
+    });
+  }
+
+  function addCellExtra(x, z, extra) {
+    if (!world[x] || !world[x][z]) return;
+    const cell = world[x][z];
+    if (!cell.extras) cell.extras = [];
+    // De-dupe identical fence sides; level them up instead.
+    if (extra.kind === 'fence') {
+      const side = normalizeFenceSide(extra.fenceSide);
+      const existingIdx = cell.extras.findIndex(e => e.kind === 'fence' && normalizeFenceSide(e.fenceSide) === side);
+      if (existingIdx >= 0) {
+        cell.extras[existingIdx].floors = Math.min((cell.extras[existingIdx].floors || 1) + 1, MAX_FLOORS);
+        // Animate just the one that changed — existing siblings stay put.
+        renderCellExtras(x, z, { animateFrom: existingIdx });
+        saveState();
+        return;
+      }
+    }
+    const newIdx = cell.extras.length;
+    cell.extras.push(Object.assign({ floors: 1 }, extra));
+    // Animate only the newly-added entry; everything before it
+    // re-mounts at its resting position without a drop.
+    renderCellExtras(x, z, { animateFrom: newIdx });
+    saveState();
+  }
+
+  function popCellExtra(x, z) {
+    if (!world[x] || !world[x][z] || !world[x][z].extras || !world[x][z].extras.length) return false;
+    world[x][z].extras.pop();
+    renderCellExtras(x, z); // no animation — surviving extras stay put
+    saveState();
+    return true;
   }
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
@@ -4290,7 +4748,12 @@
     const prevTileLevel = tileLevelForCell(prev);
     const nextTileLevel = tileLevelForCell({ terrain: nextTerrain, terrainFloors: newTerrainFloors, kind: nextKind, floors: newFloors, buildingType: newBType, fenceSide: newFenceSide });
     const tileHeightChanged = prevTileLevel !== nextTileLevel;
-    world[x][z] = { terrain: nextTerrain, terrainFloors: newTerrainFloors, kind: nextKind, floors: newFloors, buildingType: newBType, fenceSide: newFenceSide };
+    // Preserve `extras` (decorative tufts / fences sitting alongside the
+    // main kind) across setCell unless the caller explicitly clears them.
+    const carriedExtras = opts && Object.prototype.hasOwnProperty.call(opts, 'extras')
+      ? (opts.extras || [])
+      : (prev.extras || []);
+    world[x][z] = { terrain: nextTerrain, terrainFloors: newTerrainFloors, kind: nextKind, floors: newFloors, buildingType: newBType, fenceSide: newFenceSide, extras: carriedExtras };
 
     // For house clusters, every cell shares the floors count. Propagate to all.
     if (nextKind === 'house' && floorsChanged) {
@@ -4335,6 +4798,11 @@
     toRefresh.set(x + ',' + z, { x, z });
     if (world[x][z].kind === 'house') {
       for (const c of bfsHouseCluster(x, z)) toRefresh.set(c.x + ',' + c.z, c);
+    }
+    // Pumpkin Cinderella rule: any pumpkin change can shift which tile
+    // owns the carriage, so re-render every max-level pumpkin too.
+    if (prev.kind === 'pumpkin' || nextKind === 'pumpkin') {
+      eachMaxPumpkin((px, pz) => toRefresh.set(px + ',' + pz, { x: px, z: pz }));
     }
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, nz = z + dz;
@@ -4398,6 +4866,33 @@
       });
     }
     saveState();
+  }
+
+  // Cinderella rule: only ONE pumpkin tile across the home grid is the
+  // carriage at a time. The lowest-index (x,z) max-level pumpkin wins.
+  // Returns true if (x,z) is that cell, so renderCellObject can pick
+  // the carriage variant.
+  function isCarriagePumpkin(x, z) {
+    for (let xx = 0; xx < GRID; xx++) {
+      if (!world[xx]) continue;
+      for (let zz = 0; zz < GRID; zz++) {
+        const c = world[xx][zz];
+        if (c && c.kind === 'pumpkin' && (c.floors || 1) >= MAX_FLOORS) {
+          return xx === x && zz === z;
+        }
+      }
+    }
+    return false;
+  }
+
+  function eachMaxPumpkin(callback) {
+    for (let xx = 0; xx < GRID; xx++) {
+      if (!world[xx]) continue;
+      for (let zz = 0; zz < GRID; zz++) {
+        const c = world[xx][zz];
+        if (c && c.kind === 'pumpkin' && (c.floors || 1) >= MAX_FLOORS) callback(xx, zz);
+      }
+    }
   }
 
   function disposeGroup(group) {
@@ -4960,8 +5455,14 @@
     }
     // Ensure world row exists
     if (!world[x]) world[x] = [];
-    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null };
+    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
     if (selectedTool.erase) {
+      // Peel decorations off first — tufts / fences sitting alongside
+      // the main kind go before the main kind itself goes.
+      if (cell.extras && cell.extras.length) {
+        popCellExtra(x, z);
+        return;
+      }
       if (cell.kind) setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       else if (cell.terrain !== 'grass') setCell(x, z, { terrain: 'grass', terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       return;
@@ -4984,14 +5485,26 @@
     }
     if (selectedTool.kind === 'fence') {
       const side = fenceSideFromHover(currentHover);
+      // Same-side fence on a fence cell → level it up in place.
       if (cell.kind === 'fence' && normalizeFenceSide(cell.fenceSide) === side) {
         const newLevel = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
         if (newLevel === (cell.floors || 1)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: newLevel, fenceSide: side });
         return;
       }
-      const terrainForFence = cell.terrain === 'water' ? 'grass' : cell.terrain;
-      setCell(x, z, { terrain: terrainForFence, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: 1, fenceSide: side });
+      // Different-side fence on a fence cell → add the new side as an
+      // extra so multiple fence sides co-exist on the same tile.
+      if (cell.kind === 'fence') {
+        addCellExtra(x, z, { kind: 'fence', fenceSide: side });
+        return;
+      }
+      // Different main occupant → fence co-exists alongside it.
+      if (cell.kind && cell.kind !== 'fence') {
+        addCellExtra(x, z, { kind: 'fence', fenceSide: side });
+        return;
+      }
+      // Empty cell → fence becomes the main kind.
+      setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: 1, fenceSide: side });
       return;
     }
     if (selectedTool.kind) {
@@ -5001,9 +5514,33 @@
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
         return;
       }
+      // Tufts are decorative — they go alongside another main kind
+      // rather than replacing it.
+      if (selectedTool.kind === 'tuft' && cell.kind && cell.kind !== 'tuft') {
+        addCellExtra(x, z, { kind: 'tuft' });
+        return;
+      }
+      // If the tile's current main is a fence or tuft, demote it to an
+      // extra rather than squashing it so they can co-exist with the
+      // new primary kind. Otherwise squash as usual (rocks etc.).
+      const incomingPrimary = selectedTool.kind;
+      const demote = (cell.kind === 'fence' || cell.kind === 'tuft') && incomingPrimary !== 'fence' && incomingPrimary !== 'tuft';
       let newTerrain = selectedTool.terrainOverride || cell.terrain;
-      if (newTerrain === 'water' && selectedTool.kind !== 'bridge') newTerrain = 'grass';
-      setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: 1 });
+      // Rocks keep the underlying terrain even on water; everything
+      // else falls back to grass over water (existing behaviour).
+      if (incomingPrimary !== 'rock' && newTerrain === 'water' && incomingPrimary !== 'bridge') newTerrain = 'grass';
+      if (demote) {
+        const carriedExtras = (cell.extras || []).slice();
+        carriedExtras.push(cell.kind === 'fence'
+          ? { kind: 'fence', fenceSide: cell.fenceSide || 'n', floors: cell.floors || 1 }
+          : { kind: 'tuft', floors: cell.floors || 1 });
+        setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: incomingPrimary, floors: 1, extras: carriedExtras });
+        return;
+      }
+      if (cell.kind && cell.kind !== incomingPrimary && incomingPrimary === 'rock') {
+        squashExistingObject(x, z);
+      }
+      setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: incomingPrimary, floors: 1 });
       return;
     }
     if (selectedTool.terrain) {
@@ -5402,6 +5939,7 @@
           terrainFloors: 1,
           kind: null,
           floors: 1,
+          extras: [], // also drop any decorative tufts / fences
           tileDelay: (x + z) * TILE_STAGGER,
           forceTile: true,
         });
@@ -5427,6 +5965,7 @@
     const warmthEl = document.getElementById('render-warmth');
     const cloudsEl = document.getElementById('render-clouds');
     const cloudSpeedEl = document.getElementById('render-cloud-speed');
+    const cloudHeightEl = document.getElementById('render-cloud-height');
     const tiltBlurEl = document.getElementById('render-tilt-blur');
     const tiltFocusEl = document.getElementById('render-tilt-focus');
     const ghostOpacityEl = document.getElementById('render-ghost-opacity');
@@ -5443,6 +5982,7 @@
     const warmthValue = document.getElementById('render-warmth-value');
     const cloudsValue = document.getElementById('render-clouds-value');
     const cloudSpeedValue = document.getElementById('render-cloud-speed-value');
+    const cloudHeightValue = document.getElementById('render-cloud-height-value');
     const tiltBlurValue = document.getElementById('render-tilt-blur-value');
     const tiltFocusValue = document.getElementById('render-tilt-focus-value');
     const ghostOpacityValue = document.getElementById('render-ghost-opacity-value');
@@ -5463,6 +6003,7 @@
       warmthEl.value = String(Math.round(postMaterial.uniforms.warmth.value * 100));
       cloudsEl.value = String(Math.round(renderCloudAmount * 100));
       cloudSpeedEl.value = String(Math.round(renderCloudSpeed * 100));
+      cloudHeightEl.value = String(renderCloudHeight);
       tiltBlurEl.value = String(renderTiltBlur);
       tiltFocusEl.value = String(Math.round(renderTiltFocus));
       ghostOpacityEl.value = String(Math.round(renderGhostOpacity * 100));
@@ -5479,6 +6020,7 @@
       warmthValue.textContent = warmthEl.value;
       cloudsValue.textContent = cloudsEl.value + '%';
       cloudSpeedValue.textContent = cloudSpeedEl.value + '%';
+      cloudHeightValue.textContent = cloudHeightEl.value;
       tiltBlurValue.textContent = tiltBlurEl.value + 'px';
       tiltFocusValue.textContent = tiltFocusEl.value + '%';
       ghostOpacityValue.textContent = ghostOpacityEl.value + '%';
@@ -5501,6 +6043,7 @@
       localStorage.setItem(RENDER_LS.shadow, renderShadowQuality);
       localStorage.setItem(RENDER_LS.clouds, renderCloudAmount.toFixed(2));
       localStorage.setItem(RENDER_LS.cloudSpeed, renderCloudSpeed.toFixed(2));
+      localStorage.setItem(RENDER_LS.cloudHeight, renderCloudHeight.toFixed(1));
       localStorage.setItem(RENDER_LS.tiltBlur, renderTiltBlur.toFixed(1));
       localStorage.setItem(RENDER_LS.tiltFocus, renderTiltFocus.toFixed(0));
       localStorage.setItem(RENDER_LS.ghostOpacity, renderGhostOpacity.toFixed(2));
@@ -5523,7 +6066,9 @@
       postMaterial.uniforms.warmth.value = parseInt(warmthEl.value, 10) / 100;
       renderCloudAmount = parseInt(cloudsEl.value, 10) / 100;
       renderCloudSpeed = parseInt(cloudSpeedEl.value, 10) / 100;
+      renderCloudHeight = parseFloat(cloudHeightEl.value);
       applyCloudSettings();
+      if (typeof applyCloudHeight === 'function') applyCloudHeight();
       renderTiltBlur = parseFloat(tiltBlurEl.value);
       renderTiltFocus = parseInt(tiltFocusEl.value, 10);
       applyTiltShiftSettings();
@@ -5541,7 +6086,7 @@
     });
     closeBtn.addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
-    for (const el of [postEl, shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, vignetteEl, warmthEl, cloudsEl, cloudSpeedEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
+    for (const el of [postEl, shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, vignetteEl, warmthEl, cloudsEl, cloudSpeedEl, cloudHeightEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
       el.addEventListener('input', applyFromControls);
       el.addEventListener('change', applyFromControls);
     }
@@ -5560,7 +6105,9 @@
       postMaterial.uniforms.warmth.value = 0;
       renderCloudAmount = 0.61;
       renderCloudSpeed = 0.35;
+      renderCloudHeight = 7;
       applyCloudSettings();
+      if (typeof applyCloudHeight === 'function') applyCloudHeight();
       renderTiltBlur = 3.5;
       renderTiltFocus = 18;
       applyTiltShiftSettings();
@@ -5618,7 +6165,7 @@
       s.position.y += s.userData.vy * dt;
       s.position.x += s.userData.vx * dt;
       s.position.z += s.userData.vz * dt;
-      s.material.opacity = (1 - t) * 0.65;
+      s.material.opacity = (s.userData.maxOpacity !== undefined ? s.userData.maxOpacity : 0.65) * (1 - t);
       const sc = 1 + t * 1.4;
       s.scale.set(sc, sc, sc);
       if (t >= 1) {
@@ -5628,6 +6175,237 @@
       }
     }
   }
+
+  // -------- squash-on-place dust + fade --------
+  // When the user drops a rock or fence onto a tile that already has an
+  // object on it, we don't silently swap meshes. Instead we:
+  //  1. Detach the existing object mesh from cellMeshes (so setCell won't
+  //     dispose it) and leave it parented to worldGroup.
+  //  2. Snap it flat (scale.y → ~0), oversize XZ by 10%, and rotate
+  //     5–10° (1° increments, random sign) on the y axis.
+  //  3. Burst a quick dust ring out of the impact point.
+  //  4. Fade the squashed remnant out over 2 s and dispose it.
+  // The new rock/fence drops in on top during step 1/2 via setCell's
+  // existing drop-in animation.
+  const squashAnims = [];
+  function spawnDustBurst(x, y, z, count = 14) {
+    for (let i = 0; i < count; i++) {
+      if (smokeParticles.length >= MAX_SMOKE_PARTICLES) break;
+      const d = new THREE.Mesh(smokeGeo, smokeMat.clone());
+      d.material.color.setHex(0xcab38a);
+      d.material.opacity = 0.95;
+      const a = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+      const r = 0.05 + Math.random() * 0.08;
+      d.position.set(x + Math.cos(a) * r, y + 0.04 + Math.random() * 0.03, z + Math.sin(a) * r);
+      d.userData = {
+        life: 0,
+        maxLife: 0.55 + Math.random() * 0.25,
+        maxOpacity: 0.85,
+        vy: 0.35 + Math.random() * 0.35,
+        vx: Math.cos(a) * (0.85 + Math.random() * 0.5),
+        vz: Math.sin(a) * (0.85 + Math.random() * 0.5),
+      };
+      scene.add(d);
+      smokeParticles.push(d);
+    }
+  }
+
+  function squashExistingObject(x, z) {
+    // For house clusters the visible mesh sits on the cluster anchor,
+    // not the clicked cell. Find the anchor so we squash the right
+    // mesh; for everything else the clicked cell IS the mesh cell.
+    let meshKey = x + ',' + z;
+    const cell = world[x] && world[x][z];
+    if (cell && cell.kind === 'house' && typeof findHouseCluster === 'function') {
+      const cluster = findHouseCluster(x, z);
+      if (cluster) meshKey = cluster.anchorX + ',' + cluster.anchorZ;
+    }
+    const entry = cellMeshes[meshKey];
+    if (!entry || !entry.object) return;
+    const old = entry.object;
+
+    // Detach from cellMeshes — we own the mesh from here on; setCell's
+    // renderCellObject won't try to dispose it.
+    entry.object = null;
+
+    // Remove from the opacity tick system so its baseOpacity *
+    // displayOpacity doesn't reset our fade to 1 every frame.
+    opacityRoots.delete(old);
+    // Wipe baseOpacity on every child so any stray opacity pass leaves
+    // the material alone.
+    old.traverse(o => { if (o.isMesh) o.userData.baseOpacity = undefined; });
+    // Make sure the mesh isn't still tweening downward from a drop-in.
+    old.userData.landing = false;
+
+    // Random 5–10° in 1° increments, with random sign.
+    const deg = (5 + Math.floor(Math.random() * 6)) * (Math.random() < 0.5 ? -1 : 1);
+    old.rotation.y += (deg * Math.PI) / 180;
+
+    // Capture base scale, then squash flat with a 10% XZ oversize. A
+    // tiny but visible Y so the pancake reads as a flattened remnant
+    // (0.08 of original) — totally flat looks like a missing object.
+    const baseSx = old.scale.x, baseSy = old.scale.y, baseSz = old.scale.z;
+    old.scale.set(baseSx * 1.1, Math.max(0.04, baseSy * 0.08), baseSz * 1.1);
+    // Nudge up slightly so the squashed pancake doesn't z-fight the tile top.
+    old.position.y = (old.userData.baseY || old.position.y) + 0.005;
+
+    // Make every material in the squashed mesh transparent + clone it so
+    // we can fade without affecting other instances of the same shared
+    // material. Record the base opacity so the fade preserves stylistic
+    // partial-opacity materials (water foam, etc.).
+    old.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      if (o.userData._squashCloned) return;
+      o.material = Array.isArray(o.material)
+        ? o.material.map(m => m.clone())
+        : o.material.clone();
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => {
+        m.transparent = true;
+        m.depthWrite = false;
+      });
+      o.userData._squashCloned = true;
+      o.userData._squashBaseOp = mats[0].opacity === undefined ? 1 : mats[0].opacity;
+    });
+
+    spawnDustBurst(old.position.x, old.position.y, old.position.z);
+
+    squashAnims.push({ mesh: old, t: 0, dur: 2.0 });
+  }
+
+  function tickSquashAnims(dt) {
+    if (!squashAnims.length) return;
+    for (let i = squashAnims.length - 1; i >= 0; i--) {
+      const a = squashAnims[i];
+      a.t += dt;
+      const u = Math.min(1, a.t / a.dur);
+      const fade = 1 - u;
+      a.mesh.traverse(o => {
+        if (!o.isMesh || !o.material) return;
+        const base = o.userData._squashBaseOp === undefined ? 1 : o.userData._squashBaseOp;
+        if (Array.isArray(o.material)) o.material.forEach(m => { m.opacity = base * fade; });
+        else o.material.opacity = base * fade;
+      });
+      if (u >= 1) {
+        worldGroup.remove(a.mesh);
+        a.mesh.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) {
+            if (Array.isArray(o.material)) o.material.forEach(m => m.dispose && m.dispose());
+            else if (o.material.dispose) o.material.dispose();
+          }
+        });
+        squashAnims.splice(i, 1);
+      }
+    }
+  }
+
+  // -------- voxel clouds --------
+  // Chunky clouds that drift slowly across the sky in world space, so they
+  // sit naturally over both the home grid and ghost boards. Count and speed
+  // come from the existing Clouds / Cloud-speed sliders in render settings.
+  //
+  // These are declared with var so they hoist to script-top as undefined,
+  // letting applyCloudSettings() safely no-op when it's called before this
+  // block runs (early-init order: applyCloudSettings runs at ~line 1545,
+  // this block runs much later). syncCloudPopulation guards on `clouds`.
+  var cloudGroup = new THREE.Group();
+  cloudGroup.name = 'clouds';
+  scene.add(cloudGroup);
+  var clouds = [];
+  var CLOUD_MAX = 18;
+  var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
+  var CLOUD_Z_RANGE = 18;
+
+  function makeCloud() {
+    const g = new THREE.Group();
+    const puffs = 4 + Math.floor(Math.random() * 3);
+    const big = roundedBox(1.3, 0.55, 0.95, 0.18);
+    const main = new THREE.Mesh(big, M.cloud);
+    main.position.set(0, 0, 0);
+    g.add(main);
+    for (let i = 0; i < puffs; i++) {
+      const w = 0.55 + Math.random() * 0.55;
+      const h = 0.40 + Math.random() * 0.30;
+      const d = 0.55 + Math.random() * 0.45;
+      const puff = new THREE.Mesh(roundedBox(w, h, d, 0.16), Math.random() < 0.55 ? M.cloud : M.cloudShade);
+      puff.position.set(
+        (Math.random() - 0.5) * 1.4,
+        (Math.random() - 0.3) * 0.18,
+        (Math.random() - 0.5) * 0.9
+      );
+      g.add(puff);
+    }
+    // Underside shade — a thin slab of the darker material at the base.
+    const base = new THREE.Mesh(roundedBox(1.5, 0.18, 1.05, 0.16), M.cloudShade);
+    base.position.set(0, -0.22, 0);
+    g.add(base);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    return g;
+  }
+
+  // Vertical jitter applied on top of the height slider so a band of
+  // clouds at the same setting doesn't all sit at the exact same y.
+  var CLOUD_Y_JITTER = 1.5;
+  // Permanent flatten on the Y axis — clouds read more "stretched"
+  // and sky-like than puffy at half height.
+  var CLOUD_FLATTEN = 0.5;
+
+  function spawnCloud(initial) {
+    const c = makeCloud();
+    const scale = 0.7 + Math.random() * 0.8;
+    c.scale.set(scale, scale * CLOUD_FLATTEN, scale);
+    c.position.set(
+      initial ? (Math.random() - 0.5) * CLOUD_RANGE_X * 2 : -CLOUD_RANGE_X - Math.random() * 4,
+      renderCloudHeight + (Math.random() - 0.5) * CLOUD_Y_JITTER,
+      (Math.random() - 0.5) * CLOUD_Z_RANGE
+    );
+    c.userData.driftSpeed = 0.35 + Math.random() * 0.45; // base m/s, then multiplied by renderCloudSpeed
+    c.userData.yOffset = (Math.random() - 0.5) * CLOUD_Y_JITTER;
+    cloudGroup.add(c);
+    clouds.push(c);
+    return c;
+  }
+
+  function applyCloudHeight() {
+    if (!clouds) return;
+    for (const c of clouds) {
+      const off = c.userData.yOffset || 0;
+      c.position.y = renderCloudHeight + off;
+    }
+  }
+
+  function syncCloudPopulation() {
+    // Bail when called before the cloud block has run — `clouds` is
+    // hoisted as `undefined` until then.
+    if (!clouds) return;
+    const target = Math.round(Math.max(0, Math.min(1, renderCloudAmount)) * CLOUD_MAX);
+    while (clouds.length > target) {
+      const c = clouds.pop();
+      cloudGroup.remove(c);
+      c.traverse(o => o.geometry && o.geometry.dispose());
+    }
+    while (clouds.length < target) {
+      spawnCloud(true);
+    }
+  }
+
+  function updateClouds(dt) {
+    if (!clouds || !clouds.length) return;
+    const baseSpeed = renderCloudSpeed * 2.4; // 0 → 2.4 m/s scalar
+    if (baseSpeed <= 0.0001) return;
+    for (const c of clouds) {
+      c.position.x += c.userData.driftSpeed * baseSpeed * dt;
+      if (c.position.x > CLOUD_RANGE_X) {
+        c.position.x = -CLOUD_RANGE_X - Math.random() * 2;
+        c.position.z = (Math.random() - 0.5) * CLOUD_Z_RANGE;
+        c.userData.yOffset = (Math.random() - 0.5) * CLOUD_Y_JITTER;
+        c.position.y = renderCloudHeight + c.userData.yOffset;
+      }
+    }
+  }
+
+  syncCloudPopulation();
 
   // -------- animation loop --------
   let prevT = 0;
@@ -5642,6 +6420,9 @@
     if (dropAnims.length) tickDropAnims(dt);
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
+    tickSquashAnims(dt);
+    if (rippleAnims.length) tickRippleAnims(dt);
+    updateClouds(dt);
 
     // sway trees / bob crops / wiggle tufts
     for (const key in cellMeshes) {
@@ -6394,12 +7175,12 @@
       // Accept either tuple form [x,z,terrain,kind,floors,buildingType,terrainFloors,fenceSide]
       // (storage / export) or object form {x,z,terrain,kind,floors,buildingType,terrainFloors,fenceSide}
       // (canonical schema, AI generation output).
-      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide;
+      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras;
       if (Array.isArray(entry)) {
         if (entry.length < 4) continue;
-        [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide] = entry;
+        [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras] = entry;
       } else if (entry && typeof entry === 'object') {
-        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide } = entry);
+        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras } = entry);
       } else {
         continue;
       }
@@ -6408,6 +7189,13 @@
       const normalizedKind = kind || null;
       const normalizedFloors = floors || 1;
       const normalizedTerrainFloors = terrainFloors || (data.v === 3 ? 1 : (normalizedKind ? 1 : normalizedFloors));
+      const normalizedExtras = Array.isArray(extras)
+        ? extras.map(e => ({
+            kind: e.kind || e.k || null,
+            fenceSide: (e.fenceSide || e.s) ? normalizeFenceSide(e.fenceSide || e.s) : null,
+            floors: e.floors || e.f || 1,
+          })).filter(e => e.kind === 'fence' || e.kind === 'tuft')
+        : [];
       overrides.set(x + ',' + z, {
         terrain: terrain || 'grass',
         terrainFloors: normalizedTerrainFloors,
@@ -6415,6 +7203,7 @@
         floors: normalizedFloors,
         buildingType: buildingType || null,
         fenceSide: normalizedKind === 'fence' ? normalizeFenceSide(fenceSide) : null,
+        extras: normalizedExtras,
       });
     }
 
@@ -6430,6 +7219,7 @@
           floors:  o ? o.floors  : 1,
           buildingType: o ? o.buildingType : null,
           fenceSide: o ? o.fenceSide : null,
+          extras:  o ? o.extras  : [],
           tileDelay:   i * TILE_STAGGER,
           objectDelay: i * TILE_STAGGER + 0.04,
           forceTile: true,
