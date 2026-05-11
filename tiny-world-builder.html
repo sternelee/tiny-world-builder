@@ -1913,14 +1913,6 @@
       g.add(m);
     });
 
-    const talus = new THREE.Mesh(
-      roundedBox((n.e || n.w ? 0.76 : 0.48) * grow, 0.09 + extra * 0.015, (n.n || n.s ? 0.76 : 0.48) * grow, 0.035),
-      M.rockDk
-    );
-    talus.position.set(jitter(14) * 0.04, 0.04 + extra * 0.007, jitter(15) * 0.04);
-    talus.rotation.y = (links >= 2 && ((n.e && n.w) || (n.n && n.s)) ? 0.02 : 0.18) + jitter(16) * 0.5;
-    g.add(talus);
-
     function sideLevel(dir) {
       return typeof n[dir] === 'number' ? n[dir] : (n[dir] ? 1 : 0);
     }
