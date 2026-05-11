@@ -5160,8 +5160,12 @@
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: newLevel, fenceSide: side });
         return;
       }
-      const terrainForFence = cell.terrain === 'water' ? 'grass' : cell.terrain;
-      setCell(x, z, { terrain: terrainForFence, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: 1, fenceSide: side });
+      // Rocks and fences are placed on existing tiles — keep the
+      // underlying terrain. If something was already on the tile,
+      // squash it (see squashExistingObject) instead of silently
+      // replacing it.
+      if (cell.kind && cell.kind !== 'fence') squashExistingObject(x, z);
+      setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: 1, fenceSide: side });
       return;
     }
     if (selectedTool.kind) {
@@ -5169,6 +5173,13 @@
         const newLevel = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
         if (newLevel === (cell.floors || 1)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
+        return;
+      }
+      // Rocks sit on whatever tile already exists — keep the underlying
+      // terrain even on water — and squash any existing object on top.
+      if (selectedTool.kind === 'rock') {
+        if (cell.kind && cell.kind !== 'rock') squashExistingObject(x, z);
+        setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'rock', floors: 1 });
         return;
       }
       let newTerrain = selectedTool.terrainOverride || cell.terrain;
@@ -5797,13 +5808,118 @@
       s.position.y += s.userData.vy * dt;
       s.position.x += s.userData.vx * dt;
       s.position.z += s.userData.vz * dt;
-      s.material.opacity = (1 - t) * 0.65;
+      s.material.opacity = (s.userData.maxOpacity !== undefined ? s.userData.maxOpacity : 0.65) * (1 - t);
       const sc = 1 + t * 1.4;
       s.scale.set(sc, sc, sc);
       if (t >= 1) {
         scene.remove(s);
         s.material.dispose();
         smokeParticles.splice(i, 1);
+      }
+    }
+  }
+
+  // -------- squash-on-place dust + fade --------
+  // When the user drops a rock or fence onto a tile that already has an
+  // object on it, we don't silently swap meshes. Instead we:
+  //  1. Detach the existing object mesh from cellMeshes (so setCell won't
+  //     dispose it) and leave it parented to worldGroup.
+  //  2. Snap it flat (scale.y → ~0), oversize XZ by 10%, and rotate
+  //     5–10° (1° increments, random sign) on the y axis.
+  //  3. Burst a quick dust ring out of the impact point.
+  //  4. Fade the squashed remnant out over 2 s and dispose it.
+  // The new rock/fence drops in on top during step 1/2 via setCell's
+  // existing drop-in animation.
+  const squashAnims = [];
+  function spawnDustBurst(x, y, z) {
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      if (smokeParticles.length >= MAX_SMOKE_PARTICLES) break;
+      const d = new THREE.Mesh(smokeGeo, smokeMat.clone());
+      d.material.color.setHex(0xcab38a);
+      d.material.opacity = 0.95;
+      const a = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+      const r = 0.05 + Math.random() * 0.08;
+      d.position.set(x + Math.cos(a) * r, y + 0.04 + Math.random() * 0.03, z + Math.sin(a) * r);
+      d.userData = {
+        life: 0,
+        maxLife: 0.55 + Math.random() * 0.25,
+        maxOpacity: 0.85,
+        vy: 0.35 + Math.random() * 0.35,
+        vx: Math.cos(a) * (0.85 + Math.random() * 0.5),
+        vz: Math.sin(a) * (0.85 + Math.random() * 0.5),
+      };
+      scene.add(d);
+      smokeParticles.push(d);
+    }
+  }
+
+  function squashExistingObject(x, z) {
+    const key = x + ',' + z;
+    const entry = cellMeshes[key];
+    if (!entry || !entry.object) return;
+    const old = entry.object;
+    // Detach from cellMeshes — we own the mesh from here on; setCell's
+    // renderCellObject won't try to dispose it.
+    entry.object = null;
+
+    // Random 5–10° in 1° increments, with random sign.
+    const deg = (5 + Math.floor(Math.random() * 6)) * (Math.random() < 0.5 ? -1 : 1);
+    old.rotation.y += (deg * Math.PI) / 180;
+
+    // Capture base scale, then squash flat with a 10% XZ oversize.
+    const baseSx = old.scale.x, baseSy = old.scale.y, baseSz = old.scale.z;
+    old.scale.set(baseSx * 1.1, Math.max(0.005, baseSy * 0.02), baseSz * 1.1);
+    // Nudge up slightly so the squashed pancake doesn't z-fight the tile top.
+    old.position.y = (old.userData.baseY || old.position.y) + 0.005;
+
+    // Make every material in the squashed mesh transparent + clone it so
+    // we can fade without affecting other instances of the same shared
+    // material. Record the base opacity so the fade preserves stylistic
+    // partial-opacity materials (water foam, etc.).
+    old.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      if (o.userData._squashCloned) return;
+      o.material = Array.isArray(o.material)
+        ? o.material.map(m => m.clone())
+        : o.material.clone();
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => {
+        m.transparent = true;
+        m.depthWrite = false;
+      });
+      o.userData._squashCloned = true;
+      o.userData._squashBaseOp = mats[0].opacity === undefined ? 1 : mats[0].opacity;
+    });
+
+    spawnDustBurst(old.position.x, old.position.y, old.position.z);
+
+    squashAnims.push({ mesh: old, t: 0, dur: 2.0 });
+  }
+
+  function tickSquashAnims(dt) {
+    if (!squashAnims.length) return;
+    for (let i = squashAnims.length - 1; i >= 0; i--) {
+      const a = squashAnims[i];
+      a.t += dt;
+      const u = Math.min(1, a.t / a.dur);
+      const fade = 1 - u;
+      a.mesh.traverse(o => {
+        if (!o.isMesh || !o.material) return;
+        const base = o.userData._squashBaseOp === undefined ? 1 : o.userData._squashBaseOp;
+        if (Array.isArray(o.material)) o.material.forEach(m => { m.opacity = base * fade; });
+        else o.material.opacity = base * fade;
+      });
+      if (u >= 1) {
+        worldGroup.remove(a.mesh);
+        a.mesh.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) {
+            if (Array.isArray(o.material)) o.material.forEach(m => m.dispose && m.dispose());
+            else if (o.material.dispose) o.material.dispose();
+          }
+        });
+        squashAnims.splice(i, 1);
       }
     }
   }
@@ -5928,6 +6044,7 @@
     if (dropAnims.length) tickDropAnims(dt);
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
+    tickSquashAnims(dt);
     updateClouds(dt);
 
     // sway trees / bob crops / wiggle tufts
