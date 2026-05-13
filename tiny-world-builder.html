@@ -2854,16 +2854,16 @@
     </div>
     <label class="time-row">
       <span class="time-row-label">Weather intensity</span>
-      <input id="weather-intensity" type="range" min="25" max="100" step="5" value="25" />
+      <input id="weather-intensity" type="range" min="25" max="300" step="5" value="25" />
       <span class="time-row-val" id="weather-intensity-readout">25%</span>
     </label>
     <label class="time-row">
       <span class="time-row-label">Splashes / buildup</span>
-      <input id="weather-splashes" type="range" min="0" max="100" step="5" value="100" />
-      <span class="time-row-val" id="weather-splashes-readout">100%</span>
+      <input id="weather-splashes" type="range" min="0" max="300" step="5" value="150" />
+      <span class="time-row-val" id="weather-splashes-readout">150%</span>
     </label>
     <div class="time-foot">
-      <em>Intensity controls falling particles; splashes controls rain impacts and snow buildup.</em>
+      <em>Intensity controls falling particles and storm severity; splashes controls rain impacts, puddles, and snow buildup.</em>
     </div>
   </div>
 
@@ -11348,14 +11348,14 @@
   const WEATHER_INTENSITY_LS = 'tinyworld:weather-intensity.v2';
   const WEATHER_SPLASHES_LS = 'tinyworld:weather-splashes.v1';
   let weatherMode = 'clear';
-  let weatherIntensity = storedNumber(WEATHER_INTENSITY_LS, 0.25, 0.25, 1);
-  let weatherSplashIntensity = storedNumber(WEATHER_SPLASHES_LS, 1, 0, 1);
+  let weatherIntensity = storedNumber(WEATHER_INTENSITY_LS, 0.25, 0.25, 3);
+  let weatherSplashIntensity = storedNumber(WEATHER_SPLASHES_LS, 1.5, 0, 3);
   function weatherHeavyFactor() {
-    return Math.max(0, Math.min(1, (weatherIntensity - 0.25) / 0.75));
+    return Math.max(0, Math.min(3.6, (weatherIntensity - 0.25) / 0.75));
   }
   function weatherEffectFactor() {
     const heavy = weatherHeavyFactor();
-    return weatherMode === 'storm' ? Math.max(0.82, heavy) : heavy;
+    return weatherMode === 'storm' ? Math.max(1.8, heavy) : heavy;
   }
   function weatherScaledCount(light, heavy) {
     const k = weatherEffectFactor();
@@ -11460,9 +11460,10 @@
 
   function applyWeatherSplashOpacity() {
     const heavy = weatherEffectFactor();
-    if (rainSplash && rainSplash.material) rainSplash.material.opacity = (0.46 + 0.40 * heavy) * weatherSplashIntensity;
-    if (rainSurface && rainSurface.material) rainSurface.material.opacity = (0.18 + 0.28 * heavy) * weatherSplashIntensity;
-    if (snowSurface && snowSurface.material) snowSurface.material.opacity = (0.26 + 0.32 * heavy) * weatherSplashIntensity;
+    const splash = Math.max(0, Math.min(3, weatherSplashIntensity));
+    if (rainSplash && rainSplash.material) rainSplash.material.opacity = Math.min(1, (0.55 + 0.28 * heavy) * splash);
+    if (rainSurface && rainSurface.material) rainSurface.material.opacity = Math.min(0.95, (0.24 + 0.20 * heavy) * splash);
+    if (snowSurface && snowSurface.material) snowSurface.material.opacity = Math.min(1, (0.34 + 0.20 * heavy) * splash);
   }
 
   function makeWeatherBuildPool(count, { color, size, opacity, shape = 'square' }) {
@@ -11504,7 +11505,7 @@
   applyWeatherSplashOpacity();
 
   function emitSplash(pool, x, y, z) {
-    if (weatherSplashIntensity <= 0 || Math.random() > weatherSplashIntensity) return;
+    if (weatherSplashIntensity <= 0 || Math.random() > Math.min(1, weatherSplashIntensity)) return;
     const u = pool.userData;
     const i = u.head;
     u.head = (i + 1) % u.lives.length;
@@ -11536,14 +11537,16 @@
 
   function emitRainSurface(x, y, z) {
     const heavy = weatherEffectFactor();
-    const chance = weatherSplashIntensity * (0.24 + heavy * 0.76);
-    emitWeatherBuildSurface(rainSurface, x, y, z, chance, 0.52 + heavy * 0.12, 1.05 + heavy * 0.55);
+    const splash = Math.max(0, Math.min(3, weatherSplashIntensity));
+    const chance = Math.min(1, splash * (0.34 + heavy * 0.34));
+    emitWeatherBuildSurface(rainSurface, x, y, z, chance, 0.58 + heavy * 0.12, 1.20 + heavy * 0.42);
   }
 
   function emitSnowSurface(x, y, z) {
     const heavy = weatherHeavyFactor();
-    const chance = weatherSplashIntensity * (0.44 + heavy * 0.56);
-    emitWeatherBuildSurface(snowSurface, x, y, z, chance, 0.50 + heavy * 0.20, 0.95 + heavy * 0.55);
+    const splash = Math.max(0, Math.min(3, weatherSplashIntensity));
+    const chance = Math.min(1, splash * (0.58 + heavy * 0.22));
+    emitWeatherBuildSurface(snowSurface, x, y, z, chance, 0.58 + heavy * 0.18, 1.05 + heavy * 0.42);
   }
 
   function tickSplashes(pool, dt) {
@@ -11642,27 +11645,51 @@
     mesh.instanceMatrix.needsUpdate = true;
   }
 
+  function seedWeatherSurfaceMarks(mode, burst = 1) {
+    if (weatherSplashIntensity <= 0 || (mode !== 'rain' && mode !== 'storm' && mode !== 'snow')) return;
+    const heavy = weatherEffectFactor();
+    const count = Math.round((mode === 'storm' ? 220 : mode === 'snow' ? 150 : 95) * Math.max(0.7, Math.min(2.2, weatherSplashIntensity)) * burst);
+    let placed = 0;
+    for (let attempt = 0; attempt < count * 5 && placed < count; attempt++) {
+      const x = target.x + (Math.random() - 0.5) * WEATHER_VOLUME * 1.55;
+      const z = target.z + (Math.random() - 0.5) * WEATHER_VOLUME * 1.55;
+      const y = weatherSurfaceAt(x, z);
+      if (y === null) continue;
+      if (mode === 'snow') {
+        emitWeatherBuildSurface(snowSurface, x, y, z, 1, 0.62 + heavy * 0.16, 1.16 + heavy * 0.34);
+      } else {
+        if (placed % 2 === 0) emitSplash(rainSplash, x, y, z);
+        emitWeatherBuildSurface(rainSurface, x, y, z, 1, 0.64 + heavy * 0.10, 1.30 + heavy * 0.36);
+      }
+      placed++;
+    }
+  }
+
   function setWeatherMode(mode) {
+    const previous = weatherMode;
     weatherMode = mode;
     tileWeatherMode = mode === 'storm' ? 'rain' : mode;
     applyWeatherMaterialTint();
     updateWeatherTileEffects();
     const heavy = weatherEffectFactor();
-    if (rainMat) rainMat.opacity = 0.32 + 0.36 * heavy;
-    if (snowMat) snowMat.opacity = 0.75 + 0.20 * heavy;
-    setPrecipActive(rainMesh, (mode === 'rain' || mode === 'storm') ? weatherScaledCount(120, 700) : 0);
-    setPrecipActive(snowMesh, mode === 'snow' ? weatherScaledCount(70, 520) : 0);
+    if (rainMat) rainMat.opacity = Math.min(1, 0.38 + 0.24 * heavy);
+    if (snowMat) snowMat.opacity = Math.min(1, 0.78 + 0.12 * heavy);
+    setPrecipActive(rainMesh, (mode === 'rain' || mode === 'storm') ? weatherScaledCount(180, 700) : 0);
+    setPrecipActive(snowMesh, mode === 'snow' ? weatherScaledCount(120, 520) : 0);
+    if (mode !== previous && (mode === 'rain' || mode === 'storm' || mode === 'snow')) seedWeatherSurfaceMarks(mode, 1);
   }
   function setWeatherIntensity(value) {
-    weatherIntensity = Math.max(0.25, Math.min(1, Number.isFinite(value) ? value : 0.25));
+    weatherIntensity = Math.max(0.25, Math.min(3, Number.isFinite(value) ? value : 0.25));
     applyWeatherTileOpacity();
     applyWeatherSplashOpacity();
     applyWeatherMaterialTint();
     setWeatherMode(weatherMode);
+    if (weatherMode === 'storm' || weatherIntensity > 1) seedWeatherSurfaceMarks(weatherMode, 0.35);
   }
   function setWeatherSplashIntensity(value) {
-    weatherSplashIntensity = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
+    weatherSplashIntensity = Math.max(0, Math.min(3, Number.isFinite(value) ? value : 1.5));
     applyWeatherSplashOpacity();
+    seedWeatherSurfaceMarks(weatherMode, 0.35);
   }
   // Watch body class for weather changes — this is the integration with
   // the existing time-weather popup which writes body.weather-* classes.
@@ -16304,7 +16331,7 @@
           if (!p) return;
           weather = p.getAttribute('data-weather');
           if (weather === 'storm' && typeof setWeatherIntensity === 'function') {
-            setWeatherIntensity(1);
+            setWeatherIntensity(3);
           }
           if (weather === 'snow' && season !== 'winter') {
             season = 'winter';
@@ -16319,7 +16346,7 @@
       }
       if (intensityRange) {
         intensityRange.addEventListener('input', () => {
-          const value = Math.max(25, Math.min(100, parseInt(intensityRange.value, 10) || 25));
+          const value = Math.max(25, Math.min(300, parseInt(intensityRange.value, 10) || 25));
           if (typeof setWeatherIntensity === 'function') setWeatherIntensity(value / 100);
           applyWeather(weather);
           paintReadout();
@@ -16328,7 +16355,7 @@
       }
       if (splashesRange) {
         splashesRange.addEventListener('input', () => {
-          const value = Math.max(0, Math.min(100, parseInt(splashesRange.value, 10) || 0));
+          const value = Math.max(0, Math.min(300, parseInt(splashesRange.value, 10) || 0));
           if (typeof setWeatherSplashIntensity === 'function') setWeatherSplashIntensity(value / 100);
           paintReadout();
           try { localStorage.setItem(WEATHER_SPLASHES_LS, weatherSplashIntensity.toFixed(2)); } catch (_) {}
