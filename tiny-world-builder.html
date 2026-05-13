@@ -11552,7 +11552,7 @@
     for (let i = 0; i < count; i++) mesh.setMatrixAt(i, zero);
     mesh.instanceMatrix.needsUpdate = true;
     mesh.userData = {
-      lives, xs, ys, zs, head: 0, lifeMax: life,
+      lives, xs, ys, zs, head: 0, lifeMax: life, decalRadius: size * 0.62,
       _m: new THREE.Matrix4(),
       _p: new THREE.Vector3(),
       _q: new THREE.Quaternion(),
@@ -11593,7 +11593,7 @@
     mesh.count = 0;
     mesh.instanceMatrix.needsUpdate = true;
     mesh.userData = {
-      head: 0, visibleCount: 0, maxCount: count,
+      head: 0, visibleCount: 0, maxCount: count, baseHalfSize: size * 0.5,
       _m: new THREE.Matrix4(),
       _p: new THREE.Vector3(),
       _q: new THREE.Quaternion(),
@@ -11611,15 +11611,28 @@
   scene.add(snowSurface);
   applyWeatherSplashOpacity();
 
+  function clampWeatherDecalToCell(x, z, radius) {
+    const gx = Math.floor(x + GRID / 2);
+    const gz = Math.floor(z + GRID / 2);
+    const minX = gx - GRID / 2;
+    const minZ = gz - GRID / 2;
+    const margin = Math.max(0.12, Math.min(0.34, radius + 0.035));
+    return {
+      x: Math.max(minX + margin, Math.min(minX + 1 - margin, x)),
+      z: Math.max(minZ + margin, Math.min(minZ + 1 - margin, z)),
+    };
+  }
+
   function emitSplash(pool, x, y, z) {
     if (weatherSplashIntensity <= 0 || Math.random() > Math.min(1, weatherSplashIntensity)) return;
     const u = pool.userData;
+    const p = clampWeatherDecalToCell(x, z, u.decalRadius || 0.24);
     const i = u.head;
     u.head = (i + 1) % u.lives.length;
     u.lives[i] = 0;
-    u.xs[i] = x;
+    u.xs[i] = p.x;
     u.ys[i] = y;
-    u.zs[i] = z;
+    u.zs[i] = p.z;
     pool.visible = true;
   }
 
@@ -11629,12 +11642,15 @@
     const i = u.head;
     u.head = (i + 1) % u.maxCount;
     u.visibleCount = Math.min(u.maxCount, u.visibleCount + 1);
-    const jitterX = (Math.random() - 0.5) * 0.18;
-    const jitterZ = (Math.random() - 0.5) * 0.18;
-    const size = minSize + Math.random() * (maxSize - minSize);
-    u._p.set(x + jitterX, y + WEATHER_DECAL_LIFT, z + jitterZ);
+    const jitterX = (Math.random() - 0.5) * 0.12;
+    const jitterZ = (Math.random() - 0.5) * 0.12;
+    const size = Math.min(1.28, minSize + Math.random() * (maxSize - minSize));
+    const aspect = 0.75 + Math.random() * 0.30;
+    const radius = (u.baseHalfSize || 0.24) * Math.max(size, size * aspect);
+    const p = clampWeatherDecalToCell(x + jitterX, z + jitterZ, radius);
+    u._p.set(p.x, y + WEATHER_DECAL_LIFT, p.z);
     u._q.setFromAxisAngle(u._axis, Math.random() * Math.PI * 2);
-    u._s.set(size, 1, size * (0.75 + Math.random() * 0.35));
+    u._s.set(size, 1, size * aspect);
     u._m.compose(u._p, u._q, u._s);
     pool.setMatrixAt(i, u._m);
     pool.count = u.visibleCount;
