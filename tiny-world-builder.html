@@ -2626,8 +2626,14 @@
   // the home area and rebuilds them in full colour.
   const HOME_GRID_DEFAULT = 8;
   const HOME_GRID_MIN = 8;
-  const HOME_GRID_MAX = 20;
-  const HOME_GRID_OPTIONS = [8, 12, 16, 20];
+  // Expanded grid options so users can produce OWB-scale worlds.  32+
+  // uses the same per-cell renderer (no instancing) so it taxes the
+  // GPU on weak machines — the low-fps DPR backoff in the animate
+  // loop and the resolution-scale slider in Settings are the safety
+  // valves.  HOME_GRID_MAX bumps with the option list so the
+  // world[][] pre-allocation still covers every reachable cell.
+  const HOME_GRID_MAX = 48;
+  const HOME_GRID_OPTIONS = [8, 12, 16, 20, 32, 48];
   let GRID = HOME_GRID_DEFAULT;
   try {
     const stored = parseInt(localStorage.getItem('tinyworld:home-grid') || '', 10);
@@ -11146,30 +11152,95 @@
   function generateProceduralWorld({ seed, biomes, elevation }) {
     const size = GRID;
     const rng = makeMulberry32(seed || randomSeed());
-    function noiseField() {
-      const f = [];
-      for (let x = 0; x < size; x++) {
-        f[x] = [];
-        for (let z = 0; z < size; z++) f[x][z] = rng();
-      }
-      // One 4-neighbour smoothing pass — keeps the noise from looking
-      // like static and produces small blobs.
-      const out = [];
-      for (let x = 0; x < size; x++) {
-        out[x] = [];
-        for (let z = 0; z < size; z++) {
-          let sum = f[x][z], n = 1;
-          if (x > 0)        { sum += f[x-1][z]; n++; }
-          if (x < size - 1) { sum += f[x+1][z]; n++; }
-          if (z > 0)        { sum += f[x][z-1]; n++; }
-          if (z < size - 1) { sum += f[x][z+1]; n++; }
-          out[x][z] = sum / n;
-        }
-      }
-      return out;
+
+    // ---- fbm value noise (OWB-style coherent terrain) ----------------
+    // Each octave is a low-frequency value-noise lattice; we accumulate
+    // them with halving amplitude so the result is smooth large
+    // features + small detail — the same recipe OWB uses for its
+    // heightmap.  All sampling goes through the seeded `rng` so the
+    // result is deterministic per seed.
+    function makeValueLayer(cellsAcross) {
+      const grid = new Float32Array((cellsAcross + 1) * (cellsAcross + 1));
+      for (let i = 0; i < grid.length; i++) grid[i] = rng();
+      return { grid, cellsAcross };
     }
-    const terrainNoise = noiseField();
-    const elevNoise = noiseField();
+    function smoothstep(t) { return t * t * (3 - 2 * t); }
+    function sampleLayer(layer, u, v) {
+      // u, v in [0..1] map to lattice coords
+      const x = u * layer.cellsAcross;
+      const z = v * layer.cellsAcross;
+      const x0 = Math.floor(x), z0 = Math.floor(z);
+      const x1 = Math.min(layer.cellsAcross, x0 + 1);
+      const z1 = Math.min(layer.cellsAcross, z0 + 1);
+      const tx = smoothstep(x - x0);
+      const tz = smoothstep(z - z0);
+      const w = layer.cellsAcross + 1;
+      const a = layer.grid[x0 + z0 * w];
+      const b = layer.grid[x1 + z0 * w];
+      const c = layer.grid[x0 + z1 * w];
+      const d = layer.grid[x1 + z1 * w];
+      return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+    }
+    function fbm(octaves, baseCells, persistence) {
+      const layers = [];
+      let cells = baseCells;
+      for (let o = 0; o < octaves; o++) {
+        layers.push(makeValueLayer(cells));
+        cells = Math.max(2, Math.floor(cells * 2));
+      }
+      return (u, v) => {
+        let total = 0, amp = 1, sum = 0;
+        for (let o = 0; o < octaves; o++) {
+          total += sampleLayer(layers[o], u, v) * amp;
+          sum += amp;
+          amp *= persistence;
+        }
+        return total / sum;
+      };
+    }
+
+    // Three fields: heightmap (terrain shape), moisture (biome tint),
+    // and decoration noise (where to scatter trees/flowers).
+    const baseCells = Math.max(2, Math.floor(size / 6));
+    const heightFn = fbm(4, baseCells, 0.55);
+    const moistFn  = fbm(3, baseCells, 0.6);
+    const decoFn   = fbm(2, Math.max(3, baseCells), 0.5);
+
+    // ---- island falloff: drop heights at the edges so the world
+    //      naturally rims with water like OWB.  Strength scales with
+    //      the user-chosen water % — more water = sharper rim.
+    const waterPct = Math.max(0, Math.min(80, Number(biomes.water) || 10));
+    const rimStrength = 0.45 + waterPct * 0.012; // ~0.55 at 10% water, up to ~1.4 at 80%
+    function islandShape(x, z) {
+      const cx = (size - 1) / 2;
+      const cz = (size - 1) / 2;
+      const dx = (x - cx) / cx;
+      const dz = (z - cz) / cz;
+      // Squared distance in [0..2]; raise to a power for a softer plateau.
+      const d2 = (dx * dx + dz * dz) / 2;
+      return 1 - Math.pow(d2, 1.4) * rimStrength;
+    }
+
+    const heightField = [];
+    const moistField  = [];
+    const decoField   = [];
+    for (let x = 0; x < size; x++) {
+      heightField[x] = [];
+      moistField[x]  = [];
+      decoField[x]   = [];
+      for (let z = 0; z < size; z++) {
+        const u = x / (size - 1);
+        const v = z / (size - 1);
+        const h = heightFn(u, v) * islandShape(x, z);
+        heightField[x][z] = h;
+        moistField[x][z]  = moistFn(u, v);
+        decoField[x][z]   = decoFn(u, v);
+      }
+    }
+    // Backwards-compat shims for older code below that referenced
+    // terrainNoise/elevNoise lookups.
+    const terrainNoise = moistField;
+    const elevNoise    = heightField;
 
     // Flatten + sort to bucket cells.
     const cellList = [];
