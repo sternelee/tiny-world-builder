@@ -21,7 +21,6 @@ Outputs:
   dist/README.md
   dist/LICENSE
   dist/assets/*                   Screenshots/assets
-  dist/cluso/*                    Optional Cluso annotation embed
   dist/vendor/*                   Self-hosted runtime libraries
   dist/sounds/*.mp3               Music + foley used by the app
   dist/.nojekyll                  GitHub Pages compatibility
@@ -62,16 +61,8 @@ for img in tinyworld-*.png plane-*.jpg perf-after.jpg; do
   cp "$img" "$DIST/assets/$img"
 done
 
-# Optional annotation embed referenced by cluso/<file> tags in the HTML.
-if [[ -d cluso ]]; then
-  mkdir -p "$DIST/cluso"
-  (cd cluso && find . -type f ! -name '.DS_Store' -exec sh -c '
-    for f do
-      mkdir -p "../dist/cluso/$(dirname "$f")"
-      cp "$f" "../dist/cluso/$f"
-    done
-  ' sh {} +)
-fi
+# Dev-only feedback tooling under cluso/ is intentionally not copied into dist.
+# Production hosts must never load or display Cluso.
 
 # Self-hosted runtime libraries referenced by vendor/<file> tags in the HTML.
 if [[ -d vendor ]]; then

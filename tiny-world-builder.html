@@ -2730,19 +2730,36 @@
     .tool kbd { display: none; }
   }
 </style>
-<link rel="stylesheet" href="cluso/cluso-embed.css">
 <script type="text/javascript">
-  window.__CLUSO_EMBEDDED_CONFIG__ = {
-    defaultActive: false,
-    showToolbar: true,
-    hideCollapsedToolbar: false,
-    visibleControls: {
-      pause: true, markers: true, copy: true, send: true,
-      clear: true, settings: true, inspector: true, exit: true
-    }
-  };
+  // Cluso is a local feedback tool only. Production hosts must not load or
+  // display it, even when the optional cluso/ files exist in a dev checkout.
+  (function () {
+    const host = window.location.hostname;
+    const isLocal = window.location.protocol === 'file:'
+      || host === 'localhost'
+      || host === '127.0.0.1'
+      || host === '[::1]'
+      || host.endsWith('.local');
+    if (!isLocal) return;
+    window.__CLUSO_EMBEDDED_CONFIG__ = {
+      defaultActive: false,
+      showToolbar: true,
+      hideCollapsedToolbar: false,
+      visibleControls: {
+        pause: true, markers: true, copy: true, send: true,
+        clear: true, settings: true, inspector: true, exit: true
+      }
+    };
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = 'cluso/cluso-embed.css';
+    document.head.appendChild(style);
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = 'cluso/cluso-embed.js';
+    document.head.appendChild(script);
+  }());
 </script>
-<script type="module" src="cluso/cluso-embed.js"></script>
 </head>
 <body>
   <div id="app"></div>
