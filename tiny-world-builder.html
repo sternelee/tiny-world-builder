@@ -850,6 +850,34 @@
     .agent-panel { width: min(360px, calc(100vw - 28px)); }
   }
 
+  .generation-plan-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+  }
+  .generation-plan-overlay.visible {
+    opacity: 1;
+  }
+  .generation-plan-overlay[hidden] {
+    display: none;
+  }
+  .generation-plan-overlay img {
+    width: min(68vmin, 720px);
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 18px;
+    opacity: 0.48;
+    mix-blend-mode: multiply;
+    filter: saturate(1.12) contrast(1.08);
+    box-shadow: 0 16px 60px -28px rgba(38, 30, 16, 0.45);
+  }
+
   /* -------- generate modal -------- */
   .modal {
     position: fixed; inset: 0;
@@ -2694,6 +2722,10 @@
       <button type="button" class="agent-panel-toggle" id="agent-panel-toggle">Expand</button>
     </div>
     <div class="agent-messages" id="agent-messages"></div>
+  </div>
+
+  <div id="generation-plan-overlay" class="generation-plan-overlay" hidden aria-hidden="true">
+    <img id="generation-plan-image" alt="" />
   </div>
 
   <form id="agent-input" class="agent-input" autocomplete="off">
@@ -10972,6 +11004,15 @@
   };
   let openGenerateModal = null;
 
+  function isImageOnlyModel(model) {
+    return /^gpt-image(?:-|$)/i.test(String(model || '').trim());
+  }
+
+  function textModelForGeneration(provider, model) {
+    const def = AI_DEFAULTS[provider] || AI_DEFAULTS.openai;
+    return isImageOnlyModel(model) ? def.model : (model || def.model);
+  }
+
   const AUTO_ACTION_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -11101,9 +11142,12 @@
     const def = AI_DEFAULTS[provider];
     const models = def.models || [def.model];
     const storedModel = localStorage.getItem(AI_LS.model(provider));
+    const model = isImageOnlyModel(storedModel)
+      ? def.model
+      : (models.includes(storedModel) ? storedModel : def.model);
     return {
       provider,
-      model: models.includes(storedModel) ? storedModel : def.model,
+      model,
       key: localStorage.getItem(AI_LS.key(provider)) || '',
     };
   }
@@ -11974,10 +12018,57 @@
       statusEl.className = kind || '';
     }
 
+    function showPlanOverlay(url) {
+      const overlay = document.getElementById('generation-plan-overlay');
+      const img = document.getElementById('generation-plan-image');
+      if (!overlay || !img || !url) return;
+      img.src = url;
+      overlay.hidden = false;
+      requestAnimationFrame(() => overlay.classList.add('visible'));
+    }
+
+    function hidePlanOverlay() {
+      const overlay = document.getElementById('generation-plan-overlay');
+      const img = document.getElementById('generation-plan-image');
+      if (!overlay || !img) return;
+      overlay.classList.remove('visible');
+      setTimeout(() => {
+        overlay.hidden = true;
+        img.removeAttribute('src');
+      }, 220);
+    }
+
+    function generationProgress(prompt) {
+      const agent = window.__tinyworldAgent;
+      if (!agent) {
+        return {
+          say() {},
+          update() {},
+          error() {},
+        };
+      }
+      agent.open();
+      agent.add('user', 'Generate: ' + prompt);
+      let current = agent.add('assistant', 'Starting generation…');
+      return {
+        say(text) {
+          current = agent.add('assistant', text);
+          return current;
+        },
+        update(text) {
+          agent.update(current, text);
+        },
+        error(text) {
+          agent.update(current, text, 'error');
+        },
+      };
+    }
+
     function populateModelOptions(provider, selectedModel) {
       const def = AI_DEFAULTS[provider] || AI_DEFAULTS.openai;
       const models = def.models || [def.model];
-      const stored = selectedModel || localStorage.getItem(AI_LS.model(provider)) || def.model;
+      const requested = selectedModel || localStorage.getItem(AI_LS.model(provider)) || def.model;
+      const stored = isImageOnlyModel(requested) ? def.model : requested;
       // Suggestions go into the datalist; the input itself stays a free
       // text field so the user can type any model their key has access
       // to (newer than our suggestion list included).
@@ -12066,7 +12157,7 @@
     goBtn.addEventListener('click', async () => {
       const promptRaw = promptEl.value.trim();
       const provider = providerEl.value;
-      const model = modelEl.value.trim();
+      const model = textModelForGeneration(provider, modelEl.value.trim());
       const key = keyEl.value.trim();
       const seed = (seedEl && seedEl.value.trim()) || '';
       const biomes = { ...biomeState };
@@ -12099,6 +12190,9 @@
 
       if (!promptRaw) { setStatus('enter a prompt', 'error'); return; }
       if (!key)       { setStatus('enter an API key', 'error'); return; }
+      const progress = generationProgress(promptRaw);
+      close();
+      progress.update('Preparing generation settings…');
       // Auto-sum guard: re-normalise on the fly if a row is off (defensive).
       const bSum = Object.values(biomes).reduce((s,n)=>s+n,0);
       if (bSum !== 100)      { setStatus('composition must sum to 100% — adjusted automatically', 'error'); }
@@ -12131,33 +12225,71 @@
         '- Raise hills/mountains using terrainFloors (1=plains, 2-3=hills, 4-8=mountains).'
       );
 
+      if (modelEl.value.trim() !== model) {
+        modelEl.value = model;
+        setStatus('using ' + model + ' for JSON; gpt-image-2 stays on the sketch step', 'busy');
+      }
       saveProviderState();
       goBtn.disabled = true;
-      setStatus(planFirst ? 'sketching plan…' : 'generating', 'busy');
+      if (statusEl.textContent.indexOf('using ') !== 0) {
+        setStatus(planFirst ? 'sketching plan…' : 'generating', 'busy');
+      }
       try {
         // Optional pre-pass: ask gpt-image-2 for a top-down topology sketch,
         // then attach the image URL as additional context. Best-effort — if
         // image generation fails, we fall back to plain text generation.
         let planImageUrl = null;
         if (planFirst && provider === 'openai') {
+          progress.say('Clearing the board and switching to top-down plan view…');
+          hidePlanOverlay();
+          if (typeof doClear === 'function') doClear();
+          if (typeof setCameraMode === 'function') setCameraMode('topdown');
+          progress.say('Generating topology sketch with gpt-image-2…');
           try {
             planImageUrl = await sketchTopologyPlan({
               key, prompt: promptRaw, biomes, elevation, seed: effectiveSeed,
             });
+            showPlanOverlay(planImageUrl);
+            progress.say('Topology sketch overlaid on the board.');
           } catch (planErr) {
             console.warn('[generate] plan sketch failed (continuing without):', planErr);
+            progress.say('Topology sketch failed; continuing with JSON generation.');
           }
         }
-        const finalUserPrompt = planImageUrl
-          ? (decoratedPrompt + '\n\nA topology sketch was generated for you at: ' + planImageUrl +
-             '\nTreat it as authoritative for valleys/hills and water/land boundaries.')
+        const finalTextPrompt = planImageUrl
+          ? (decoratedPrompt + '\n\nUse the attached topology sketch as authoritative for valleys/hills and water/land boundaries.')
           : decoratedPrompt;
+        const finalUserPrompt = planImageUrl
+          ? [
+              { type: 'text', text: finalTextPrompt },
+              { type: 'image_url', image_url: { url: planImageUrl } },
+            ]
+          : finalTextPrompt;
+        progress.say('Generating validated world JSON with ' + model + '…');
         const data = await generateWorld(provider, model, key, finalUserPrompt);
-        const ok = applyState(data);
+        progress.say('Switching back to perspective and building the board…');
+        hidePlanOverlay();
+        if (typeof setCameraMode === 'function') setCameraMode('soft');
+        const buildMsg = progress.say('Building board from JSON… 0%');
+        const ok = applyState(data, {
+          onProgress(info) {
+            const pct = Math.round((info.done / Math.max(1, info.total)) * 100);
+            if (window.__tinyworldAgent) {
+              window.__tinyworldAgent.update(buildMsg, 'Building board from JSON… ' + pct + '%');
+            }
+          },
+          onDone() {
+            if (window.__tinyworldAgent) {
+              window.__tinyworldAgent.update(buildMsg, 'Done — generated world built from validated JSON.');
+            }
+          },
+        });
         if (!ok) throw new Error('renderer rejected the scene');
         setStatus('done · seed: ' + effectiveSeed, '');
       } catch (err) {
         console.error('generate failed:', err);
+        hidePlanOverlay();
+        progress.error(String(err.message || err).slice(0, 180));
         setStatus(String(err.message || err).slice(0, 140), 'error');
       } finally {
         goBtn.disabled = false;
@@ -12209,17 +12341,35 @@
       if (!collapsed) messages.scrollTop = messages.scrollHeight;
     }
 
-    function addAgentMessage(role, text) {
-      const div = document.createElement('div');
-      div.className = 'agent-msg ' + role;
-      div.textContent = text;
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-      requestAnimationFrame(positionAgentPanel);
-      return div;
-    }
+      function addAgentMessage(role, text) {
+        const div = document.createElement('div');
+        div.className = 'agent-msg ' + role;
+        div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+        requestAnimationFrame(positionAgentPanel);
+        return div;
+      }
 
-    function applyStoredPosition() {
+      window.__tinyworldAgent = {
+        open() {
+          setPanelCollapsed(false);
+          requestAnimationFrame(positionAgentPanel);
+        },
+        add(role, text) {
+          setPanelCollapsed(false);
+          return addAgentMessage(role, text);
+        },
+        update(node, text, role) {
+          if (!node) return;
+          if (role) node.className = 'agent-msg ' + role;
+          node.textContent = text;
+          messages.scrollTop = messages.scrollHeight;
+          requestAnimationFrame(positionAgentPanel);
+        },
+      };
+
+      function applyStoredPosition() {
       try {
         const raw = localStorage.getItem(POS_KEY);
         if (!raw) return;
@@ -12416,7 +12566,7 @@
   // restore and JSON file import. Accepts schema v1/v2 cells where `floors`
   // was overloaded, v3 cells with separate terrainFloors, and v4 fence sides. Walks the FULL
   // grid so every cell gets a tile mesh, then layers in the saved overrides.
-  function applyState(data) {
+  function applyState(data, opts = {}) {
     if (!data || !Array.isArray(data.cells)) return false;
     normalizeWorldCells(data);
     const err = validateWorld(data);
@@ -12516,9 +12666,9 @@
     // is row-major so the world appears to fill from one edge.
     const cells = [];
     for (let x = 0; x < GRID; x++) for (let z = 0; z < GRID; z++) cells.push([x, z]);
-    const CHUNK = Math.max(64, Math.min(512, Math.floor(GRID * GRID / 8)));
-    function buildOneChunk(start) {
-      const end = Math.min(cells.length, start + CHUNK);
+      const CHUNK = Math.max(64, Math.min(512, Math.floor(GRID * GRID / 8)));
+      function buildOneChunk(start) {
+        const end = Math.min(cells.length, start + CHUNK);
       for (let i = start; i < end; i++) {
         const [x, z] = cells[i];
         const o = overrides.get(x + ',' + z);
@@ -12536,9 +12686,12 @@
           tileDelay:   (i % CHUNK) * TILE_STAGGER,
           objectDelay: (i % CHUNK) * TILE_STAGGER + 0.04,
           forceTile: true,
-        });
-      }
-      if (end < cells.length) {
+          });
+        }
+        if (typeof opts.onProgress === 'function') {
+          try { opts.onProgress({ done: end, total: cells.length }); } catch (_) {}
+        }
+        if (end < cells.length) {
         // Yield to the event loop so animations + input keep firing.
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => buildOneChunk(end));
@@ -12549,15 +12702,18 @@
         // Final pass: rebuild every tile so adjacency-aware terrains
         // (path / shore / dirt edges) settle correctly now that all
         // neighbours exist.
-        for (let x = 0; x < GRID; x++) {
-          for (let z = 0; z < GRID; z++) {
-            renderCellTile(x, z, { animate: false });
-            if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
+          for (let x = 0; x < GRID; x++) {
+            for (let z = 0; z < GRID; z++) {
+              renderCellTile(x, z, { animate: false });
+              if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
+            }
+          }
+          if (typeof opts.onDone === 'function') {
+            try { opts.onDone(); } catch (_) {}
           }
         }
       }
-    }
-    buildOneChunk(0);
+      buildOneChunk(0);
 
     // Replay out-of-home overrides — ghost board cells the user has
     // built / erased / modified. setCell handles any global coord via
@@ -12588,7 +12744,7 @@
 
     suppressSave = false;
 
-    resetCameraDefaults();
+      if (!opts.keepCamera) resetCameraDefaults();
     if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
     if (data.toolId) {
       const tool = TOOLS.find(t => t.id === data.toolId);
