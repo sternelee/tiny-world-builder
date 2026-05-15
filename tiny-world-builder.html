@@ -10182,6 +10182,10 @@
     }
     sortPendingByDistance();
     updateGhostRenderBubble();
+
+    // When panning the camera, nearby ghosts may need to upgrade to full quality
+    // and far ones may need to drop to cheap versions (progressive LOD).
+    maybeReevaluateGhostDetails();
   }
 
   // -------- drop-in animation system --------
@@ -15498,6 +15502,9 @@
     // Drain the ghost-board build queue in small slices so visible-distance
     // changes and Reset don't lock up the frame.
     if (pendingGhostBoards.length) processGhostBoardQueue(6);
+
+    // React to camera movement/zoom for progressive ghost quality
+    maybeReevaluateGhostDetails();
 
     // Sway only the roots that can actually animate. Scanning every cell
     // every frame becomes noticeable once generated worlds reach 32/48.
