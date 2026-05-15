@@ -4895,7 +4895,7 @@
     obj.traverse(c => {
       if (c.isMesh) {
         c.castShadow = true;
-        c.receiveShadow = true;
+        c.receiveShadow = c.material !== M.wallCream;
         c.frustumCulled = true;
       }
     });
@@ -5621,12 +5621,16 @@
       return new THREE.Mesh(roundedBox(H.WALL_W, H.WALL_H, WALL_D, 0.04), M.wallCream);
     },
 
-    // Triangular gable panel (in XY plane, 0.04 thick in z). Caller positions.
-    gable() {
+    // Gable facade (in XY plane, 0.04 thick in z). It reaches down over the
+    // flat wall face instead of stopping at the eave line, avoiding a bright
+    // horizontal edge above the door.
+    gable(bottomY = 0) {
       const shape = new THREE.Shape();
-      shape.moveTo(-H.WALL_W / 2, H.WALL_H);
-      shape.lineTo( H.WALL_W / 2, H.WALL_H);
+      shape.moveTo(-H.WALL_W / 2, bottomY);
+      shape.lineTo(-H.WALL_W / 2, H.WALL_H);
       shape.lineTo(0, H.PEAK_Y);
+      shape.lineTo( H.WALL_W / 2, H.WALL_H);
+      shape.lineTo( H.WALL_W / 2, bottomY);
       shape.closePath();
       const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false, curveSegments: 1 });
       return new THREE.Mesh(geo, M.wallCream);
@@ -5833,9 +5837,10 @@
 
     // Gables sit above the top floor's wall top. Composite wings suppress the
     // back gable since it's coplanar with the main wing's outer wall.
-    const gF = Parts.gable(); gF.position.set(0, roofLift, halfD - 0.04); g.add(gF);
+    const gableBottomY = -roofLift;
+    const gF = Parts.gable(gableBottomY); gF.position.set(0, roofLift, halfD - 0.035); g.add(gF);
     if (!suppressBackGable) {
-      const gB = Parts.gable(); gB.position.set(0, roofLift, -halfD); g.add(gB);
+      const gB = Parts.gable(gableBottomY); gB.position.set(0, roofLift, -halfD - 0.005); g.add(gB);
     }
 
     // Roof — pitched roof raised by roofLift. backOverhang/frontOverhang let
