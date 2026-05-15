@@ -4218,10 +4218,12 @@
   let renderLighting = storedNumber(RENDER_LS.lighting, 1.0, 0.5, 1.45);
   function renderBudgetForGrid(grid) {
     const g = coerceGridSize(grid, GRID);
-    if (g >= 256) return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.0, homeWindowMin: 24, homeWindowMax: 72, queueCap: 72 };
-    if (g >= 128) return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.0, homeWindowMin: 28, homeWindowMax: 88, queueCap: 88 };
-    if (g >= 96)  return { maxDistance: 2, ghostRadius: 2, visibleScale: 1.05, homeWindowMin: 32, homeWindowMax: 112, queueCap: 112 };
-    if (g >= 64)  return { maxDistance: 2, ghostRadius: 2, visibleScale: 1.10, homeWindowMin: 36, homeWindowMax: 128, queueCap: 128 };
+    // 128+ boards are data-scale boards. Until ghost boards are truly
+    // chunked/windowed, do not build full GRID² preview boards around them.
+    if (g >= 256) return { maxDistance: 0, ghostRadius: 0, visibleScale: 1.0, homeWindowMin: 16, homeWindowMax: 32, queueCap: 32 };
+    if (g >= 128) return { maxDistance: 0, ghostRadius: 0, visibleScale: 1.0, homeWindowMin: 16, homeWindowMax: 32, queueCap: 32 };
+    if (g >= 96)  return { maxDistance: 0, ghostRadius: 0, visibleScale: 1.0, homeWindowMin: 16, homeWindowMax: 32, queueCap: 32 };
+    if (g >= 64)  return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.05, homeWindowMin: 28, homeWindowMax: 96, queueCap: 96 };
     return { maxDistance: g <= 12 ? 4 : 2, ghostRadius: g <= 12 ? 4 : 2, visibleScale: 1.125, homeWindowMin: g, homeWindowMax: g, queueCap: 256 };
   }
 
@@ -7395,13 +7397,9 @@
     }
   }
 
-  // Pre-allocate world[][] up to HOME_GRID_MAX so adjacency lookups for
-  // tiles at the edge of any future grid size find a real neighbour cell
-  // (read as 'no kind, grass') rather than undefined.
-  for (let x = 0; x < HOME_GRID_MAX; x++) {
-    world[x] = [];
-    for (let z = 0; z < HOME_GRID_MAX; z++) world[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
-  }
+  // Keep world sparse. getWorldCell()/ensureWorldCell() provide virtual
+  // default grass cells, which avoids allocating HOME_GRID_MAX² default
+  // objects at startup when HOME_GRID_MAX is 512.
 
   const MAX_FLOORS = 8;
 
@@ -8792,7 +8790,7 @@
   function cellForKey(key) {
     const { bx, bz, x, z } = parseCellKey(key);
     if (bx === 0 && bz === 0) {
-      return (world[x] && world[x][z]) ? world[x][z] : null;
+      return getWorldCell(x, z);
     }
     try {
       const ghost = makeGhostWorld(bx, bz);
@@ -8935,9 +8933,15 @@
   }
 
   function resetHomeWorldIntent() {
-    for (let x = 0; x < GRID; x++) {
-      if (!world[x]) world[x] = [];
-      for (let z = 0; z < GRID; z++) world[x][z] = defaultCell();
+    for (const xKey of Object.keys(world)) {
+      const x = parseInt(xKey, 10);
+      if (!Number.isFinite(x) || x < 0 || x >= GRID) continue;
+      const row = world[xKey];
+      if (!row) continue;
+      for (const zKey of Object.keys(row)) {
+        const z = parseInt(zKey, 10);
+        if (Number.isFinite(z) && z >= 0 && z < GRID) delete row[zKey];
+      }
     }
   }
 
@@ -8952,6 +8956,9 @@
 
   function disposeAllCellMeshes() {
     for (const key of Object.keys(cellMeshes)) disposeCellMeshEntry(key);
+    homeRenderQueue = [];
+    homeRenderQueueCursor = 0;
+    homeRenderQueued.clear();
     dropAnims.length = 0;
   }
 
@@ -8965,9 +8972,10 @@
     return world[x][z];
   }
 
-  const HOME_RENDER_WINDOW_THRESHOLD = 96;
+  const HOME_RENDER_WINDOW_THRESHOLD = 64;
   let homeRenderBounds = null;
   let homeRenderQueue = [];
+  let homeRenderQueueCursor = 0;
   let homeRenderQueued = new Set();
 
   // Fade update throttling for large-grid panning: full updateHomeBoardFade
@@ -8991,10 +8999,13 @@
     const baseView = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_DEFAULT);
     const zoomRatio = viewSize / Math.max(DEFAULT_VIEW_SIZE, baseView);
     const maxR = Math.max(budget.homeWindowMin, Math.floor(budget.homeWindowMax / 2));
-    if (zoomRatio > 1.75) return Math.max(budget.homeWindowMin, Math.floor(maxR * 0.55));
-    if (zoomRatio > 1.20) return Math.max(budget.homeWindowMin, Math.floor(maxR * 0.75));
-    if (zoomRatio < 0.55) return Math.min(budget.homeWindowMax, Math.floor(maxR * 1.45));
-    return maxR;
+    let radius = maxR;
+    if (zoomRatio > 1.75) radius = Math.max(budget.homeWindowMin, Math.floor(maxR * 0.55));
+    else if (zoomRatio > 1.20) radius = Math.max(budget.homeWindowMin, Math.floor(maxR * 0.75));
+    else if (zoomRatio < 0.55) radius = Math.min(budget.homeWindowMax, Math.floor(maxR * 1.45));
+    const maxSide = Math.max(1, Math.min(GRID, budget.homeWindowMax + 1));
+    const maxRadius = Math.max(0, Math.floor((maxSide - 1) / 2));
+    return Math.max(0, Math.min(radius, maxRadius));
   }
 
   function computeHomeRenderBounds() {
@@ -9017,6 +9028,12 @@
 
   function cellInBounds(x, z, b) {
     return !!b && x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1;
+  }
+
+  function compactHomeRenderQueue() {
+    if (homeRenderQueueCursor <= 0) return;
+    homeRenderQueue = homeRenderQueue.slice(homeRenderQueueCursor);
+    homeRenderQueueCursor = 0;
   }
 
   function isCellInHomeRenderWindow(x, z) {
@@ -9099,6 +9116,7 @@
     if (!isSmallMove || !oldBounds) {
       // Full rebuild (rare: big jump, first time, or forced)
       homeRenderQueue = [];
+      homeRenderQueueCursor = 0;
       homeRenderQueued.clear();
       for (let x = homeRenderBounds.x0; x <= homeRenderBounds.x1; x++) {
         for (let z = homeRenderBounds.z0; z <= homeRenderBounds.z1; z++) {
@@ -9124,7 +9142,7 @@
         for (let x = nextBounds.x0; x < oldBounds.x0; x++) {
           for (let z = nextBounds.z0; z <= nextBounds.z1; z++) {
             const key = x + ',' + z;
-            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+            if ((!cellMeshes[key] || !cellMeshes[key].tile) && !homeRenderQueued.has(key)) {
               entering.push([x, z, key]);
               homeRenderQueued.add(key);
             }
@@ -9136,7 +9154,7 @@
         for (let x = oldBounds.x1 + 1; x <= nextBounds.x1; x++) {
           for (let z = nextBounds.z0; z <= nextBounds.z1; z++) {
             const key = x + ',' + z;
-            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+            if ((!cellMeshes[key] || !cellMeshes[key].tile) && !homeRenderQueued.has(key)) {
               entering.push([x, z, key]);
               homeRenderQueued.add(key);
             }
@@ -9148,7 +9166,7 @@
         for (let z = nextBounds.z0; z < oldBounds.z0; z++) {
           for (let x = nextBounds.x0; x <= nextBounds.x1; x++) {
             const key = x + ',' + z;
-            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+            if ((!cellMeshes[key] || !cellMeshes[key].tile) && !homeRenderQueued.has(key)) {
               entering.push([x, z, key]);
               homeRenderQueued.add(key);
             }
@@ -9160,7 +9178,7 @@
         for (let z = oldBounds.z1 + 1; z <= nextBounds.z1; z++) {
           for (let x = nextBounds.x0; x <= nextBounds.x1; x++) {
             const key = x + ',' + z;
-            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+            if ((!cellMeshes[key] || !cellMeshes[key].tile) && !homeRenderQueued.has(key)) {
               entering.push([x, z, key]);
               homeRenderQueued.add(key);
             }
@@ -9169,6 +9187,7 @@
       }
 
       if (entering.length) {
+        compactHomeRenderQueue();
         homeRenderQueue.push(...entering);
         // Light re-sort only the new entries + a few near the end is overkill;
         // just do a full sort occasionally or accept slightly suboptimal order.
@@ -9183,17 +9202,31 @@
   }
 
   function processHomeRenderQueue(budgetMs) {
-    if (!useWindowedHomeRendering() || !homeRenderQueue.length) return;
+    if (!useWindowedHomeRendering() || homeRenderQueueCursor >= homeRenderQueue.length) {
+      if (homeRenderQueueCursor >= homeRenderQueue.length && homeRenderQueue.length) {
+        homeRenderQueue = [];
+        homeRenderQueueCursor = 0;
+        homeRenderQueued.clear();
+      }
+      return;
+    }
     const start = performance.now();
     const cap = renderBudgetForGrid(GRID).queueCap;
     let built = 0;
-    while (homeRenderQueue.length && performance.now() - start < budgetMs && built < cap) {
-      const [x, z, key] = homeRenderQueue.shift();
+    while (homeRenderQueueCursor < homeRenderQueue.length && performance.now() - start < budgetMs && built < cap) {
+      const [x, z, key] = homeRenderQueue[homeRenderQueueCursor++];
       homeRenderQueued.delete(key);
       if (!isCellInHomeRenderWindow(x, z)) continue;
       renderCellTile(x, z, { animate: false });
       renderCellObject(x, z, { animate: false, impactDust: false });
       built++;
+    }
+    if (homeRenderQueueCursor >= homeRenderQueue.length) {
+      homeRenderQueue = [];
+      homeRenderQueueCursor = 0;
+      homeRenderQueued.clear();
+    } else if (homeRenderQueueCursor > 512 && homeRenderQueueCursor > homeRenderQueue.length / 2) {
+      compactHomeRenderQueue();
     }
     if (built) {
       // Smart fade update for large grids:
@@ -9276,7 +9309,7 @@
   // This keeps draw calls bounded no matter how high the preview distance is.
   // Close ghosts (when zoomed in) still use individual full-quality meshes.
   const cheapGhostTerrainBuckets = new Map(); // terrain -> { dirtMesh, topMesh, slots, keyAt, count }
-  const CHEAP_GHOST_CAPACITY = 8192; // enough for many far ghost boards
+  const CHEAP_GHOST_CAPACITY = 65536; // 48×48 radius-2 preview worst case
   let cheapGhostGeomDirt = null;
   let cheapGhostGeomTop = null;
 
@@ -9464,7 +9497,7 @@
     // Home board (0, 0): world[][] is always the truth, edited or not.
     if (bx === 0 && bz === 0) {
       if (x < 0 || z < 0 || x >= HOME_GRID_MAX || z >= HOME_GRID_MAX) return null;
-      return world[x] && world[x][z] || null;
+      return getWorldCell(x, z);
     }
     // Non-home: prefer a USER-EDITED override; otherwise fall through
     // to the generated cells.
@@ -9572,13 +9605,18 @@
     opacityRoots.add(group);
     group.traverse(o => {
       if (!o.isMesh || !o.material) return;
-      // Ghost-board meshes still RECEIVE shadows from the home grid, but
-      // they do not CAST. With visible-distance > 1 the ghost population
-      // easily reaches 20k meshes; casting through the directional light's
-      // shadow frustum every frame was the dominant GPU cost on lower-end
-      // hardware. The home grid still casts onto ghost surfaces, so the
-      // overall lighting reads identical at default render settings.
-      if (ghost) o.castShadow = false;
+      // Ghost-board terrain receives shadows but does not cast. Ghost
+      // objects cast/receive shadows so Preview houses/trees/rocks visibly
+      // drop shadows onto Preview ground.
+      if (ghost) {
+        if (group.userData.fadeRole === 'tile') {
+          o.castShadow = false;
+          o.receiveShadow = true;
+        } else if (group.userData.fadeRole === 'object') {
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      }
       // Array materials are vanishingly rare in this codebase, but stay safe.
       if (Array.isArray(o.material)) {
         o.material = o.material.map(m => m.clone());
@@ -9919,6 +9957,7 @@
     const b = getCheapGhostTerrainBucket(terrain);
     const key = `${boardX},${boardZ}|${x},${z}`;
     if (b.slots.has(key)) return;
+    if (b.count >= CHEAP_GHOST_CAPACITY) return;
 
     const idx = b.count;
     const worldX = (boardX * GRID + x) * TILE;
@@ -9963,6 +10002,18 @@
     b.topMesh.count  = b.count;
     b.dirtMesh.instanceMatrix.needsUpdate = true;
     b.topMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  function clearCheapGhostTerrain() {
+    for (const b of cheapGhostTerrainBuckets.values()) {
+      b.slots.clear();
+      b.keyAt.length = 0;
+      b.count = 0;
+      b.dirtMesh.count = 0;
+      b.topMesh.count = 0;
+      b.dirtMesh.instanceMatrix.needsUpdate = true;
+      b.topMesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   // -------- Home world tile instancing (fork-style, zoom-aware LOD) --------
@@ -10388,6 +10439,9 @@
       newGeo.computeBoundingSphere();
 
       const mergedMesh = new THREE.Mesh(newGeo, mat);
+      mergedMesh.castShadow = false;
+      mergedMesh.receiveShadow = true;
+      mergedMesh.frustumCulled = true;
       mergedMesh.userData = { fadeRole: 'tile', ghostMerged: true };
       board.add(mergedMesh);
     }
@@ -10492,23 +10546,21 @@
     pendingGhostBoardSet.clear();
   }
 
-  // Returns 'full' or 'cheap' for a ghost board based on current zoom level.
-  // When the user is zoomed in (small renderVisibleSize), we want full visual
-  // quality on ghost boards so distant content looks good.
-  // Only when the user zooms out (large preview window) do we allow cheaper
-  // representations on far ghost boards (progressive LOD as requested).
+  // Returns 'full' or 'cheap' for a ghost board based on grid scale and
+  // current preview span. Larger home boards must never promote every
+  // neighbouring GRID² board to full-quality meshes just because
+  // renderVisibleSize is clamped to at least GRID.
   function getDesiredGhostDetail(boardX, boardZ) {
     const cx = boardFromTargetCoord(target.x);
     const cz = boardFromTargetCoord(target.z);
     const dist = Math.max(Math.abs(boardX - cx), Math.abs(boardZ - cz));
+    const viewSpan = typeof renderVisibleSize === 'number' ? renderVisibleSize : GRID;
 
-    const viewSize = typeof renderVisibleSize === 'number' ? renderVisibleSize : GRID;
+    if (GRID >= 96) return 'cheap';
+    if (GRID >= 64) return 'full';
+    if (viewSpan <= 12) return 'full';
 
-    // Strongly zoomed in → always full quality
-    if (viewSize <= 12) return 'full';
-
-    // As the user zooms out, we become more willing to drop far ghosts to cheap
-    const fullRadius = Math.max(1, Math.floor(viewSize / 9));
+    const fullRadius = GRID <= 20 ? 2 : 1;
     return dist <= fullRadius ? 'full' : 'cheap';
   }
 
@@ -10542,6 +10594,7 @@
     if (!pendingGhostBoards.length) return;
     if (!ghostBoardsEnabledForGrid()) { clearPendingGhostBoards(); return; }
     const start = performance.now();
+    const frameCap = GRID >= 64 ? 1 : 3;
     let built = 0;
     while (pendingGhostBoards.length && performance.now() - start < budgetMs) {
       const [bx, bz, key] = pendingGhostBoards.shift();
@@ -10551,7 +10604,7 @@
       built++;
       // Cap per-frame builds even if budget allows more — keeps GC from
       // bunching and lets renderScene actually paint between batches.
-      if (built >= 3) break;
+      if (built >= frameCap) break;
     }
     if (built) updateGhostRenderBubble();
   }
@@ -10559,6 +10612,7 @@
     syncGhostRenderBudget();
     if (!ghostBoardsEnabledForGrid()) {
       clearPendingGhostBoards();
+      clearCheapGhostTerrain();
       for (const board of ghostBoards.values()) board.visible = false;
       updateGhostRenderBubble();
       return;
@@ -11683,6 +11737,9 @@
       if (e.extras) for (const m of e.extras) { worldGroup.remove(m); disposeGroup(m); }
     }
     for (const k of Object.keys(cellMeshes)) delete cellMeshes[k];
+    homeRenderQueue = [];
+    homeRenderQueueCursor = 0;
+    homeRenderQueued.clear();
     resetHomeWorldIntent();
     dropAnims.length = 0;
     cropPositions.clear();
@@ -11737,7 +11794,9 @@
     const OBJECT_STAGGER = 0.035;
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
-        const cell = layout[x + ',' + z] || { terrain: 'grass', kind: null };
+        const cell = layout[x + ',' + z];
+        if (!cell) continue;
+        if (!world[x]) world[x] = [];
         let terrain = cell.terrain || 'grass';
         let kind = cell.kind || null;
         if (kind === 'bridge') terrain = 'water';
@@ -13599,8 +13658,7 @@
     if (!currentHover) return;
     const x = currentHover.x;
     const z = currentHover.z;
-    const cell = world[x] && world[x][z];
-    if (!cell) return;
+    const cell = getWorldCell(x, z);
     const prev = terrainLevelForCell(cell);
     const next = Math.max(1, Math.min(8, prev + (delta > 0 ? 1 : -1)));
     if (next === prev) return;
@@ -13828,11 +13886,15 @@
     // Stored under a dedicated key separate from the live save.
     try {
       const backupCells = [];
-      const limit = HOME_GRID_MAX;
-      for (let x = 0; x < limit; x++) {
-        if (!world[x]) continue;
-        for (let z = 0; z < limit; z++) {
-          const c = world[x][z];
+      for (const xKey of Object.keys(world)) {
+        const x = parseInt(xKey, 10);
+        if (!Number.isFinite(x)) continue;
+        const row = world[xKey];
+        if (!row) continue;
+        for (const zKey of Object.keys(row)) {
+          const z = parseInt(zKey, 10);
+          if (!Number.isFinite(z)) continue;
+          const c = row[zKey];
           if (!c) continue;
           const entry = serializeCell(x, z, c);
           if (entry) backupCells.push(entry);
@@ -13866,6 +13928,7 @@
     }
     ghostBoards.clear();
     ghostBoardCells.clear();
+    clearCheapGhostTerrain();
 
     // Dispose every existing cell mesh; cellPos depends on GRID so all
     // tiles need to be re-positioned. setCell will rebuild from
@@ -13877,6 +13940,9 @@
       if (entry.extras) for (const m of entry.extras) { worldGroup.remove(m); disposeGroup(m); }
       delete cellMeshes[key];
     }
+    homeRenderQueue = [];
+    homeRenderQueueCursor = 0;
+    homeRenderQueued.clear();
 
     if (skipRebuild) return;
 
@@ -13892,7 +13958,7 @@
     // Rebuild every home cell from the surviving world data.
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
-        const c = world[x][z];
+        const c = getWorldCell(x, z);
         setCell(x, z, {
           terrain: c.terrain || 'grass',
           terrainFloors: c.terrainFloors || 1,
@@ -13917,11 +13983,16 @@
     // the user placed at higher indices, and growing wouldn't refresh
     // the outside cells that still exist past the new edge. The
     // grayscale 'outside home' look is applied automatically by setCell.
-    for (let x = 0; x < HOME_GRID_MAX; x++) {
-      if (!world[x]) continue;
-      for (let z = 0; z < HOME_GRID_MAX; z++) {
+    for (const xKey of Object.keys(world)) {
+      const x = parseInt(xKey, 10);
+      if (!Number.isFinite(x) || x < 0 || x >= HOME_GRID_MAX) continue;
+      const row = world[xKey];
+      if (!row) continue;
+      for (const zKey of Object.keys(row)) {
+        const z = parseInt(zKey, 10);
+        if (!Number.isFinite(z) || z < 0 || z >= HOME_GRID_MAX) continue;
         if (x < GRID && z < GRID) continue;
-        const c = world[x][z];
+        const c = row[zKey];
         if (!c) continue;
         // Only re-render cells the user actually placed something on —
         // default-grass cells stay invisible to the cellMeshes layer
@@ -14009,6 +14080,7 @@
     }
     ghostBoards.clear();
     ghostBoardCells.clear();
+    clearCheapGhostTerrain();
     pendingGhostBoards.length = 0;
     pendingGhostBoardSet.clear();
 
@@ -14035,13 +14107,7 @@
         if (!Number.isFinite(z)) continue;
         const inside = insideX && z >= 0 && z < GRID;
         if (inside) continue;
-        // Reset pre-allocated buffer cells to default grass; delete any
-        // entries that don't belong to the buffer at all.
-        if (x >= 0 && x < HOME_GRID_MAX && z >= 0 && z < HOME_GRID_MAX) {
-          row[zKey] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
-        } else {
-          delete row[zKey];
-        }
+        delete row[zKey];
       }
     }
   }
@@ -14099,6 +14165,9 @@
     clearVehicleRuntime();
     if (useWindowedHomeRendering()) {
       resetHomeWorldIntent();
+      cropPositions.clear();
+      maxPumpkinPositions.clear();
+      carriagePumpkin = null;
       disposeAllCellMeshes();
       requestHomeRenderWindowSync({ force: true });
       saveState();
@@ -17089,7 +17158,7 @@
 
   function adaptAutoSuggestionToCell(action, x, z) {
     const normalized = normalizeAutoAction(action);
-    const cell = world[x][z];
+    const cell = getWorldCell(x, z);
     if (normalized.kind && cell.kind === normalized.kind) {
       normalized.floors = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
       if (normalized.kind === 'house' && normalized.buildingType === null) {
@@ -18911,9 +18980,10 @@
       const { x, z, terrain, kind, floors, buildingType, fenceSide, rotationY, offsetX, offsetZ } = msg;
       if (!Number.isFinite(x) || !Number.isFinite(z)) return;
       if (x < 0 || x >= GRID || z < 0 || z >= GRID) return;
+      const cell = getWorldCell(x, z);
       setCell(x, z, {
-        terrain: terrain || (world[x][z] && world[x][z].terrain) || 'grass',
-        terrainFloors: world[x][z] ? terrainLevelForCell(world[x][z]) : 1,
+        terrain: terrain || cell.terrain || 'grass',
+        terrainFloors: terrainLevelForCell(cell),
         kind: kind || null,
         floors: floors || 1,
         buildingType: buildingType || null,
@@ -19725,6 +19795,9 @@
     const lx = gx - bx * GRID;
     const lz = gz - bz * GRID;
     if (lx < 0 || lx >= GRID || lz < 0 || lz >= GRID) return null;
+    if ((bx !== 0 || bz !== 0) && !ghostBoardsEnabledForGrid()) {
+      return world[gx] && world[gx][gz] && world[gx][gz].userEdited ? world[gx][gz] : null;
+    }
     return ghostCellAt(bx, bz, lx, lz);
   }
   function minimapWorldFromCanvasPoint(px, py) {
