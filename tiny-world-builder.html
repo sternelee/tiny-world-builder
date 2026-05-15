@@ -9250,6 +9250,16 @@
   let ghostOuterFadeTiles = ghostPreloadRadius > 0 ? 2 + ghostPreloadRadius * 2 : VIEW_EDGE_FADE_TILES;
   const opacityRoots = new Set();
 
+  // -------- cheap ghost instancing (inspired by open-world-builder fork) --------
+  // When the user is zoomed out (cheap ghost mode), we render all far ghost
+  // terrain using a small number of InstancedMesh (one pair per terrain type).
+  // This keeps draw calls bounded no matter how high the preview distance is.
+  // Close ghosts (when zoomed in) still use individual full-quality meshes.
+  const cheapGhostTerrainBuckets = new Map(); // terrain -> { dirtMesh, topMesh, slots, keyAt, count }
+  const CHEAP_GHOST_CAPACITY = 8192; // enough for many far ghost boards
+  let cheapGhostGeomDirt = null;
+  let cheapGhostGeomTop = null;
+
   function ghostBoardKey(boardX, boardZ) {
     return boardX + ',' + boardZ;
   }
@@ -9805,6 +9815,340 @@
     return g;
   }
 
+  // -------- cheap ghost instancing helpers --------
+  function ensureCheapGhostGeoms() {
+    if (cheapGhostGeomDirt) return;
+    const size = TILE * 0.98;
+    cheapGhostGeomDirt = new THREE.BoxGeometry(size, DIRT_H, size);
+    cheapGhostGeomDirt.translate(0, DIRT_H / 2, 0);
+    cheapGhostGeomTop = roundedSlab(size, TOP_H, 0.04);
+  }
+
+  function getCheapGhostTerrainBucket(terrain) {
+    let b = cheapGhostTerrainBuckets.get(terrain);
+    if (b) return b;
+
+    ensureCheapGhostGeoms();
+
+    const topMat = (terrain === 'path')  ? M.path :
+                   (terrain === 'water') ? M.water :
+                   (terrain === 'dirt')  ? M.dirtRich :
+                   (terrain === 'stone') ? M.stone :
+                   (terrain === 'lava')  ? M.lava :
+                   (terrain === 'sand')  ? M.sand :
+                   (terrain === 'snow')  ? M.snow : M.grass;
+
+    const dirtMesh = new THREE.InstancedMesh(cheapGhostGeomDirt, M.dirt, CHEAP_GHOST_CAPACITY);
+    const topMesh  = new THREE.InstancedMesh(cheapGhostGeomTop, topMat, CHEAP_GHOST_CAPACITY);
+
+    for (const m of [dirtMesh, topMesh]) {
+      m.castShadow = false;
+      m.receiveShadow = true;
+      m.count = 0;
+      m.frustumCulled = false;
+      m.userData = { isCheapGhostTerrain: true, terrain, keyAt: [] };
+      // Ensure depthWrite so we don't get the sorting artifacts we fixed earlier.
+      if (m.material) {
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        mats.forEach(mat => { mat.depthWrite = true; });
+      }
+    }
+    topMesh.userData.keyAt = dirtMesh.userData.keyAt;
+
+    worldGroup.add(dirtMesh);
+    worldGroup.add(topMesh);
+
+    b = {
+      terrain,
+      dirtMesh,
+      topMesh,
+      slots: new Map(), // 'boardX,boardZ|x,z' → idx
+      keyAt: dirtMesh.userData.keyAt,
+      count: 0
+    };
+    cheapGhostTerrainBuckets.set(terrain, b);
+    return b;
+  }
+
+  function _writeCheapGhostTerrainInstance(b, idx, worldX, worldZ, rise) {
+    const DUMMY = new THREE.Object3D();
+    // Dirt column: scale Y to account for elevation so the column reaches y=rise
+    const dirtHeight = DIRT_H + rise;
+    const sy = dirtHeight / DIRT_H;
+    DUMMY.scale.set(1, sy, 1);
+    DUMMY.position.set(worldX, -DIRT_H, worldZ);
+    DUMMY.updateMatrix();
+    b.dirtMesh.setMatrixAt(idx, DUMMY.matrix);
+
+    // Top cap sitting at y = rise
+    DUMMY.scale.set(1, 1, 1);
+    DUMMY.position.set(worldX, rise, worldZ);
+    DUMMY.updateMatrix();
+    b.topMesh.setMatrixAt(idx, DUMMY.matrix);
+  }
+
+  function addCellToCheapGhostTerrain(boardX, boardZ, x, z, terrain, rise) {
+    const b = getCheapGhostTerrainBucket(terrain);
+    const key = `${boardX},${boardZ}|${x},${z}`;
+    if (b.slots.has(key)) return;
+
+    const idx = b.count;
+    const worldX = (boardX * GRID + x) * TILE;
+    const worldZ = (boardZ * GRID + z) * TILE;
+
+    _writeCheapGhostTerrainInstance(b, idx, worldX, worldZ, rise);
+
+    b.slots.set(key, idx);
+    b.keyAt[idx] = key;
+    b.count++;
+
+    b.dirtMesh.count = b.count;
+    b.topMesh.count  = b.count;
+    b.dirtMesh.instanceMatrix.needsUpdate = true;
+    b.topMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  function removeCellFromCheapGhostTerrain(boardX, boardZ, x, z, terrain) {
+    const b = cheapGhostTerrainBuckets.get(terrain);
+    if (!b) return;
+    const key = `${boardX},${boardZ}|${x},${z}`;
+    const idx = b.slots.get(key);
+    if (idx === undefined) return;
+
+    const lastIdx = b.count - 1;
+    if (idx !== lastIdx) {
+      // swap-pop
+      const TMP = new THREE.Matrix4();
+      b.dirtMesh.getMatrixAt(lastIdx, TMP);
+      b.dirtMesh.setMatrixAt(idx, TMP);
+      b.topMesh.getMatrixAt(lastIdx, TMP);
+      b.topMesh.setMatrixAt(idx, TMP);
+      const movedKey = b.keyAt[lastIdx];
+      b.keyAt[idx] = movedKey;
+      b.slots.set(movedKey, idx);
+    }
+    b.slots.delete(key);
+    b.keyAt[lastIdx] = null;
+    b.count--;
+
+    b.dirtMesh.count = b.count;
+    b.topMesh.count  = b.count;
+    b.dirtMesh.instanceMatrix.needsUpdate = true;
+    b.topMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // -------- Home world tile instancing (fork-style, zoom-aware LOD) --------
+  // One InstancedMesh pair (dirt + top) per terrain type for the entire editable
+  // home board. This is the main reason the fork can do 256²+ smoothly.
+  //
+  // LOD: when renderVisibleSize is large (zoomed out), we automatically swap
+  // the expensive roundedSlab caps for cheap BoxGeometry (same visual at
+  // distance, ~20× fewer triangles). When you zoom back in, we swap back.
+  //
+  // Elevation is handled with per-instance matrix (Y-scale on dirt column +
+  // Y-offset on top cap), exactly like the fork.
+
+  const homeTileBuckets = new Map(); // terrain id → bucket
+  let homeTileCapacity = 0;
+  let homeTileUseLowDetail = false;
+
+  let homeTileGeomDirt = null;
+  let homeTileGeomTop = null;
+  let homeTileGeomWater = null;
+
+  const HOME_TILE_LOW_DETAIL_THRESHOLD = 48; // when preview window > this, use low-detail caps
+
+  function ensureHomeTileGeoms() {
+    const wantLowDetail = (typeof renderVisibleSize === 'number' && renderVisibleSize > HOME_TILE_LOW_DETAIL_THRESHOLD);
+
+    if (homeTileGeomDirt && homeTileUseLowDetail === wantLowDetail) return;
+
+    homeTileUseLowDetail = wantLowDetail;
+
+    const dirtSize = TILE * 0.98;
+    homeTileGeomDirt = new THREE.BoxGeometry(dirtSize, DIRT_H, dirtSize);
+    homeTileGeomDirt.translate(0, DIRT_H / 2, 0); // bottom-anchored
+
+    if (wantLowDetail) {
+      homeTileGeomTop = new THREE.BoxGeometry(TILE * 0.98, TOP_H, TILE * 0.98);
+      homeTileGeomTop.translate(0, TOP_H / 2, 0);
+      homeTileGeomWater = new THREE.BoxGeometry(TILE * 0.99, TOP_H, TILE * 0.99);
+      homeTileGeomWater.translate(0, TOP_H / 2, 0);
+    } else {
+      homeTileGeomTop = roundedSlab(TILE * 0.98, TOP_H, 0.06);
+      homeTileGeomWater = roundedSlab(TILE * 0.99, TOP_H, 0.04);
+    }
+  }
+
+  function getHomeTileBucket(terrain) {
+    let b = homeTileBuckets.get(terrain);
+    if (b) return b;
+
+    ensureHomeTileGeoms();
+
+    const topMat = (terrain === 'path')  ? M.path :
+                   (terrain === 'water') ? M.water :
+                   (terrain === 'dirt')  ? M.dirtRich :
+                   (terrain === 'stone') ? M.stone :
+                   (terrain === 'lava')  ? M.lava :
+                   (terrain === 'sand')  ? M.sand :
+                   (terrain === 'snow')  ? M.snow : M.grass;
+
+    const dirtMesh = new THREE.InstancedMesh(homeTileGeomDirt, M.dirt, homeTileCapacity);
+    const topMesh  = new THREE.InstancedMesh(homeTileGeomTop, topMat, homeTileCapacity);
+
+    for (const m of [dirtMesh, topMesh]) {
+      m.castShadow = false;
+      m.receiveShadow = true;
+      m.count = 0;
+      m.frustumCulled = false; // ortho camera usually sees the whole home board
+      m.userData = { isHomeTileInstance: true, terrain, keyAt: [] };
+    }
+    topMesh.userData.keyAt = dirtMesh.userData.keyAt;
+
+    worldGroup.add(dirtMesh);
+    worldGroup.add(topMesh);
+
+    b = {
+      terrain,
+      dirtMesh,
+      topMesh,
+      slots: new Map(), // 'x,z' → idx
+      keyAt: dirtMesh.userData.keyAt,
+      count: 0
+    };
+    homeTileBuckets.set(terrain, b);
+    return b;
+  }
+
+  function _writeHomeTileInstance(b, idx, posX, posZ, rise) {
+    const DUMMY = new THREE.Object3D();
+    const dirtHeight = DIRT_H + rise;
+    const sy = dirtHeight / DIRT_H;
+
+    DUMMY.scale.set(1, sy, 1);
+    DUMMY.position.set(posX, -DIRT_H, posZ);
+    DUMMY.updateMatrix();
+    b.dirtMesh.setMatrixAt(idx, DUMMY.matrix);
+
+    DUMMY.scale.set(1, 1, 1);
+    DUMMY.position.set(posX, rise, posZ);
+    DUMMY.updateMatrix();
+    b.topMesh.setMatrixAt(idx, DUMMY.matrix);
+  }
+
+  function setHomeTileInstance(x, z, terrain, posX, posZ, rise = 0) {
+    const key = x + ',' + z;
+    const existing = findHomeTileBucketFor(key);
+
+    if (existing && existing.terrain !== terrain) {
+      _removeFromHomeTileBucket(existing, key);
+    } else if (existing && existing.terrain === terrain) {
+      const idx = existing.slots.get(key);
+      _writeHomeTileInstance(existing, idx, posX, posZ, rise);
+      _flushHomeTileBucket(existing);
+      return;
+    }
+
+    if (!terrain) return;
+
+    const b = getHomeTileBucket(terrain);
+    const idx = b.count;
+
+    _writeHomeTileInstance(b, idx, posX, posZ, rise);
+    b.slots.set(key, idx);
+    b.keyAt[idx] = key;
+    b.count++;
+    _flushHomeTileBucket(b);
+  }
+
+  function clearHomeTileInstance(x, z) {
+    const key = x + ',' + z;
+    const b = findHomeTileBucketFor(key);
+    if (b) _removeFromHomeTileBucket(b, key);
+  }
+
+  function findHomeTileBucketFor(key) {
+    for (const b of homeTileBuckets.values()) {
+      if (b.slots.has(key)) return b;
+    }
+    return null;
+  }
+
+  function _removeFromHomeTileBucket(b, key) {
+    const idx = b.slots.get(key);
+    if (idx === undefined) return;
+    const lastIdx = b.count - 1;
+
+    if (idx !== lastIdx) {
+      const TMP = new THREE.Matrix4();
+      b.dirtMesh.getMatrixAt(lastIdx, TMP);
+      b.dirtMesh.setMatrixAt(idx, TMP);
+      b.topMesh.getMatrixAt(lastIdx, TMP);
+      b.topMesh.setMatrixAt(idx, TMP);
+      const movedKey = b.keyAt[lastIdx];
+      b.keyAt[idx] = movedKey;
+      b.slots.set(movedKey, idx);
+    }
+
+    b.slots.delete(key);
+    b.keyAt[lastIdx] = null;
+    b.count--;
+    _flushHomeTileBucket(b);
+  }
+
+  function _flushHomeTileBucket(b) {
+    b.dirtMesh.instanceMatrix.needsUpdate = true;
+    b.topMesh.instanceMatrix.needsUpdate = true;
+    b.dirtMesh.count = b.count;
+    b.topMesh.count = b.count;
+  }
+
+  function initHomeTileInstancing(gridSize) {
+    homeTileCapacity = gridSize * gridSize;
+    // Clear any previous buckets (for grid size changes)
+    for (const b of homeTileBuckets.values()) {
+      worldGroup.remove(b.dirtMesh);
+      worldGroup.remove(b.topMesh);
+    }
+    homeTileBuckets.clear();
+    homeTileGeomDirt = null;
+    homeTileGeomTop = null;
+    homeTileGeomWater = null;
+  }
+
+  // Rebuild all home tile instances when LOD mode changes due to zoom
+  function rebuildHomeTileInstancesLOD() {
+    const newLowDetail = (typeof renderVisibleSize === 'number' && renderVisibleSize > HOME_TILE_LOW_DETAIL_THRESHOLD);
+    if (newLowDetail === homeTileUseLowDetail) return;
+
+    // Collect current state
+    const currentState = [];
+    for (const b of homeTileBuckets.values()) {
+      for (const [key, idx] of b.slots) {
+        const [x, z] = key.split(',').map(Number);
+        const rise = elevAtHome ? elevAtHome.get(key) || 0 : 0; // we'll add elevAtHome later if needed
+        currentState.push({ x, z, terrain: b.terrain, rise });
+      }
+    }
+
+    // Clear everything
+    for (const b of homeTileBuckets.values()) {
+      worldGroup.remove(b.dirtMesh);
+      worldGroup.remove(b.topMesh);
+    }
+    homeTileBuckets.clear();
+    homeTileGeomDirt = null;
+    homeTileGeomTop = null;
+
+    // Re-create all instances with new geometry LOD
+    for (const { x, z, terrain, rise } of currentState) {
+      const posX = x * TILE;
+      const posZ = z * TILE;
+      setHomeTileInstance(x, z, terrain, posX, posZ, rise);
+    }
+  }
+
   // Cheap single-mesh version used for ghost/preview boards.
   // Full makeTile creates riser + top + decals (multiple meshes per tile).
   // For ghosts we use one slab with the top material + full height so the
@@ -9858,35 +10202,35 @@
 
         // Ghost terrain is now always full quality (makeTile) to match the restored quality objects.
         // No automatic quality reduction on ghosts — only progressive LOD when user zooms the camera out (to be implemented if needed).
-        const tile = (detail === 'full')
-          ? makeTile(cells[x][z].terrain, {
-              path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
-              terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
-            }, gx, gz, tileLevelForCell(cells[x][z]))
-          : makeGhostTile(cells[x][z].terrain, tileLevelForCell(cells[x][z]), gx, gz);
+        if (detail === 'full') {
+          const tile = makeTile(cells[x][z].terrain, {
+            path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
+            terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
+          }, gx, gz, tileLevelForCell(cells[x][z]));
+          tile.position.copy(ghostCellPos(boardX, boardZ, x, z));
+          tile.userData.gx = x;
+          tile.userData.gz = z;
+          tile.userData.boardX = boardX;
+          tile.userData.boardZ = boardZ;
+          tile.userData.fadeRole = 'tile';
+          applyWeatherTileEffect(tile);
+          prepareFadeable(tile, { ghost: true, grayscale: true, opacity: opacityAtWorldPosition(tile.position.x, tile.position.z) });
 
-        tile.position.copy(ghostCellPos(boardX, boardZ, x, z));
-        tile.userData.gx = x;
-        tile.userData.gz = z;
-        tile.userData.boardX = boardX;
-        tile.userData.boardZ = boardZ;
-        tile.userData.fadeRole = 'tile';
-        applyWeatherTileEffect(tile);
-        prepareFadeable(tile, { ghost: true, grayscale: true, opacity: opacityAtWorldPosition(tile.position.x, tile.position.z) });
+          // Force depthWrite on ghost terrain tiles.
+          tile.traverse(o => {
+            if (o.isMesh && o.material) {
+              const mats = Array.isArray(o.material) ? o.material : [o.material];
+              mats.forEach(m => { m.depthWrite = true; });
+            }
+          });
 
-        // Force depthWrite on ghost terrain tiles. The fade system turns it off for
-        // reduced-opacity ghosts, which causes the transient z-sorting artifacts
-        // ("strange artifact on paths etc that appears only while they render then goes")
-        // when large batches of faded ground meshes are added during progressive ghost
-        // board population. Ground planes benefit from depthWrite even when faded.
-        tile.traverse(o => {
-          if (o.isMesh && o.material) {
-            const mats = Array.isArray(o.material) ? o.material : [o.material];
-            mats.forEach(m => { m.depthWrite = true; });
-          }
-        });
-
-        board.add(tile);
+          board.add(tile);
+        } else {
+          // Cheap zoomed-out path: feed into global per-terrain InstancedMeshes (fork-style).
+          // This keeps draw calls low even at very high preview distance when zoomed out.
+          const rise = terrainRiseForLevel(tileLevelForCell(cells[x][z]));
+          addCellToCheapGhostTerrain(boardX, boardZ, x, z, cells[x][z].terrain, rise);
+        }
 
         // Objects on ghosts use full quality by default. When the user zooms out
         // (large renderVisibleSize), far ghost boards switch to cheap proxies.
@@ -9931,6 +10275,16 @@
     const key = ghostBoardKey(boardX, boardZ);
     const board = ghostBoards.get(key);
     if (board) {
+      const wasCheap = (board.userData.detail === 'cheap');
+      if (wasCheap && ghostBoardCells.has(key)) {
+        const cells = ghostBoardCells.get(key);
+        for (let x = 0; x < GRID; x++) {
+          for (let z = 0; z < GRID; z++) {
+            const terrain = cells[x][z].terrain;
+            removeCellFromCheapGhostTerrain(boardX, boardZ, x, z, terrain);
+          }
+        }
+      }
       worldGroup.remove(board);
       disposeGroup(board);
       ghostBoards.delete(key);
