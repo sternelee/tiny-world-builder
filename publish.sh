@@ -52,6 +52,7 @@ mkdir -p "$DIST/assets"
 
 cp tiny-world-builder.html "$DIST/index.html"
 cp tiny-world-builder.html "$DIST/tiny-world-builder.html"
+cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
 cp README.md "$DIST/README.md"
 cp LICENSE "$DIST/LICENSE"

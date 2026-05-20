@@ -46,3 +46,16 @@ Validation:
 - Selection-panel property chips should apply immediate local changes through `setCell` when the renderer supports the property; do not fake direct controls by only writing prompts.
 - Houses placed on `path` or `water` must preserve that terrain and render on an underpass/stilt base; do not coerce those tiles back to grass.
 - Same-terrain repeat placement should be visible before refresh/reload.
+
+## Terrain Styling Options (Low-poly vs Voxel)
+
+The board can render terrain in two main visual styling modes:
+- **Low-poly flat panels**: When `renderVoxelTerrain` is `false`, the ground renders as smooth flat-shaded panels.
+- **Voxel columns**: When `renderVoxelTerrain` is `true`, the terrain is subdivided and rendered as voxel columns based on the resolution in `renderTerrainVoxelResolution` (e.g., `'4'`, `'6'`, `'8'`, `'12'`, or `'mixed'`).
+
+The Generate Modal includes a "Terrain style" selector that maps these options to global rendering variables and persists them before generating the world, allowing the user to easily switch and view the generated world in their preferred style.
+
+## LandscapeEngine Mesh Mode
+
+When the LandscapeEngine terrain style is active, the normal tile grid remains the logical/editing reference but is hidden visually. Objects, hover indicators, ghost previews, selection marquees, and crowd sprites must use `landscapeHeightAtCell(globalX, globalZ)` instead of `TOP_H + terrainRiseAt(...)` so they sit on the generated mesh. Ray picking should first allow normal object/tile hits, then project LandscapeEngine mesh hits back into virtual board cells by x/z; fixed-size boards should clip the mesh and show opaque, depth-writing cut caps that quickly colour-fade to the live scene background. Avoid transparent side/bottom plates: they either reveal hidden geometry behind the cut or read as a visible base plate.
+

@@ -4316,10 +4316,43 @@
           <input type="checkbox" id="gen-procedural" />
           <span>Procedural (offline) <em class="gen-hint">— skip the LLM, generate directly from seed</em></span>
         </label>
+        <label class="gen-check" id="gen-landscape-container" style="display: none; margin-left: 20px;">
+          <input type="checkbox" id="gen-use-landscape" />
+          <span>Use LandscapeEngine <em class="gen-hint">— generate infinite terraced canyons</em></span>
+        </label>
         <label class="gen-check">
           <input type="checkbox" id="gen-disable-autofill" />
           <span>Disable outside auto-fill <em class="gen-hint">blank grass beyond the generated board</em></span>
         </label>
+        <div id="gen-landscape-style-container" style="margin-top: 8px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: 500; color: var(--muted);">Terrain style:</span>
+          <select id="gen-landscape-style" style="padding: 4px 8px; border-radius: 8px; font-size: 12px; min-width: 170px;">
+            <option value="landscape">Landscape (Flight game)</option>
+            <option value="lowpoly">Low-poly (Flat panels)</option>
+            <option value="voxel-mixed">Voxelized (Mixed detail)</option>
+            <option value="voxel-4">Voxelized (4 × 4)</option>
+            <option value="voxel-6">Voxelized (6 × 6)</option>
+            <option value="voxel-8">Voxelized (8 × 8)</option>
+            <option value="voxel-12">Voxelized (12 × 12)</option>
+          </select>
+        </div>
+        <div id="gen-landscape-biome-container" style="margin-top: 4px; margin-bottom: 4px; display: none; flex-wrap: wrap; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; font-weight: 500; color: var(--muted);">Environment:</span>
+            <select id="gen-landscape-biome" style="padding: 4px 8px; border-radius: 8px; font-size: 12px; min-width: 130px;">
+              <option value="grassland">🌿 Grassland</option>
+              <option value="desert">🏜️ Desert</option>
+              <option value="snow">❄️ Snow</option>
+            </select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; font-weight: 500; color: var(--muted);">Render:</span>
+            <select id="gen-landscape-render" style="padding: 4px 8px; border-radius: 8px; font-size: 12px; min-width: 130px;">
+              <option value="lowpoly">Low-poly (Cel)</option>
+              <option value="realistic">Realistic</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="help-line">Replaces the current world. Model and API key live in Settings → AI.</div>
@@ -4417,6 +4450,10 @@
             <label class="gen-check">
               <input type="checkbox" id="render-voxel-terrain" />
               <span>Voxel terrain <em class="gen-hint">flat shaded panels and path edging</em></span>
+            </label>
+            <label class="gen-check">
+              <input type="checkbox" id="render-show-crowns" />
+              <span>Show crowns <em class="gen-hint">dense crowns on trees and rocks</em></span>
             </label>
             <label>Terrain voxel resolution
               <select id="render-terrain-voxel-resolution">
@@ -4698,6 +4735,7 @@
   <script src="vendor/three/three.r128.min.js"></script>
   <script src="vendor/three/GLTFLoader.r128.js"></script>
   <script src="vendor/tiny-crowd-layer.js"></script>
+  <script src="LandscapeEngine.js"></script>
   <script>
   /* =====================================================================
      Tiny World Builder — single-file Three.js scene + tile editor
@@ -4865,6 +4903,7 @@
     voxelBevel: 'tinyworld:render:voxelBevel',
     voxelTerrain: 'tinyworld:render:voxelTerrain',
     terrainVoxelResolution: 'tinyworld:render:terrainVoxelResolution',
+    showCrowns: 'tinyworld:render:showCrowns',
     autoExpand: 'tinyworld:render:autoExpand',
     pixelSize: 'tinyworld:render:pixelSize',
     pixelDepthEdge: 'tinyworld:render:pixelDepthEdge',
@@ -5072,6 +5111,7 @@
   let renderVoxelBevel = storedNumber(RENDER_LS.voxelBevel, parseFloat(RENDER_DEFAULTS.voxelBevel), 0, 0.06);
   let renderVoxelTerrain = localStorage.getItem(RENDER_LS.voxelTerrain) !== '0';
   let renderTerrainVoxelResolution = localStorage.getItem(RENDER_LS.terrainVoxelResolution) || 'mixed';
+  let showCrowns = localStorage.getItem(RENDER_LS.showCrowns) !== '0';
   if (!['mixed', '4', '6', '8', '12'].includes(renderTerrainVoxelResolution)) renderTerrainVoxelResolution = 'mixed';
   let renderAutoExpand = localStorage.getItem(RENDER_LS.autoExpand) === '1';
   if (!renderAutoExpand) renderVisibleSize = GRID;
@@ -5090,6 +5130,7 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.localClippingEnabled = true;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.xr.enabled = true;
   container.appendChild(renderer.domElement);
@@ -6629,7 +6670,7 @@
     g.add(upper);
 
     // At higher levels swap the wispy tip for a denser darker crown.
-    if (L >= 3) {
+    if (L >= 3 && showCrowns) {
       const crown = new THREE.Mesh(roundedBox(0.30 + (L - 3) * 0.04, 0.28 + (L - 3) * 0.04, 0.30 + (L - 3) * 0.04, 0.06), M.leavesDk);
       crown.position.y = upperY + upperH * 0.5 + 0.14;
       g.add(crown);
@@ -6733,15 +6774,17 @@
       shelf.rotation.set(0.08, alongX ? 0.18 : -0.22, dir === 'e' || dir === 's' ? 0.06 : -0.04);
       g.add(shelf);
 
-      const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + (extra + sideExtra) * 0.007, 0), dir === 'e' || dir === 'n' ? M.rockHi : M.rockDk);
-      crown.scale.set(1.10 + jitter(30) * 0.18, 0.60 + (extra + sideExtra) * 0.024, 0.90 + jitter(31) * 0.18);
-      crown.position.set(
-        dir === 'w' ? -0.39 : dir === 'e' ? 0.39 : (dir === 'n' ? -0.10 : 0.10),
-        0.20 + (extra + sideExtra) * 0.014,
-        dir === 'n' ? -0.39 : dir === 's' ? 0.39 : (dir === 'w' ? 0.10 : -0.10)
-      );
-      crown.rotation.y = dir === 'n' ? 0.8 : dir === 's' ? -0.4 : dir === 'e' ? 1.6 : -1.1;
-      g.add(crown);
+      if (showCrowns) {
+        const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + (extra + sideExtra) * 0.007, 0), dir === 'e' || dir === 'n' ? M.rockHi : M.rockDk);
+        crown.scale.set(1.10 + jitter(30) * 0.18, 0.60 + (extra + sideExtra) * 0.024, 0.90 + jitter(31) * 0.18);
+        crown.position.set(
+          dir === 'w' ? -0.39 : dir === 'e' ? 0.39 : (dir === 'n' ? -0.10 : 0.10),
+          0.20 + (extra + sideExtra) * 0.014,
+          dir === 'n' ? -0.39 : dir === 's' ? 0.39 : (dir === 'w' ? 0.10 : -0.10)
+        );
+        crown.rotation.y = dir === 'n' ? 0.8 : dir === 's' ? -0.4 : dir === 'e' ? 1.6 : -1.1;
+        g.add(crown);
+      }
     }
     if (n.n) addOutcrop('n');
     if (n.s) addOutcrop('s');
@@ -11347,6 +11390,7 @@
   function crowdTerrainHeightAt(x, z) {
     const cellX = Math.max(0, Math.min(GRID - 1, Math.round(x)));
     const cellZ = Math.max(0, Math.min(GRID - 1, Math.round(z)));
+    if (landscapeMeshMode) return landscapeHeightAtCell(cellX, cellZ) + 0.025;
     return TOP_H + terrainRiseAt(cellX, cellZ) + 0.025;
   }
 
@@ -11529,15 +11573,22 @@
       return (ghost && ghost[x] && ghost[x][z]) ? ghost[x][z] : null;
     } catch (_) { return null; }
   }
+  function terrainSurfaceHeightForCell(bx, bz, x, z, cell) {
+    if (landscapeMeshMode) return landscapeHeightAtCell(x + (bx || 0) * GRID, z + (bz || 0) * GRID);
+    if (cell) return TOP_H + terrainRiseForLevel(terrainLevelForCell(cell));
+    return TOP_H + terrainRiseAt(x, z);
+  }
+
   function rebuildSelectionMeshes() {
     clearSelectionMeshes();
     selectedCells.forEach(key => {
       const { bx, bz, x, z } = parseCellKey(key);
       if (!Number.isFinite(x) || !Number.isFinite(z)) return;
       const cell = cellForKey(key);
-      const rise = cell ? terrainRiseForLevel(terrainLevelForCell(cell)) : 0;
-      // Sit just above the tile top so the outline reads as on the surface.
-      const y = rise + TOP_H + 0.05;
+      // Sit just above the real terrain surface. In landscape mesh mode the
+      // hidden tile grid still defines x/z cells, but the highlight is
+      // projected upward onto the generated landscape height.
+      const y = terrainSurfaceHeightForCell(bx, bz, x, z, cell) + 0.05;
       const p = (bx || bz) ? ghostCellPos(bx, bz, x, z) : tilePos(x, z);
       // Translucent fill
       const fill = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.02, 0.96), selectionMat);
@@ -12173,6 +12224,23 @@
       ghostBoardCells.set(key, blank);
       return blank;
     }
+
+    if (useLandscapeEngine && landscapeEngineInstance) {
+      const cells = [];
+      for (let x = 0; x < GRID; x++) {
+        cells[x] = [];
+        for (let z = 0; z < GRID; z++) {
+          cells[x][z] = sampleLandscapeCell(boardX, boardZ, x, z, landscapeEngineInstance, GRID);
+        }
+      }
+      cells.__seed = ghostHash(boardX, boardZ, 0xdec0);
+      cells.__pathZ = -1;
+      cells.__pathX = -1;
+      cells.__riverX = -1;
+      ghostBoardCells.set(key, cells);
+      return cells;
+    }
+
     const cells = makeBlankBoardWorld();
 
     // 1) Paths — row & column shared so they connect across board edges.
@@ -12884,7 +12952,11 @@
 
         // Ghost terrain is now always full quality (makeTile) to match the restored quality objects.
         // No automatic quality reduction on ghosts — only progressive LOD when user zooms the camera out (to be implemented if needed).
-        if (detail === 'full') {
+        // In landscape mesh mode the engine renders the continuous terrain
+        // so skip individual ghost tiles entirely.
+        if (landscapeMeshMode) {
+          // no ghost tile needed — engine covers it
+        } else if (detail === 'full') {
           const tile = makeTile(cells[x][z].terrain, {
             path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
             terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
@@ -12923,7 +12995,9 @@
           : makeCheapGhostObject(cells[x][z], gx, gz);
         if (!obj) continue;
         obj.position.copy(ghostCellPos(boardX, boardZ, x, z));
-        obj.position.y = TOP_H + terrainRiseForLevel(tileLevelForCell(cells[x][z]));
+        obj.position.y = landscapeMeshMode
+          ? landscapeHeightAtCell(gx, gz)
+          : TOP_H + terrainRiseForLevel(tileLevelForCell(cells[x][z]));
         obj.userData.gx = x;
         obj.userData.gz = z;
         obj.userData.boardX = boardX;
@@ -13907,6 +13981,11 @@
     worldGroup.add(tile);
     entry.tile = tile;
 
+    // In landscape mesh mode the engine's continuous terrain replaces the
+    // discrete tile grid visually, but tiles stay in the scene for
+    // hit-testing and position anchoring.
+    if (landscapeMeshMode) tile.visible = false;
+
     if (animate) animateDrop(tile, 2.4, 0.42, delay, easeOutCubic, false);
   }
 
@@ -13921,6 +14000,17 @@
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
     for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
     if (typeof renderStampBuilderCards === 'function') renderStampBuilderCards();
+  }
+
+  function rebuildObjectsRender() {
+    for (const key in cellMeshes) {
+      const parts = key.split(',');
+      const x = parseInt(parts[0], 10);
+      const z = parseInt(parts[1], 10);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+      renderCellObject(x, z, { animate: false });
+    }
+    if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
   }
 
   function renderCellObject(x, z, opts) {
@@ -14066,7 +14156,9 @@
     if (userRot) mesh.rotation.y += userRot;
     if (userScale !== 1) mesh.scale.multiplyScalar(userScale);
     mesh.userData.objectScaleBase = userScale;
-    const objectY = TOP_H + terrainRiseAt(x, z);
+    const objectY = landscapeMeshMode
+      ? landscapeHeightAtCell(x, z)
+      : TOP_H + terrainRiseAt(x, z);
     mesh.position.set(posX + userOffsetX, objectY, posZ + userOffsetZ);
     if (setGridUserData) {
       mesh.userData.gx = x;
@@ -14105,7 +14197,9 @@
     const cell = world[x] && world[x][z];
     if (!cell || !cell.extras || !cell.extras.length) return;
     const p = tilePos(x, z);
-    const objectY = TOP_H + terrainRiseAt(x, z);
+    const objectY = landscapeMeshMode
+      ? landscapeHeightAtCell(x, z)
+      : TOP_H + terrainRiseAt(x, z);
     cell.extras.forEach((ex, i) => {
       let mesh = null;
       if (ex.kind === 'tuft') mesh = makeVoxelCropKind('tuft', ex.floors || 1);
@@ -14639,7 +14733,11 @@
     if (!ghostPreview) return;
     if (!currentHover) { ghostPreview.visible = false; return; }
     ghostPreview.visible = true;
-    const baseY = TOP_H + (terrainRiseAt(currentHover.x, currentHover.z) || 0);
+    const gx = currentHover.x + (currentHover.boardX || 0) * GRID;
+    const gz = currentHover.z + (currentHover.boardZ || 0) * GRID;
+    const baseY = landscapeMeshMode
+      ? landscapeHeightAtCell(gx, gz)
+      : TOP_H + (terrainRiseAt(gx, gz) || 0);
     ghostPreview.position.set(
       currentHover.worldX + ghostOffsetX,
       baseY + 0.01,
@@ -14661,12 +14759,67 @@
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
 
+  function floorDiv(a, b) {
+    return Math.floor(a / b);
+  }
+
+  function positiveMod(a, b) {
+    return ((a % b) + b) % b;
+  }
+
+  const landscapePickPoint = new THREE.Vector3();
+  const landscapePickPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+  function isLandscapeMeshHit(object) {
+    if (!landscapeMeshGroup || !object) return false;
+    let n = object;
+    while (n) {
+      if (n === landscapeMeshGroup) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+
+  function projectedLandscapeHitFromPoint(point) {
+    landscapePickPoint.copy(point);
+    xrWorldRoot.worldToLocal(landscapePickPoint);
+    const gx = Math.floor(landscapePickPoint.x + GRID / 2);
+    const gz = Math.floor(landscapePickPoint.z + GRID / 2);
+    if (!renderAutoExpand && (gx < 0 || gx >= GRID || gz < 0 || gz >= GRID)) return null;
+    const boardX = floorDiv(gx, GRID);
+    const boardZ = floorDiv(gz, GRID);
+    const x = positiveMod(gx, GRID);
+    const z = positiveMod(gz, GRID);
+    const p = (boardX || boardZ) ? ghostCellPos(boardX, boardZ, x, z) : tilePos(x, z);
+    return {
+      x,
+      z,
+      boardX,
+      boardZ,
+      worldX: p.x,
+      worldZ: p.z,
+      localX: landscapePickPoint.x - p.x,
+      localZ: landscapePickPoint.z - p.z,
+    };
+  }
+
+  function pickLandscapeVirtualCell() {
+    if (!landscapeMeshMode) return null;
+    const point = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(landscapePickPlane, point)) return null;
+    return projectedLandscapeHitFromPoint(point);
+  }
+
   function pickTile(clientX, clientY) {
     ndc.x = (clientX / window.innerWidth) * 2 - 1;
     ndc.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
     const hits = raycaster.intersectObjects(worldGroup.children, true);
+    let landscapeHit = null;
     for (const h of hits) {
+      if (!landscapeHit && isLandscapeMeshHit(h.object)) {
+        landscapeHit = projectedLandscapeHitFromPoint(h.point);
+      }
       let n = h.object;
       while (n && (n.userData.gx === undefined)) n = n.parent;
       if (n && n.userData.gx !== undefined) {
@@ -14691,10 +14844,16 @@
         };
       }
     }
-    return null;
+    return landscapeHit || pickLandscapeVirtualCell();
   }
 
   function hoverHeightForCell(cell) {
+    if (landscapeMeshMode) {
+      return landscapeHeightAtCell(
+        cell.x + (cell.boardX || 0) * GRID,
+        cell.z + (cell.boardZ || 0) * GRID
+      ) + 0.02;
+    }
     if (cell.boardX || cell.boardZ) {
       const cells = makeGhostWorld(cell.boardX, cell.boardZ);
       return TOP_H + terrainRiseForLevel(tileLevelForCell(cells[cell.x][cell.z])) + 0.02;
@@ -14823,7 +14982,11 @@
     xrControllerRay.direction.copy(xrControllerDir);
     raycaster.ray.copy(xrControllerRay);
     const hits = raycaster.intersectObjects(worldGroup.children, true);
+    let landscapeHit = null;
     for (const h of hits) {
+      if (!landscapeHit && isLandscapeMeshHit(h.object)) {
+        landscapeHit = projectedLandscapeHitFromPoint(h.point);
+      }
       let n = h.object;
       while (n && n.userData.gx === undefined) n = n.parent;
       if (!n || n.userData.gx === undefined || !n.visible) continue;
@@ -14845,7 +15008,7 @@
         localZ: xrLocalPoint.z - p.z,
       };
     }
-    return null;
+    return landscapeHit;
   }
 
   function updateXRControllerHover() {
@@ -16529,7 +16692,17 @@
         }
       }
     }
-    const data = { v: STORAGE_VERSION, gridSize: GRID, cells, cameraMode, toolId: selectedTool && selectedTool.id };
+    const data = {
+      v: STORAGE_VERSION,
+      gridSize: GRID,
+      cells,
+      cameraMode,
+      toolId: selectedTool && selectedTool.id,
+      useLandscapeEngine,
+      landscapeMeshMode,
+      landscapeEngineSeed: landscapeEngineInstance ? landscapeEngineInstance.seed : null,
+      landscapeEngineBiome: landscapeEngineInstance ? landscapeEngineInstance.currentBiomeName : null,
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -17025,6 +17198,15 @@
   }
 
   function doReset() {
+    useLandscapeEngine = false;
+    landscapeEngineInstance = null;
+    disposeLandscapeMesh();
+    try {
+      localStorage.setItem('tinyworld:gen:useLandscape', '0');
+      const useLandscapeEl = document.getElementById('gen-use-landscape');
+      if (useLandscapeEl) useLandscapeEl.checked = false;
+    } catch (_) {}
+
     hasUserPanned = false;
     clearVehicleRuntime();
     renderVisibleSize = GRID;
@@ -17073,6 +17255,15 @@
     });
   })();
   function doClear() {
+    useLandscapeEngine = false;
+    landscapeEngineInstance = null;
+    disposeLandscapeMesh();
+    try {
+      localStorage.setItem('tinyworld:gen:useLandscape', '0');
+      const useLandscapeEl = document.getElementById('gen-use-landscape');
+      if (useLandscapeEl) useLandscapeEl.checked = false;
+    } catch (_) {}
+
     if (typeof playSfx === 'function') playSfx('whoosh');
     clearVehicleRuntime();
     if (useWindowedHomeRendering()) {
@@ -17160,6 +17351,7 @@
     const voxelGapEl = document.getElementById('render-voxel-gap');
     const voxelBevelEl = document.getElementById('render-voxel-bevel');
     const voxelTerrainEl = document.getElementById('render-voxel-terrain');
+    const showCrownsEl = document.getElementById('render-show-crowns');
     const terrainVoxelResolutionEl = document.getElementById('render-terrain-voxel-resolution');
     const resolutionValue = document.getElementById('render-resolution-value');
     const distanceValue = document.getElementById('render-distance-value');
@@ -17226,6 +17418,7 @@
       voxelGapEl.value = String(Math.round(renderVoxelGap * 100));
       voxelBevelEl.value = renderVoxelBevel.toFixed(3);
       if (voxelTerrainEl) voxelTerrainEl.checked = !!renderVoxelTerrain;
+      if (showCrownsEl) showCrownsEl.checked = !!showCrowns;
       if (terrainVoxelResolutionEl) terrainVoxelResolutionEl.value = renderTerrainVoxelResolution;
       if (crowdCountEl) crowdCountEl.value = String(crowdCount);
       if (crowdScaleEl) crowdScaleEl.value = String(Math.round(crowdScale * 100));
@@ -17312,6 +17505,7 @@
       localStorage.setItem(RENDER_LS.voxelGap, renderVoxelGap.toFixed(2));
       localStorage.setItem(RENDER_LS.voxelBevel, renderVoxelBevel.toFixed(3));
       localStorage.setItem(RENDER_LS.voxelTerrain, renderVoxelTerrain ? '1' : '0');
+      localStorage.setItem(RENDER_LS.showCrowns, showCrowns ? '1' : '0');
       localStorage.setItem(RENDER_LS.terrainVoxelResolution, renderTerrainVoxelResolution);
       localStorage.setItem(RENDER_LS.autoExpand, renderAutoExpand ? '1' : '0');
       localStorage.setItem(RENDER_LS.crowdEnabled, crowdEnabled ? '1' : '0');
@@ -17322,6 +17516,7 @@
       const oldVoxelBevel = renderVoxelBevel;
       const oldVoxelTerrain = renderVoxelTerrain;
       const oldTerrainVoxelResolution = renderTerrainVoxelResolution;
+      const oldShowCrowns = showCrowns;
       const oldCrowdEnabled = crowdEnabled;
       setShadowQuality(shadowEl.value);
       setRenderResolutionScale(parseInt(resolutionEl.value, 10) / 100);
@@ -17356,6 +17551,7 @@
       renderVoxelGap = parseInt(voxelGapEl.value, 10) / 100;
       renderVoxelBevel = Math.max(0, Math.min(0.06, parseFloat(voxelBevelEl.value) || 0));
       if (voxelTerrainEl) renderVoxelTerrain = !!voxelTerrainEl.checked;
+      if (showCrownsEl) showCrowns = !!showCrownsEl.checked;
       if (terrainVoxelResolutionEl) renderTerrainVoxelResolution = terrainVoxelResolutionEl.value;
       if (crowdCountEl) crowdCount = parseInt(crowdCountEl.value, 10) || 0;
       if (crowdScaleEl) crowdScale = parseInt(crowdScaleEl.value, 10) / 100;
@@ -17383,6 +17579,7 @@
       }
       if (Math.abs(oldVoxelGap - renderVoxelGap) > 0.001 || Math.abs(oldVoxelBevel - renderVoxelBevel) > 0.001) scheduleVoxelStampRefresh();
       if (oldVoxelTerrain !== renderVoxelTerrain || oldTerrainVoxelResolution !== renderTerrainVoxelResolution) rebuildTerrainRender();
+      if (oldShowCrowns !== showCrowns) rebuildObjectsRender();
       updateGhostRenderBubble();
       applyColorFilterFallback();
       persistSettings();
@@ -17419,7 +17616,7 @@
     });
     closeBtn.addEventListener('click', () => { closeTinyModal(modal); });
     modal.addEventListener('click', e => { if (e.target === modal) closeTinyModal(modal); });
-    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, distanceMistEl, backdropEl, pixelSizeEl, pixelDepthEdgeEl, pixelNormalEdgeEl, shaderAntialiasEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl, voxelGapEl, voxelBevelEl, voxelTerrainEl, terrainVoxelResolutionEl, crowdCountEl, crowdScaleEl, crowdSpeedEl, crowdBobEl, crowdSwayEl, crowdLeanEl, crowdZoneRadiusEl, crowdShowZonesEl, crowdPausedEl, crowdEnabledEl, crowdDebugEl, crowdModeEl, crowdCountLiveEl, crowdScaleLiveEl, crowdSpeedLiveEl, crowdZoneRadiusLiveEl, crowdShowZonesLiveEl, crowdShowArrowsLiveEl, crowdPausedLiveEl, crowdEnabledLiveEl]) {
+    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, distanceMistEl, backdropEl, pixelSizeEl, pixelDepthEdgeEl, pixelNormalEdgeEl, shaderAntialiasEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl, voxelGapEl, voxelBevelEl, voxelTerrainEl, showCrownsEl, terrainVoxelResolutionEl, crowdCountEl, crowdScaleEl, crowdSpeedEl, crowdBobEl, crowdSwayEl, crowdLeanEl, crowdZoneRadiusEl, crowdShowZonesEl, crowdPausedEl, crowdEnabledEl, crowdDebugEl, crowdModeEl, crowdCountLiveEl, crowdScaleLiveEl, crowdSpeedLiveEl, crowdZoneRadiusLiveEl, crowdShowZonesLiveEl, crowdShowArrowsLiveEl, crowdPausedLiveEl, crowdEnabledLiveEl]) {
       if (!el) continue;
       el.addEventListener('input', applyFromControls);
       el.addEventListener('change', applyFromControls);
@@ -20158,6 +20355,10 @@
     tickVehicles(dt);
     if (crowdEnabled && crowdLayer) crowdLayer.update(dt, camera);
     updateCropDuster(dt);
+    // Stream LandscapeEngine chunks when in landscape mesh mode
+    if (landscapeMeshMode && landscapeMeshEngine) {
+      landscapeMeshEngine.update(landscapeMeshFocusPos(), dt);
+    }
     if (useWindowedHomeRendering()) {
       requestHomeRenderWindowSync();
       if (homeRenderQueue.length) processHomeRenderQueue(5);
@@ -21368,6 +21569,449 @@
   // Expose for tests / command palette.
   window.__generateProceduralWorld = generateProceduralWorld;
 
+  // -------- LandscapeEngine integration --------
+  let useLandscapeEngine = false;
+  let landscapeEngineInstance = null;
+
+  // -------- landscape mesh mode (flight-game continuous terrain) --------
+  let landscapeMeshMode = false;
+  let landscapeMeshEngine = null;
+  let landscapeMeshGroup = null;
+  let landscapeCutCapsGroup = null;
+  let landscapeMeshBiome = 'grassland';  // 'grassland', 'desert', or 'snow'
+  let landscapeMeshStyle = 'lowpoly';    // 'realistic' or 'lowpoly'
+
+  // Scale factor: builder tiles are 1 unit apart; sampleLandscapeCell
+  // maps them to engine coords via `scale = 25`, so we shrink the
+  // engine's meshes by 1/25 so one engine sample-step = 1 builder unit.
+  const LANDSCAPE_MESH_SCALE = 1 / 25;
+  // Offset used in sampleLandscapeCell to skip the flat airfield zone.
+  const LANDSCAPE_MESH_OFFSET = 800;
+
+  function landscapeMeshFocusPos() {
+    // Convert the builder camera target to LandscapeEngine world coords.
+    return new THREE.Vector3(
+      (target.x + LANDSCAPE_MESH_OFFSET + GRID / 2 - 0.5) * 25,
+      0,
+      (target.z + LANDSCAPE_MESH_OFFSET + GRID / 2 - 0.5) * 25
+    );
+  }
+
+  function landscapeHeightAtCell(x, z) {
+    if (!landscapeMeshEngine) return 0;
+    const wx = (x + LANDSCAPE_MESH_OFFSET) * 25;
+    const wz = (z + LANDSCAPE_MESH_OFFSET) * 25;
+    return landscapeMeshEngine.getHeight(wx, wz) * LANDSCAPE_MESH_SCALE;
+  }
+
+  function initLandscapeMesh() {
+    disposeLandscapeMesh();
+    if (!window.LandscapeEngine) return;
+    if (!landscapeEngineInstance) return;
+
+    landscapeMeshGroup = new THREE.Group();
+    const s = LANDSCAPE_MESH_SCALE;
+    landscapeMeshGroup.scale.set(s, s, s);
+    // Align engine world-space with builder grid: engine pos (x+800)*25
+    // maps to builder tilePos (x - GRID/2 + 0.5) after scaling.
+    landscapeMeshGroup.position.set(
+      -LANDSCAPE_MESH_OFFSET - GRID / 2 + 0.5,
+      0,
+      -LANDSCAPE_MESH_OFFSET - GRID / 2 + 0.5
+    );
+    worldGroup.add(landscapeMeshGroup);
+
+    landscapeMeshEngine = new window.LandscapeEngine({
+      scene: landscapeMeshGroup,
+      seed: landscapeEngineInstance.seed,
+      initialBiome: landscapeMeshBiome || landscapeEngineInstance.currentBiomeName,
+      styleMode: landscapeMeshStyle || 'lowpoly'
+    });
+
+    landscapeMeshMode = true;
+    updateLandscapeClipBounds();
+  }
+
+  function disposeLandscapeCutCaps() {
+    if (!landscapeCutCapsGroup) return;
+    const materials = new Set();
+    landscapeCutCapsGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) materials.add(o.material);
+    });
+    materials.forEach(material => material.dispose());
+    if (landscapeCutCapsGroup.parent) landscapeCutCapsGroup.parent.remove(landscapeCutCapsGroup);
+    landscapeCutCapsGroup = null;
+  }
+
+  function makeLandscapeCutCapMaterial() {
+    const bg = (scene && scene.background && scene.background.isColor)
+      ? scene.background.clone()
+      : new THREE.Color(0xf4ede0);
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        fogColor: { value: bg },
+      },
+      vertexShader: `
+        attribute vec3 color;
+        attribute float alpha;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vColor = color;
+          vAlpha = alpha;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 fogColor;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vec3 col = mix(fogColor, vColor, vAlpha);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      transparent: false,
+      depthWrite: true,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  function makeLandscapeMistMaterial() {
+    return new THREE.MeshBasicMaterial({
+      color: 0xe4f1f8,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+    });
+  }
+
+  function makeLandscapeCutCap(side, material) {
+    const step = 25;
+    const min = (LANDSCAPE_MESH_OFFSET - 0.5) * step;
+    const max = (LANDSCAPE_MESH_OFFSET + GRID - 0.5) * step;
+    const bottomY = -24;
+    const fadeDepth = 34;
+    const positions = [];
+    const colors = [];
+    const alphas = [];
+    const indices = [];
+    const color = new THREE.Color();
+    const fog = material.uniforms.fogColor.value;
+
+    for (let i = 0; i <= GRID; i++) {
+      const t = i / Math.max(1, GRID);
+      const a = min + (max - min) * t;
+      const wx = side === 'e' ? max : side === 'w' ? min : a;
+      const wz = side === 's' ? max : side === 'n' ? min : a;
+      const h = landscapeMeshEngine.getHeight(wx, wz);
+      const fadeY = Math.max(bottomY, h - fadeDepth);
+      if (landscapeMeshEngine._strataColor) {
+        landscapeMeshEngine._strataColor(h, color);
+      } else {
+        color.setHex(0x8a6a48);
+      }
+      // Three vertical samples: real terrain colour at the slice line,
+      // then a quick opaque colour-fade to the scene background. The lower
+      // face still writes depth, so nothing behind it shows through.
+      positions.push(wx, h, wz, wx, fadeY, wz, wx, bottomY, wz);
+      colors.push(
+        color.r, color.g, color.b,
+        fog.r, fog.g, fog.b,
+        fog.r, fog.g, fog.b
+      );
+      alphas.push(1.0, 0.0, 0.0);
+    }
+
+    for (let i = 0; i < GRID; i++) {
+      const topA = i * 3;
+      const fadeA = topA + 1;
+      const botA = topA + 2;
+      const topB = topA + 3;
+      const fadeB = topA + 4;
+      const botB = topA + 5;
+      indices.push(
+        topA, fadeA, topB, fadeA, fadeB, topB,
+        fadeA, botA, fadeB, botA, botB, fadeB
+      );
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('alpha', new THREE.Float32BufferAttribute(alphas, 1));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = 20;
+    mesh.raycast = function () {};
+    mesh.userData.landscapeCutCap = true;
+    return mesh;
+  }
+
+  function makeLandscapeMistCurtain(side, material) {
+    const step = 25;
+    const min = (LANDSCAPE_MESH_OFFSET - 0.5) * step;
+    const max = (LANDSCAPE_MESH_OFFSET + GRID - 0.5) * step;
+    const pad = 18;
+    const bottomY = -18;
+    const topY = 110;
+    const fixed = side === 'e' ? max + pad : side === 'w' ? min - pad : side === 's' ? max + pad : min - pad;
+    const a0 = min - pad * 3;
+    const a1 = max + pad * 3;
+    const positions = (side === 'e' || side === 'w')
+      ? [fixed, bottomY, a0, fixed, topY, a0, fixed, bottomY, a1, fixed, topY, a1]
+      : [a0, bottomY, fixed, a0, topY, fixed, a1, bottomY, fixed, a1, topY, fixed];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex([0, 2, 1, 2, 3, 1]);
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = 30;
+    mesh.raycast = function () {};
+    mesh.userData.landscapeMist = true;
+    return mesh;
+  }
+
+  function makeLandscapeBottomMist(material) {
+    const step = 25;
+    const min = (LANDSCAPE_MESH_OFFSET - 0.5) * step;
+    const max = (LANDSCAPE_MESH_OFFSET + GRID - 0.5) * step;
+    const pad = 70;
+    const geometry = new THREE.PlaneGeometry(max - min + pad * 2, max - min + pad * 2, 1, 1);
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set((min + max) * 0.5, -16, (min + max) * 0.5);
+    mesh.renderOrder = 28;
+    mesh.raycast = function () {};
+    mesh.userData.landscapeMist = true;
+    return mesh;
+  }
+
+  function rebuildLandscapeCutCaps() {
+    disposeLandscapeCutCaps();
+    if (!landscapeMeshEngine || !landscapeMeshGroup || ghostBoardsEnabledForGrid()) return;
+    landscapeCutCapsGroup = new THREE.Group();
+    landscapeCutCapsGroup.name = 'landscapeCutCaps';
+    const capMaterial = makeLandscapeCutCapMaterial();
+    ['n', 's', 'e', 'w'].forEach(side => {
+      landscapeCutCapsGroup.add(makeLandscapeCutCap(side, capMaterial));
+    });
+    landscapeMeshGroup.add(landscapeCutCapsGroup);
+  }
+
+  // Recalculate and apply clip bounds based on ghost-board state.
+  // When ghost boards are off, clip the landscape to the home grid and add
+  // vertical cut caps so the board reads as a chunk sliced out of a larger map.
+  function updateLandscapeClipBounds() {
+    if (!landscapeMeshEngine) return;
+    if (ghostBoardsEnabledForGrid()) {
+      // Infinite terrain — no clipping.
+      landscapeMeshEngine.clearClipBounds();
+      disposeLandscapeCutCaps();
+    } else {
+      // LandscapeEngine shader clipping uses the transformed scene/world
+      // position, not raw engine coordinates. Clip to the visible builder
+      // board edges so 8x8/20x20 landscape boards render as clean cutouts.
+      const pad = 0.001;
+      landscapeMeshEngine.setClipBounds(
+        new THREE.Vector3(-GRID / 2 - pad, -1e6, -GRID / 2 - pad),
+        new THREE.Vector3( GRID / 2 + pad,  1e6,  GRID / 2 + pad)
+      );
+      rebuildLandscapeCutCaps();
+    }
+  }
+
+  function disposeLandscapeMesh() {
+    disposeLandscapeCutCaps();
+    if (landscapeMeshEngine) {
+      landscapeMeshEngine.dispose();
+      landscapeMeshEngine = null;
+    }
+    if (landscapeMeshGroup) {
+      worldGroup.remove(landscapeMeshGroup);
+      landscapeMeshGroup = null;
+    }
+    landscapeMeshMode = false;
+  }
+
+  function initLandscapeEngine(seed, biomeName) {
+    if (!window.LandscapeEngine) {
+      console.warn("LandscapeEngine.js is not loaded.");
+      return null;
+    }
+    const dummyScene = new THREE.Scene();
+    const numericSeed = typeof seed === 'number' ? seed : seedHash(String(seed || ''));
+    landscapeEngineInstance = new window.LandscapeEngine({
+      scene: dummyScene,
+      seed: numericSeed,
+      initialBiome: biomeName || 'grassland',
+      styleMode: 'lowpoly'
+    });
+    return landscapeEngineInstance;
+  }
+
+  function sampleLandscapeCell(boardX, boardZ, x, z, engine, gridSize) {
+    const size = gridSize || GRID;
+    // Offset by 800 cells (20,000 meters in LandscapeEngine space) to bypass the flat airfield / runway zone at (0,0)
+    const gx = boardX * size + x + 800;
+    const gz = boardZ * size + z + 800;
+
+    // Spacing scale: map grid cells to LandscapeEngine space
+    const scale = 25;
+    const wx = gx * scale;
+    const wz = gz * scale;
+
+    const h = engine.getHeight(wx, wz);
+    const waterLevel = engine.WATER_LEVEL; // 4.0
+
+    // Map height to terrainFloors (1 to 8, stepped by mesa terraces)
+    let tf = Math.max(1, Math.min(8, 1 + Math.floor(h / 28)));
+
+    let terrain = 'grass';
+    let kind = null;
+    let floors = 1;
+    let buildingType = null;
+
+    // Calculate slope to detect cliffs
+    const hN = engine.getHeight(wx + 5, wz);
+    const hE = engine.getHeight(wx, wz + 5);
+    const slope = (Math.abs(hN - h) + Math.abs(hE - h)) * 0.05;
+
+    // Deterministic hash based on global cell position
+    function cellHash(gx, gz, salt) {
+      const s = Math.sin(gx * 12.9898 + gz * 78.233 + salt * 37.719) * 43758.5453;
+      return s - Math.floor(s);
+    }
+
+    if (h <= waterLevel + 1.0) {
+      terrain = 'water';
+      tf = 1;
+    } else {
+      const biome = engine.currentBiomeName;
+      if (slope > 0.35) {
+        terrain = 'stone';
+      } else if (biome === 'desert') {
+        terrain = 'sand';
+        const pick = cellHash(gx, gz, 100);
+        if (pick < 0.03) {
+          kind = 'rock';
+          floors = 1 + Math.floor(cellHash(gx, gz, 101) * 3);
+        } else if (pick < 0.06) {
+          kind = 'tuft';
+        } else if (pick < 0.08) {
+          kind = 'house';
+          buildingType = 'cottage';
+          floors = 1;
+        }
+      } else if (biome === 'snow') {
+        if (tf >= 5) {
+          terrain = 'snow';
+        } else {
+          terrain = 'stone';
+        }
+        const pick = cellHash(gx, gz, 100);
+        if (pick < 0.08) {
+          kind = 'tree';
+          floors = 1 + Math.floor(cellHash(gx, gz, 102) * 3);
+        } else if (pick < 0.12) {
+          kind = 'rock';
+          floors = 1 + Math.floor(cellHash(gx, gz, 101) * 2);
+        } else if (pick < 0.14) {
+          kind = 'house';
+          buildingType = 'cottage';
+          floors = 1;
+        }
+      } else {
+        // grassland
+        if (tf >= 6) {
+          terrain = 'snow';
+        } else if (tf >= 4) {
+          terrain = 'stone';
+        } else if (tf === 1 && h <= waterLevel + 4.0) {
+          terrain = 'sand';
+        } else {
+          terrain = 'grass';
+        }
+        const pick = cellHash(gx, gz, 100);
+        if (pick < 0.08) {
+          kind = 'tree';
+          floors = 1 + Math.floor(cellHash(gx, gz, 102) * 3);
+        } else if (pick < 0.12) {
+          kind = 'tuft';
+        } else if (pick < 0.14) {
+          kind = 'flower';
+        } else if (pick < 0.16) {
+          kind = 'rock';
+        } else if (pick < 0.18) {
+          kind = 'house';
+          buildingType = (cellHash(gx, gz, 103) < 0.5) ? 'cottage' : null;
+          floors = 1 + Math.floor(cellHash(gx, gz, 104) * 2);
+        }
+      }
+    }
+
+    // Ensure kinds that aren't rocks sit on flat ground (tf = 1)
+    let effectiveTf = tf;
+    if (kind && kind !== 'rock') effectiveTf = 1;
+
+    return {
+      x, z,
+      terrain,
+      kind,
+      floors,
+      terrainFloors: effectiveTf,
+      buildingType,
+      fenceSide: null,
+      extras: []
+    };
+  }
+
+  function generateLandscapeWorld({ seed, biomes, elevation, gridSize }) {
+    const size = coerceGridSize(gridSize, GRID);
+
+    let chosenBiome = 'grassland';
+    const dirtVal = biomes ? (biomes.dirt || 0) : 0;
+    const grassVal = biomes ? (biomes.grass || 0) : 0;
+    const forestVal = biomes ? (biomes.forest || 0) : 0;
+    const mountainsVal = elevation ? (elevation.mountains || 0) : 0;
+
+    if (dirtVal > grassVal && dirtVal > forestVal) {
+      chosenBiome = 'desert';
+    } else if (mountainsVal > 40) {
+      chosenBiome = 'snow';
+    }
+
+    useLandscapeEngine = true;
+    try {
+      localStorage.setItem('tinyworld:gen:useLandscape', '1');
+    } catch (_) {}
+
+    const engine = initLandscapeEngine(seed, chosenBiome);
+    if (!engine) {
+      console.warn("Could not load LandscapeEngine. Falling back to standard procedural.");
+      useLandscapeEngine = false;
+      return generateProceduralWorld({ seed, biomes, elevation, gridSize });
+    }
+
+    const out = { v: 4, gridSize: size, cells: [] };
+
+    for (let x = 0; x < size; x++) {
+      for (let z = 0; z < size; z++) {
+        const cell = sampleLandscapeCell(0, 0, x, z, engine, size);
+        out.cells.push(cell);
+      }
+    }
+
+    out.useLandscapeEngine = true;
+    out.landscapeEngineSeed = seed;
+    out.landscapeEngineBiome = chosenBiome;
+
+    return out;
+  }
+
+  window.__generateLandscapeWorld = generateLandscapeWorld;
+
   async function generateWorld(provider, model, key, userPrompt, gridSize) {
     const requestedGridSize = coerceGridSize(gridSize, GRID);
     const system = buildSystemPrompt(requestedGridSize);
@@ -21614,10 +22258,57 @@
     fillGridSizeSelect(gridSizeEl);
     const disableAutofillEl = document.getElementById('gen-disable-autofill');
     const proceduralEl = document.getElementById('gen-procedural');
-    if (proceduralEl) proceduralEl.checked = localStorage.getItem('tinyworld:gen:procedural') === '1';
-    if (proceduralEl) proceduralEl.addEventListener('change', () => {
-      try { localStorage.setItem('tinyworld:gen:procedural', proceduralEl.checked ? '1' : '0'); } catch (_) {}
-    });
+    const useLandscapeEl = document.getElementById('gen-use-landscape');
+    const landscapeContainer = document.getElementById('gen-landscape-container');
+    
+    if (proceduralEl) {
+      proceduralEl.checked = localStorage.getItem('tinyworld:gen:procedural') === '1';
+      proceduralEl.addEventListener('change', () => {
+        try { localStorage.setItem('tinyworld:gen:procedural', proceduralEl.checked ? '1' : '0'); } catch (_) {}
+        if (landscapeContainer) landscapeContainer.style.display = proceduralEl.checked ? 'block' : 'none';
+      });
+      if (landscapeContainer) landscapeContainer.style.display = proceduralEl.checked ? 'block' : 'none';
+    }
+    
+    if (useLandscapeEl) {
+      useLandscapeEl.checked = localStorage.getItem('tinyworld:gen:useLandscape') === '1';
+      useLandscapeEl.addEventListener('change', () => {
+        try { localStorage.setItem('tinyworld:gen:useLandscape', useLandscapeEl.checked ? '1' : '0'); } catch (_) {}
+      });
+    }
+    const landscapeStyleEl = document.getElementById('gen-landscape-style');
+    const biomeDdContainer = document.getElementById('gen-landscape-biome-container');
+    const biomeDdEl = document.getElementById('gen-landscape-biome');
+    const renderDdEl = document.getElementById('gen-landscape-render');
+
+    function syncBiomeContainerVisibility() {
+      if (!biomeDdContainer || !landscapeStyleEl) return;
+      biomeDdContainer.style.display = landscapeStyleEl.value === 'landscape' ? 'flex' : 'none';
+    }
+
+    if (landscapeStyleEl) {
+      const storedStyle = localStorage.getItem('tinyworld:gen:landscapeStyle') || 'voxel-mixed';
+      landscapeStyleEl.value = storedStyle;
+      landscapeStyleEl.addEventListener('change', () => {
+        try { localStorage.setItem('tinyworld:gen:landscapeStyle', landscapeStyleEl.value); } catch (_) {}
+        syncBiomeContainerVisibility();
+      });
+    }
+    if (biomeDdEl) {
+      const storedBiome = localStorage.getItem('tinyworld:gen:landscapeBiome') || 'grassland';
+      biomeDdEl.value = storedBiome;
+      biomeDdEl.addEventListener('change', () => {
+        try { localStorage.setItem('tinyworld:gen:landscapeBiome', biomeDdEl.value); } catch (_) {}
+      });
+    }
+    if (renderDdEl) {
+      const storedRender = localStorage.getItem('tinyworld:gen:landscapeRender') || 'lowpoly';
+      renderDdEl.value = storedRender;
+      renderDdEl.addEventListener('change', () => {
+        try { localStorage.setItem('tinyworld:gen:landscapeRender', renderDdEl.value); } catch (_) {}
+      });
+    }
+    syncBiomeContainerVisibility();
     const biomeSlidersEl = document.getElementById('gen-biome-sliders');
     const biomeSumEl = document.getElementById('gen-biome-sum');
     const elevSlidersEl = document.getElementById('gen-elev-sliders');
@@ -21900,6 +22591,15 @@
         const storedGridSize = parseInt(localStorage.getItem(GEN_LS.gridSize) || '', 10);
         gridSizeEl.value = String(coerceGridSize(storedGridSize, GRID));
       }
+      if (landscapeStyleEl) {
+        if (landscapeMeshMode) {
+          landscapeStyleEl.value = 'landscape';
+        } else if (!renderVoxelTerrain) {
+          landscapeStyleEl.value = 'lowpoly';
+        } else {
+          landscapeStyleEl.value = 'voxel-' + renderTerrainVoxelResolution;
+        }
+      }
       setStatus('');
       openTinyModal(modal, promptEl);
     }
@@ -21942,8 +22642,31 @@
       const biomes = { ...biomeState };
       const elevation = { ...elevState };
       const procedural = !!(proceduralEl && proceduralEl.checked);
+      const landscapeStyle = landscapeStyleEl && landscapeStyleEl.value;
+      const useLandscape = !!(useLandscapeEl && useLandscapeEl.checked) || landscapeStyle === 'landscape';
       const disableAutofill = !!(disableAutofillEl && disableAutofillEl.checked);
       try { localStorage.setItem(GEN_LS.gridSize, String(gridSize)); } catch (_) {}
+
+      // Apply the selected terrain style to the global settings and persist them
+      if (landscapeStyleEl) {
+        const style = landscapeStyleEl.value;
+        if (style === 'landscape') {
+          renderVoxelTerrain = false;
+          // Store biome/render choices for initLandscapeMesh
+          landscapeMeshBiome = (biomeDdEl && biomeDdEl.value) || 'grassland';
+          landscapeMeshStyle = (renderDdEl && renderDdEl.value) || 'lowpoly';
+          // landscapeMeshMode is activated after applyState creates the engine instance
+        } else if (style === 'lowpoly') {
+          disposeLandscapeMesh();
+          renderVoxelTerrain = false;
+        } else {
+          disposeLandscapeMesh();
+          renderVoxelTerrain = true;
+          renderTerrainVoxelResolution = style.split('-')[1];
+        }
+        if (typeof persistSettings === 'function') persistSettings();
+        if (typeof syncControls === 'function') syncControls();
+      }
 
       // Procedural path — bypass the LLM entirely.
       if (procedural) {
@@ -21953,11 +22676,18 @@
         setStatus('generating offline…', 'busy');
         try {
           applyGenerationAutofillSetting(disableAutofill);
-          const data = generateProceduralWorld({ seed: effectiveSeed, biomes, elevation, gridSize });
+          const data = useLandscape
+            ? generateLandscapeWorld({ seed: effectiveSeed, biomes, elevation, gridSize })
+            : generateProceduralWorld({ seed: effectiveSeed, biomes, elevation, gridSize });
           const err = (typeof validateWorld === 'function') ? validateWorld(data) : null;
           if (err) throw new Error('procedural schema: ' + err);
           if (typeof applyState === 'function' && !applyState(data, { sliced: true })) {
             throw new Error('renderer rejected the procedural scene');
+          }
+          // Activate landscape mesh after applyState created the engine
+          if (landscapeStyleEl && landscapeStyleEl.value === 'landscape' && landscapeEngineInstance) {
+            initLandscapeMesh();
+            rebuildTerrainRender();
           }
           setStatus('done · seed: ' + effectiveSeed, '');
         } catch (err) {
@@ -22051,6 +22781,11 @@
           },
         });
         if (!ok) throw new Error('renderer rejected the scene');
+        // Activate landscape mesh after applyState created the engine
+        if (landscapeStyleEl && landscapeStyleEl.value === 'landscape' && landscapeEngineInstance) {
+          initLandscapeMesh();
+          rebuildTerrainRender();
+        }
         setStatus('done · seed: ' + effectiveSeed, '');
         progress.done('Building completed.');
       } catch (err) {
@@ -23223,6 +23958,12 @@
           cells,
           cameraMode,
           toolId: selectedTool && selectedTool.id,
+          useLandscapeEngine,
+          landscapeMeshMode,
+          landscapeMeshBiome,
+          landscapeMeshStyle,
+          landscapeEngineSeed: landscapeEngineInstance ? landscapeEngineInstance.seed : null,
+          landscapeEngineBiome: landscapeEngineInstance ? landscapeEngineInstance.currentBiomeName : null,
         }));
       } catch (_) {}
     }, 200);
@@ -23242,6 +23983,19 @@
     }
     if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4) return false;
     if (vehicleFleet.size) clearVehicleRuntime();
+
+    if (data.useLandscapeEngine) {
+      useLandscapeEngine = true;
+      initLandscapeEngine(data.landscapeEngineSeed || '', data.landscapeEngineBiome || 'grassland');
+    } else {
+      useLandscapeEngine = false;
+      landscapeEngineInstance = null;
+      disposeLandscapeMesh();
+    }
+
+    // Defer landscape mesh init — we need cells painted first so
+    // rebuildTerrainRender can hide them.
+    const shouldRestoreLandscapeMesh = !!(data.landscapeMeshMode && landscapeEngineInstance);
 
     // Restore the saved home grid size before painting cells so the new
     // tiles are framed correctly and ghost boards land in the right
@@ -23528,6 +24282,11 @@
       if (data.toolId) {
         const tool = TOOLS.find(t => t.id === data.toolId);
         if (tool) selectTool(tool);
+      }
+      // Restore landscape mesh mode after all tiles are painted
+      if (shouldRestoreLandscapeMesh) {
+        initLandscapeMesh();
+        rebuildTerrainRender();
       }
       saveState();
       if (typeof opts.onDone === 'function') {
@@ -24739,6 +25498,7 @@
           updateCamera();
           clearGhostBoardsOnly();
         }
+        updateLandscapeClipBounds();
         requestMinimapRepaint();
       });
     }
@@ -25766,6 +26526,22 @@
       // Scene
       items.push({ group: 'Scene', label: 'Time & weather…', hint: 'tint, season, weather', run: topBtnAction('time-weather') });
       items.push({ group: 'Scene', label: 'Toggle developer overlay', hint: 'FPS / draws / tris', kbd: '`', run: topBtnAction('dev-mode') });
+      items.push({ group: 'World', label: 'Generate Canyon Landscape…', hint: 'infinite terraced canyon procedural mesh', run: () => {
+        const btn = document.getElementById('ai-generate');
+        if (btn) btn.click();
+        requestAnimationFrame(() => {
+          const proceduralEl = document.getElementById('gen-procedural');
+          if (proceduralEl) {
+            proceduralEl.checked = true;
+            proceduralEl.dispatchEvent(new Event('change'));
+          }
+          const useLandscapeEl = document.getElementById('gen-use-landscape');
+          if (useLandscapeEl) {
+            useLandscapeEl.checked = true;
+            useLandscapeEl.dispatchEvent(new Event('change'));
+          }
+        });
+      } });
       items.push({ group: 'World', label: 'Reset world', hint: 'back to the starter scene', run: topBtnAction('reset') });
       items.push({ group: 'World', label: 'Clear to grass', hint: 'wipe to empty grass', run: topBtnAction('clear') });
       items.push({ group: 'World', label: 'Run vehicle seed demo', hint: 'map + cars + targets from ' + VEHICLE_DEMO_DEFAULT_SEED, run: () => {
