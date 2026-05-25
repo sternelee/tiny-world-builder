@@ -6330,6 +6330,12 @@
     boardSide:  new THREE.MeshLambertMaterial({ color: 0x8b8d88, side: THREE.FrontSide }),
     islandUnder:  new THREE.MeshLambertMaterial({ color: 0x34373b, side: THREE.FrontSide }),
     islandUnderD: new THREE.MeshLambertMaterial({ color: 0x202327, side: THREE.FrontSide }),
+    rocketSteel:  new THREE.MeshLambertMaterial({ color: 0x767d86, side: THREE.FrontSide }),
+    rocketSteelD: new THREE.MeshLambertMaterial({ color: 0x2f353c, side: THREE.FrontSide }),
+    rocketHeat:   new THREE.MeshLambertMaterial({ color: 0x5f1c16, emissive: 0x7a1c10, emissiveIntensity: 0.35 }),
+    rocketFlameY: new THREE.MeshBasicMaterial({ color: 0xfff05a, transparent: true, opacity: 0.92, depthWrite: false }),
+    rocketFlameO: new THREE.MeshBasicMaterial({ color: 0xff8a1f, transparent: true, opacity: 0.82, depthWrite: false }),
+    rocketFlameR: new THREE.MeshBasicMaterial({ color: 0xe23a20, transparent: true, opacity: 0.66, depthWrite: false }),
     door:      new THREE.MeshLambertMaterial({ color: 0x7a4a2e }),
     woodTrim:  new THREE.MeshLambertMaterial({ color: 0x5c3818 }),
     windowB:   new THREE.MeshLambertMaterial({ color: 0x2a6dd1 }),
@@ -11259,6 +11265,101 @@
     vbox(parent, Math.max(0.30, width * 0.10), layerH * 1.1, Math.max(0.30, depth * 0.10), 0, topY - totalDrop - layerH * 0.55, 0, trimMat, { noGap: true, noBevel: true });
   }
 
+  let islandRocketFlames = new Set();
+
+  function registerIslandRocketFlame(mesh, seed, travel = 0.08) {
+    mesh.userData.rocketFlame = true;
+    mesh.userData.flamePhase = seed * 1.73;
+    mesh.userData.baseY = mesh.position.y;
+    mesh.userData.baseScale = mesh.scale.x || 1;
+    mesh.userData.travel = travel;
+    islandRocketFlames.add(mesh);
+    return mesh;
+  }
+
+  function makeVoxelRocketEngine(seed = 0) {
+    const g = new THREE.Group();
+
+    vbox(g, 1.02, 0.14, 1.02, 0, -0.07, 0, M.rocketSteelD, { noGap: true, noBevel: true });
+    vbox(g, 0.84, 0.16, 0.84, 0, -0.20, 0, M.rocketSteel, { noGap: true, noBevel: true });
+    vbox(g, 0.66, 0.20, 0.66, 0, -0.38, 0, M.rocketSteel, { noGap: true });
+    vbox(g, 0.54, 0.18, 0.54, 0, -0.57, 0, M.rocketSteelD, { noGap: true });
+    vbox(g, 0.42, 0.14, 0.42, 0, -0.73, 0, M.rocketHeat, { noGap: true });
+
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        vbox(g, 0.12, 0.48, 0.12, sx * 0.40, -0.35, sz * 0.40, M.rocketSteelD, { noGap: true });
+        vbox(g, 0.16, 0.10, 0.16, sx * 0.40, -0.63, sz * 0.40, M.rocketSteel, { noGap: true });
+      }
+    }
+
+    const plume = [
+      { y: -0.92, s: 0.28, spread: 0.12, mat: M.rocketFlameY, count: 4, travel: 0.045 },
+      { y: -1.12, s: 0.26, spread: 0.22, mat: M.rocketFlameO, count: 6, travel: 0.070 },
+      { y: -1.36, s: 0.22, spread: 0.34, mat: M.rocketFlameR, count: 8, travel: 0.095 },
+      { y: -1.66, s: 0.17, spread: 0.48, mat: M.rocketFlameO, count: 7, travel: 0.125 },
+      { y: -1.98, s: 0.12, spread: 0.62, mat: M.rocketFlameR, count: 6, travel: 0.155 },
+    ];
+    plume.forEach((layer, layerIdx) => {
+      for (let i = 0; i < layer.count; i++) {
+        const angle = (i / layer.count) * Math.PI * 2 + cellRand(seed + i, GRID, 8000 + layerIdx) * 0.9;
+        const radius = layerIdx === 0 ? cellRand(seed + i, GRID, 8010 + layerIdx) * layer.spread : layer.spread * (0.42 + cellRand(seed - i, GRID, 8020 + layerIdx) * 0.58);
+        const size = layer.s * (0.78 + cellRand(seed + i, GRID, 8030 + layerIdx) * 0.40);
+        const mesh = vbox(
+          g,
+          size,
+          size,
+          size,
+          Math.cos(angle) * radius,
+          layer.y - cellRand(seed - i, GRID, 8040 + layerIdx) * 0.10,
+          Math.sin(angle) * radius,
+          layer.mat,
+          { noGap: true, noBevel: true, noShadow: true },
+        );
+        registerIslandRocketFlame(mesh, seed + layerIdx * 11 + i, layer.travel);
+      }
+    });
+
+    g.userData.kind = 'island-rocket-engine';
+    castReceive(g);
+    return g;
+  }
+
+  function addIslandRocketEngines(parent) {
+    const span = GRID * TILE;
+    const half = span * 0.5;
+    const inset = Math.max(0.72, Math.min(1.10, span * 0.10));
+    const y = -DIRT_H - 0.27;
+    const placements = [
+      [-half + inset, -half + inset],
+      [ half - inset, -half + inset],
+      [-half + inset,  half - inset],
+      [ half - inset,  half - inset],
+    ];
+    placements.forEach(([x, z], i) => {
+      const engine = makeVoxelRocketEngine(1200 + i * 97);
+      engine.position.set(x, y, z);
+      parent.add(engine);
+    });
+  }
+
+  function tickIslandRocketEngines(t, dt) {
+    if (!islandRocketFlames || !islandRocketFlames.size) return;
+    for (const mesh of islandRocketFlames) {
+      if (!mesh || !mesh.parent) {
+        islandRocketFlames.delete(mesh);
+        continue;
+      }
+      const phase = mesh.userData.flamePhase || 0;
+      const pulse = 0.5 + Math.sin(t * 10.5 + phase) * 0.5;
+      const flicker = 0.86 + pulse * 0.30;
+      const baseScale = mesh.userData.baseScale || 1;
+      mesh.scale.setScalar(baseScale * flicker);
+      mesh.position.y = mesh.userData.baseY - (mesh.userData.travel || 0.08) * pulse;
+      mesh.rotation.y += 0.65 * (0.6 + pulse) * dt;
+    }
+  }
+
   function voxelChimney(parent, x, y, z, tops) {
     vbox(parent, 0.12, 0.38, 0.12, x, y + 0.19, z, M.chimney);
     vbox(parent, 0.16, 0.06, 0.16, x, y + 0.41, z, M.chimney);
@@ -14438,12 +14539,14 @@
   homeBorderGroup.name = 'homeBorder';
   worldGroup.add(homeBorderGroup);
   function buildHomeBorder() {
+    islandRocketFlames = new Set();
     while (homeBorderGroup.children.length) {
       const c = homeBorderGroup.children.pop();
-      safeDisposeGeometry(c.geometry);
+      disposeGroup(c);
     }
     vbox(homeBorderGroup, GRID * TILE, 0.10, GRID * TILE, 0, -DIRT_H - 0.055, 0, M.islandUnderD, { noGap: true, noBevel: true });
     voxelInvertedSteppedRoof(homeBorderGroup, GRID * TILE, GRID * TILE, -DIRT_H - 0.020, M.islandUnder, M.islandUnderD);
+    addIslandRocketEngines(homeBorderGroup);
     addIslandEdgeDressing(homeBorderGroup);
     castReceive(homeBorderGroup);
     buildDistantWorlds();
@@ -23002,6 +23105,7 @@
     if (fp.active) tickFP(dt);
     if (typeof window.__showcaseTick === 'function') window.__showcaseTick(dt);
     tickWeather(dt);
+    tickIslandRocketEngines(t, dt);
     updateClouds(dt);
     updateWaterfallEffects(t);
     tickVehicles(dt);
