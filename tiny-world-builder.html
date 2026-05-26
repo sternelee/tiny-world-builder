@@ -3554,70 +3554,95 @@
   }
   .tab-bar button.active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
   .save-empty { text-align: center; padding: 30px 10px; color: var(--muted); font-size: 13px; }
+  /* ---- compact screens ---- */
   @media (max-width: 600px) {
     .help { display: none; }
+
+    /* Token pill sits below the appbar */
+    .token-pill {
+      top: 18px;
+      right: 24px;
+      font-size: 11px;
+      padding: 5px 10px;
+    }
+
+    /* Appbar (GitHub+profile): bottom right corner */
+    .appbar {
+      top: auto;
+      left: auto;
+      right: 12px;
+      bottom: 80px;
+    }
+    .appbar .btn.icon { width: 28px; height: 28px; flex-basis: 28px; }
+    .appbar .btn.icon svg { width: 14px; height: 14px; }
+    .token-pill .ca { display: none; }
+
+    /* Controls panel: left side, vertically centered */
     .controls {
       top: 50%;
-      left: 10px;
+      left: 5px;
       right: auto;
       transform: translateY(-50%);
-      width: 40px;
-      max-height: calc(100vh - 176px);
+      width: 38px;
+      max-height: calc(100vh - 200px);
       min-height: 0;
       max-width: none;
-      padding: 5px 4px;
+      padding: 4px 3px;
     }
     .btn.icon {
-      width: 32px;
-      height: 32px;
-      flex-basis: 32px;
+      width: 30px;
+      height: 30px;
+      flex-basis: 30px;
     }
-    .btn.icon svg {
-      width: 16px;
-      height: 16px;
-    }
-    .minimap-wrap {
-      top: 12px;
-      right: 12px;
-    }
-    .minimap-card canvas {
-      width: 118px;
-      height: 118px;
-    }
-    .topbar-popup {
-      top: 12px;
-      left: 66px;
-    }
+    .btn.icon svg { width: 15px; height: 15px; }
+
+    /* Minimap */
+    .minimap-wrap { top: 90px; right: 12px; }
+    .minimap-card canvas { width: 105px; height: 105px; }
+
+    /* Popups */
+    .topbar-popup { top: 90px; left: 58px; }
+
+    /* Toolbar: bottom center */
     .toolbar {
       top: auto;
-      bottom: 16px;
+      bottom: 12px;
       left: 50%;
       right: auto;
       transform: translateX(-50%);
-      min-height: 54px;
+      min-height: 50px;
       max-width: calc(100vw - 24px);
-      padding: 0 8px;
-      gap: 3px;
+      padding: 0 5px;
+      gap: 1px;
     }
-    .toolbar-world-slot {
-      height: 44px;
-      padding-right: 8px;
-      margin-right: 5px;
-    }
-    .toolbar .brand-title-btn {
-      height: 38px;
-      font-size: 12px;
-    }
-    .toolbar .brand-title-btn::before { width: 24px; height: 24px; }
-    .toolbar .brand-title-btn::after { left: 7px; top: 15px; width: 10px; height: 8px; }
-    .tool-group-btn { width: 54px; height: 50px; font-size: 10px; padding: 3px 2px; border-radius: 15px; }
-    .tool-group-btn .tool-thumb { width: 28px; height: 28px; }
-    .toolbar .audio-panel { min-width: 130px; }
-    .toolbar .audio-row { grid-template-columns: 22px 70px 28px; }
-    .tool { width: 50px; height: 50px; font-size: 10px; padding: 3px 2px; border-radius: 15px; }
-    .tool .swatch { width: 22px; height: 22px; }
-    .tool .tool-thumb { width: 28px; height: 28px; }
-    .unsaved-banner { bottom: 90px; font-size: 11.5px; padding: 7px 12px 7px 10px; }
+    .toolbar-world-slot { height: 42px; padding-right: 6px; margin-right: 4px; }
+    .toolbar .brand-title-btn { height: 36px; font-size: 11px; }
+    .toolbar .brand-title-btn::before { width: 22px; height: 22px; }
+    .toolbar .brand-title-btn::after { left: 6px; top: 14px; width: 9px; height: 7px; }
+    .tool-group-btn { width: 50px; height: 48px; font-size: 9px; padding: 2px; border-radius: 14px; }
+    .tool-group-btn .tool-thumb { width: 26px; height: 26px; }
+    .toolbar .audio-panel { min-width: 120px; }
+    .toolbar .audio-row { grid-template-columns: 20px 62px 26px; }
+    .tool { width: 48px; height: 48px; font-size: 9px; padding: 2px; border-radius: 14px; }
+    .tool .swatch { width: 20px; height: 20px; }
+    .tool .tool-thumb { width: 26px; height: 26px; }
+
+    /* Unsaved banner */
+    .unsaved-banner { bottom: 86px; font-size: 11px; padding: 6px 10px 6px 8px; }
+  }
+
+  /* ---- very small screens ---- */
+  @media (max-width: 400px) {
+    .appbar { top: auto; left: auto; right: 8px; bottom: 72px; }
+    .appbar .btn.icon { width: 26px; height: 26px; flex-basis: 26px; }
+    .token-pill { top: 18px; right: 8px; font-size: 10px; padding: 4px 8px; }
+    .minimap-wrap { top: 80px; right: 8px; }
+    .topbar-popup { top: 80px; left: 50px; }
+    .controls { left: 6px; width: 36px; }
+    .toolbar { bottom: 10px; max-width: calc(100vw - 16px); }
+    .tool-group-btn { width: 46px; height: 44px; }
+    .tool { width: 44px; height: 44px; }
+    .unsaved-banner { bottom: 78px; }
   }
   @media (hover: none), (pointer: coarse) {
     .help { display: none; }
