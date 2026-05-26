@@ -28,6 +28,7 @@
       group.position.set(cxW, 0, czW);
 
       const lowPoly = this.styleMode === 'lowpoly';
+      const backdrop = this.BACKDROP_MODE === true;
       const sandM = lowPoly ? this.sandMatLowPoly : this.terrainMat;
       const rockM = lowPoly ? this.rockMatLowPoly : this.rockMat;
 
@@ -72,8 +73,13 @@
       const mesh = new THREE.Mesh(geo, sandM);
       mesh.position.set(0, 0, 0);
       mesh.castShadow = false;
-      mesh.receiveShadow = true;
+      mesh.receiveShadow = !backdrop;
       group.add(mesh);
+
+      if (backdrop) {
+        this.scene.add(group);
+        return { group, geo, mesh };
+      }
 
       // --- Scatter Instanced Rocks ---
       const ROCKS_PER_CHUNK = 50;

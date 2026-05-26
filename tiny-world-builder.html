@@ -9855,31 +9855,42 @@
     g.add(ridge);
 
     // Central portico — entry-scale columns + pediment on +z face. The
-    // entrance should not stretch with tall wall stacks; cap it at two floors.
-    const porticoD = 0.22;
+    // entrance stays one-storey so upper entrance windows sit above it.
+    const porticoD = 0.28;
     const porticoW = 0.62;
-    const porticoH = Math.min(wallH - 0.12, H.WALL_H * 2 - 0.12);
+    const porticoH = Math.min(wallH - 0.12, H.WALL_H - 0.10);
     // Floor slab
-    const porchSlab = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.10, 0.06, porticoD + 0.06), M.manorTrim);
-    porchSlab.position.set(0, 0.06, halfD + porticoD / 2);
+    const porchSlab = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.12, 0.06, porticoD + 0.08), M.manorTrim);
+    porchSlab.position.set(0, 0.06, halfD + porticoD / 2 - 0.01);
     g.add(porchSlab);
-    // 4 columns
-    for (let i = 0; i < 4; i++) {
-      const u = (i / 3) - 0.5; // -0.5 .. 0.5
+    const porchStep = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.28, 0.05, 0.18), M.manorTrim);
+    porchStep.position.set(0, 0.025, halfD + porticoD + 0.10);
+    g.add(porchStep);
+    const doorThreshold = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.035, 0.12), M.manorTrim);
+    doorThreshold.position.set(0, 0.095, halfD + 0.07);
+    g.add(doorThreshold);
+    // Front columns plus wall-side pilasters make the portico read as attached.
+    for (const u of [-0.5, 0.5]) {
       const col = new THREE.Mesh(
         new THREE.CylinderGeometry(0.045, 0.045, porticoH, 8),
         M.manorTrim
       );
-      col.position.set(u * (porticoW - 0.06), 0.06 + porticoH / 2, halfD + porticoD - 0.04);
+      col.position.set(u * (porticoW - 0.10), 0.06 + porticoH / 2, halfD + porticoD - 0.06);
       g.add(col);
+      const pilaster = new THREE.Mesh(new THREE.BoxGeometry(0.09, porticoH, 0.035), M.manorTrim);
+      pilaster.position.set(u * (porticoW - 0.10), 0.06 + porticoH / 2, halfD + 0.018);
+      g.add(pilaster);
     }
     // Architrave
-    const arch = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.10, 0.08, porticoD + 0.04), M.manorTrim);
-    arch.position.set(0, 0.06 + porticoH + 0.04, halfD + porticoD / 2);
+    const arch = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.12, 0.08, porticoD + 0.10), M.manorTrim);
+    arch.position.set(0, 0.06 + porticoH + 0.04, halfD + porticoD / 2 - 0.01);
     g.add(arch);
+    const porticoCeiling = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.04, 0.035, porticoD + 0.08), M.manorTrim);
+    porticoCeiling.position.set(0, 0.06 + porticoH - 0.035, halfD + porticoD / 2 - 0.01);
+    g.add(porticoCeiling);
     // Pediment (triangular front) — fake with a thin tilted box
     const ped = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.06, 0.16, 0.04), M.manorTrim);
-    ped.position.set(0, 0.06 + porticoH + 0.16, halfD + porticoD - 0.02);
+    ped.position.set(0, 0.06 + porticoH + 0.16, halfD + porticoD - 0.035);
     g.add(ped);
 
     // Front door (under the portico)
@@ -9941,6 +9952,9 @@
       // Skip ground-floor centre slots (door is there) — sashXs already avoids centre.
       for (const sx of sashXs) {
         addFrontBackSash(sx, yBase, halfD, true);
+      }
+      if (fi > 0) {
+        for (const sx of [-0.16, 0.16]) addFrontBackSash(sx, yBase, halfD, true);
       }
     }
 
@@ -11381,11 +11395,12 @@
       const d = Math.max(0.36, depth * (1 - t * 0.78));
       const y = topY - i * yStep - layerH * 0.5;
       const mat = i % 3 === 0 ? trimMat : roofMat;
-      vbox(parent, w, layerH, d, 0, y, 0, mat, { noGap: true, noBevel: true });
+      vbox(parent, w, layerH, d, 0, y, 0, mat, { noGap: true });
     }
-    vbox(parent, Math.max(0.30, width * 0.10), layerH * 1.1, Math.max(0.30, depth * 0.10), 0, topY - totalDrop - layerH * 0.55, 0, trimMat, { noGap: true, noBevel: true });
+    vbox(parent, Math.max(0.30, width * 0.10), layerH * 1.1, Math.max(0.30, depth * 0.10), 0, topY - totalDrop - layerH * 0.55, 0, trimMat, { noGap: true });
   }
 
+  const ISLAND_ROCKET_FLAME_SPEED = 2;
   let islandRocketFlames = new Set();
 
   function registerIslandRocketFlame(mesh, seed, travel = 0.08) {
@@ -11472,12 +11487,12 @@
         continue;
       }
       const phase = mesh.userData.flamePhase || 0;
-      const pulse = 0.5 + Math.sin(t * 10.5 + phase) * 0.5;
+      const pulse = 0.5 + Math.sin(t * 10.5 * ISLAND_ROCKET_FLAME_SPEED + phase) * 0.5;
       const flicker = 0.86 + pulse * 0.30;
       const baseScale = mesh.userData.baseScale || 1;
       mesh.scale.setScalar(baseScale * flicker);
       mesh.position.y = mesh.userData.baseY - (mesh.userData.travel || 0.08) * pulse;
-      mesh.rotation.y += 0.65 * (0.6 + pulse) * dt;
+      mesh.rotation.y += 0.65 * ISLAND_ROCKET_FLAME_SPEED * (0.6 + pulse) * dt;
     }
   }
 
@@ -11620,15 +11635,26 @@
   }
 
   function makeVoxelManor(floors = 1) {
+    const f = Math.max(1, Math.min(MAX_FLOORS, floors || 1));
     const g = makeVoxelLinearHouse(2, 'x', floors, {
       wallMat: M.manorBrick,
       wallDark: M.manorTrim,
       roofMat: M.manorRoof,
       roofDark: M.manorRoofD,
     });
-    vbox(g, 0.54, 0.08, 0.18, 0, 0.04, 0.70, M.manorTrim);
-    for (const x of [-0.18, 0, 0.18]) vbox(g, 0.055, 0.46, 0.055, x, 0.27, 0.72, M.manorTrim);
-    vbox(g, 0.62, 0.08, 0.18, 0, 0.54, 0.72, M.manorTrim);
+    vbox(g, 0.58, 0.08, 0.30, 0, 0.04, 0.53, M.manorTrim);
+    vbox(g, 0.76, 0.05, 0.16, 0, 0.025, 0.76, M.manorTrim);
+    voxelDoor(g, 0, 0.41, 'z', 0.36);
+    for (const x of [-0.22, 0.22]) {
+      vbox(g, 0.060, 0.46, 0.060, x, 0.27, 0.66, M.manorTrim);
+      vbox(g, 0.075, 0.46, 0.035, x, 0.27, 0.405, M.manorTrim);
+    }
+    vbox(g, 0.66, 0.08, 0.34, 0, 0.54, 0.54, M.manorTrim);
+    vbox(g, 0.56, 0.035, 0.28, 0, 0.485, 0.54, M.manorTrim);
+    if (f > 1) {
+      const upperY = 0.32 + 0.34;
+      for (const x of [-0.50, 0.50]) voxelWindow(g, x, upperY, 0.405, 'z', M.manorWindow);
+    }
     return g;
   }
 
@@ -14637,13 +14663,13 @@
         if (roll < 0.78) {
           const w = 0.10 + cellRand(i, GRID, 2630 + dir.charCodeAt(0)) * 0.18;
           const h = 0.06 + cellRand(i, GRID, 2640 + dir.charCodeAt(0)) * 0.10;
-          vbox(parent, alongX ? w : h, h, alongX ? h : w, px, -0.02 - h * 0.5, pz, roll < 0.42 ? M.grassEdge : M.grassHi, { noGap: true, noBevel: true });
+          vbox(parent, alongX ? w : h, h, alongX ? h : w, px, -0.02 - h * 0.5, pz, roll < 0.42 ? M.grassEdge : M.grassHi, { noGap: true });
         }
         if (roll > 0.30) {
           const w = 0.12 + cellRand(i, GRID, 2650 + dir.charCodeAt(0)) * 0.22;
           const h = 0.16 + cellRand(i, GRID, 2660 + dir.charCodeAt(0)) * 0.34;
           const d = 0.10 + cellRand(i, GRID, 2670 + dir.charCodeAt(0)) * 0.16;
-          vbox(parent, alongX ? w : d, h, alongX ? d : w, px, -0.16 - h * 0.5, pz, roll < 0.62 ? M.dirtRich : M.boardSide, { noGap: true, noBevel: true });
+          vbox(parent, alongX ? w : d, h, alongX ? d : w, px, -0.16 - h * 0.5, pz, roll < 0.62 ? M.dirtRich : M.boardSide, { noGap: true });
         }
         if (roll > 0.72) {
           const s = 0.11 + cellRand(i, GRID, 2680 + dir.charCodeAt(0)) * 0.18;
@@ -14651,7 +14677,7 @@
           const inset = 0.05 + cellRand(i, GRID, 2700 + dir.charCodeAt(0)) * 0.22;
           const dx = alongX ? (cellRand(i, GRID, 2710) - 0.5) * 0.12 : -sign * inset;
           const dz = alongX ? -sign * inset : (cellRand(i, GRID, 2720) - 0.5) * 0.12;
-          vbox(parent, s, s, s, px + dx, -drop, pz + dz, cellRand(i, GRID, 2730) < 0.45 ? M.islandUnderD : M.boardSide, { noGap: true, noBevel: true });
+          vbox(parent, s, s, s, px + dx, -drop, pz + dz, cellRand(i, GRID, 2730) < 0.45 ? M.islandUnderD : M.boardSide, { noGap: true });
         }
       }
     }
@@ -14659,6 +14685,20 @@
     addEdge('s');
     addEdge('w');
     addEdge('e');
+  }
+
+  function prepareHomeBorderForRender(obj) {
+    obj.traverse(c => {
+      if (c.isMesh) {
+        // The island underside is decorative scenery below the editable board.
+        // Keeping it out of the shadow map removes hundreds of tiny box draws
+        // without changing placement/editing fidelity.
+        c.castShadow = false;
+        c.receiveShadow = false;
+        c.frustumCulled = true;
+      }
+    });
+    return obj;
   }
 
   // -------- home board border --------
@@ -14673,11 +14713,11 @@
       const c = homeBorderGroup.children.pop();
       disposeGroup(c);
     }
-    vbox(homeBorderGroup, GRID * TILE, 0.10, GRID * TILE, 0, -DIRT_H - 0.055, 0, M.islandUnderD, { noGap: true, noBevel: true });
+    vbox(homeBorderGroup, GRID * TILE, 0.10, GRID * TILE, 0, -DIRT_H - 0.055, 0, M.islandUnderD, { noGap: true });
     voxelInvertedSteppedRoof(homeBorderGroup, GRID * TILE, GRID * TILE, -DIRT_H - 0.020, M.islandUnder, M.islandUnderD);
     addIslandRocketEngines(homeBorderGroup);
     addIslandEdgeDressing(homeBorderGroup);
-    castReceive(homeBorderGroup);
+    prepareHomeBorderForRender(homeBorderGroup);
     buildDistantWorlds();
     if (typeof buildUnderIslandClouds === 'function') buildUnderIslandClouds();
   }
@@ -17442,6 +17482,25 @@
   // -------- raycaster --------
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
+  const pickRaycastRoots = [];
+
+  function isPointerPickExcludedRoot(object) {
+    return !!(
+      object && (
+        object === planetLandscapeGroup ||
+        object === planetAtmosphereGroup ||
+        (object.userData && object.userData.noPointerPick)
+      )
+    );
+  }
+
+  function getPickRaycastRoots() {
+    pickRaycastRoots.length = 0;
+    for (const child of worldGroup.children) {
+      if (!isPointerPickExcludedRoot(child)) pickRaycastRoots.push(child);
+    }
+    return pickRaycastRoots;
+  }
 
   function floorDiv(a, b) {
     return Math.floor(a / b);
@@ -17549,7 +17608,7 @@
     ndc.x = (clientX / window.innerWidth) * 2 - 1;
     ndc.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObjects(worldGroup.children, true);
+    const hits = raycaster.intersectObjects(getPickRaycastRoots(), true);
     let landscapeHit = null;
     for (const h of hits) {
       if (!landscapeHit && isLandscapeMeshHit(h.object)) {
@@ -17695,7 +17754,7 @@
     xrControllerRay.origin.copy(xrControllerPos);
     xrControllerRay.direction.copy(xrControllerDir);
     raycaster.ray.copy(xrControllerRay);
-    const hits = raycaster.intersectObjects(worldGroup.children, true);
+    const hits = raycaster.intersectObjects(getPickRaycastRoots(), true);
     let landscapeHit = null;
     for (const h of hits) {
       if (!landscapeHit && isLandscapeMeshHit(h.object)) {
@@ -20904,11 +20963,13 @@
         part('roof-slab', 'box', 'roof', [2.25, 0.28, 1.55], [0, 1.55, 0]),
         part('roof-cap', 'box', 'roofEdge', [1.75, 0.18, 1.1], [0, 1.78, 0]),
         part('roof-ridge', 'box', 'roofEdge', [1.25, 0.12, 0.14], [0, 1.95, 0]),
-        part('front-step', 'box', 'white', [0.9, 0.12, 0.35], [0, 0.12, -0.96]),
-        part('portico-top', 'box', 'white', [0.95, 0.16, 0.22], [0, 0.92, -0.78]),
-        part('portico-left', 'cylinder', 'white', [0.11, 0.82, 0.11], [-0.34, 0.52, -0.78], [1, 1, 1], 8),
-        part('portico-mid', 'cylinder', 'white', [0.11, 0.82, 0.11], [0, 0.52, -0.78], [1, 1, 1], 8),
-        part('portico-right', 'cylinder', 'white', [0.11, 0.82, 0.11], [0.34, 0.52, -0.78], [1, 1, 1], 8),
+        part('front-step', 'box', 'white', [1.05, 0.12, 0.35], [0, 0.12, -0.96]),
+        part('threshold', 'box', 'white', [0.46, 0.08, 0.18], [0, 0.22, -0.76]),
+        part('portico-top', 'box', 'white', [0.95, 0.16, 0.34], [0, 0.92, -0.73]),
+        part('portico-left', 'cylinder', 'white', [0.11, 0.82, 0.11], [-0.31, 0.52, -0.86], [1, 1, 1], 8),
+        part('portico-right', 'cylinder', 'white', [0.11, 0.82, 0.11], [0.31, 0.52, -0.86], [1, 1, 1], 8),
+        part('portico-left-pilaster', 'box', 'white', [0.13, 0.82, 0.08], [-0.31, 0.52, -0.69]),
+        part('portico-right-pilaster', 'box', 'white', [0.13, 0.82, 0.08], [0.31, 0.52, -0.69]),
         part('door', 'box', 'woodDark', [0.34, 0.58, 0.08], [0, 0.52, -0.71]),
         part('door-knob', 'box', 'gold', [0.05, 0.05, 0.04], [0.1, 0.52, -0.77]),
       );
@@ -20919,6 +20980,12 @@
             part(`front-window-glass-${x}-${y}`, 'box', 'waterDark', [0.18, 0.16, 0.08], [x, y, -0.77]),
           );
         }
+      }
+      for (const x of [-0.24, 0.24]) {
+        parts.push(
+          part(`entry-window-${x}`, 'box', 'white', [0.22, 0.22, 0.07], [x, 0.98, -0.72]),
+          part(`entry-window-glass-${x}`, 'box', 'waterDark', [0.14, 0.14, 0.08], [x, 0.98, -0.77]),
+        );
       }
     } else if (stamp === 'pagoda') {
       parts.push(part('stone-base', 'box', 'stone', [2.25, 0.4, 2.0], [0, 0.2, 0]));
@@ -23355,7 +23422,7 @@
       if (renderAutoExpand || hasUserPanned) updateLandscapeClipBounds();
     }
     if (isPlanetLandscapeActive()) {
-      planetLandscapeEngine.update(landscapeMeshFocusPos(), dt);
+      tickPlanetLandscapeStream(dt);
       updatePlanetAtmosphere(dt);
     } else if (planetAtmosphereGroup) {
       updatePlanetAtmosphere(dt);
@@ -24711,9 +24778,9 @@
   // LandscapeEngine airfield is disabled for Tiny World's continuous terrain.
   const LANDSCAPE_MESH_OFFSET = 800;
 
-  function landscapeMeshFocusPos() {
+  function landscapeMeshFocusPos(out = new THREE.Vector3()) {
     // Convert the builder camera target to LandscapeEngine world coords.
-    return new THREE.Vector3(
+    return out.set(
       (target.x + LANDSCAPE_MESH_OFFSET + GRID / 2 - 0.5) * 25,
       0,
       (target.z + LANDSCAPE_MESH_OFFSET + GRID / 2 - 0.5) * 25
@@ -24763,19 +24830,24 @@
   const PLANET_LANDSCAPE_DROP_MIN = 20;
   const PLANET_LANDSCAPE_DROP_MAX = 300;
   const PLANET_LANDSCAPE_DROP_UI_MAX = 300;
-  const PLANET_LANDSCAPE_NEAR_RADIUS = 2;
-  const PLANET_LANDSCAPE_FAR_RADIUS = 6;
-  const PLANET_LANDSCAPE_FAR_RES = 54;
-  const PLANET_LANDSCAPE_PRIME_TICKS = 12;
-  const PLANET_ATMOSPHERE_RADIUS = 210;
+  const PLANET_LANDSCAPE_NEAR_RADIUS = 0;
+  const PLANET_LANDSCAPE_FAR_RADIUS = 2;
+  const PLANET_LANDSCAPE_NEAR_RES = 28;
+  const PLANET_LANDSCAPE_FAR_CHUNK_SIZE = 2600;
+  const PLANET_LANDSCAPE_FAR_RES = 24;
+  const PLANET_LANDSCAPE_PRIME_TICKS = 2;
+  const PLANET_LANDSCAPE_STREAM_INTERVAL = 0.20;
+  const PLANET_LANDSCAPE_STREAM_MOVE = 150;
+  const PLANET_ATMOSPHERE_RADIUS = 180;
   const PLANET_ATMOSPHERE_LAYERS = [
-    { y: -18, radius: 0.68, alpha: 0.105, drift: 0.010, noise: 5.5 },
-    { y: -36, radius: 0.90, alpha: 0.135, drift: -0.008, noise: 6.8 },
-    { y: -58, radius: 1.10, alpha: 0.165, drift: 0.006, noise: 7.6 },
-    { y: -82, radius: 1.28, alpha: 0.125, drift: -0.005, noise: 4.8 },
+    { y: -30, radius: 0.88, alpha: 0.155, drift: 0.008, noise: 4.7 },
+    { y: -78, radius: 1.16, alpha: 0.145, drift: -0.006, noise: 5.6 },
   ];
   const PLANET_LANDSCAPE_BIOMES = new Set(['grassland', 'desert', 'snow']);
   const PLANET_LANDSCAPE_STYLES = new Set(['lowpoly', 'realistic']);
+  const planetLandscapeFocusScratch = new THREE.Vector3();
+  const planetLandscapeLastStreamFocus = new THREE.Vector3(NaN, 0, NaN);
+  let planetLandscapeStreamElapsed = 0;
 
   function normalizePlanetLandscapeBiome(raw, fallback = 'grassland') {
     const key = String(raw || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
@@ -24820,7 +24892,59 @@
       ? scene.background.clone()
       : new THREE.Color(0xc7e6fb);
     const hazeHex = engine && engine.currentBiome ? engine.currentBiome.fogColor : 0xe8e4d2;
-    return new THREE.Color(hazeHex).lerp(sky, 0.26);
+    return new THREE.Color(hazeHex).lerp(sky, 0.48);
+  }
+
+  function planetUnderlayDistanceColor(engine) {
+    const sky = (scene && scene.background && scene.background.isColor)
+      ? scene.background.clone()
+      : new THREE.Color(0xc7e6fb);
+    const hazeHex = engine && engine.currentBiome ? engine.currentBiome.fogColor : 0xe8e4d2;
+    return sky.lerp(new THREE.Color(hazeHex), 0.18);
+  }
+
+  function planetUnderlayDistanceSettings(engine, config, styleMode) {
+    const drop = config && Number.isFinite(Number(config.drop)) ? Number(config.drop) : PLANET_LANDSCAPE_DROP;
+    const dropT = Math.max(0, Math.min(1, (drop - PLANET_LANDSCAPE_DROP_MIN) / (PLANET_LANDSCAPE_DROP_MAX - PLANET_LANDSCAPE_DROP_MIN)));
+    const lowPoly = styleMode === 'lowpoly';
+    return {
+      color: planetUnderlayDistanceColor(engine),
+      effect: Math.max(lowPoly ? 0.50 : 0.56, Math.min(0.72, 0.42 + Math.sqrt(dropT) * 0.25 + (lowPoly ? 0.03 : 0.08))),
+      desaturate: lowPoly ? 0.78 : 0.68,
+      dim: lowPoly ? 0.78 : 0.82,
+      propOpacity: lowPoly ? 0.62 : 0.68,
+    };
+  }
+
+  function applyPlanetShaderDistanceMaterial(mat, settings) {
+    if (!mat || !mat.uniforms || !settings) return;
+    if (mat.uniforms.planetDistanceEffect) mat.uniforms.planetDistanceEffect.value = settings.effect;
+    if (mat.uniforms.planetDistanceColor) mat.uniforms.planetDistanceColor.value.copy(settings.color);
+    if (mat.uniforms.planetDistanceDesaturate) mat.uniforms.planetDistanceDesaturate.value = settings.desaturate;
+    if (mat.uniforms.planetDistanceDim) mat.uniforms.planetDistanceDim.value = settings.dim;
+  }
+
+  function applyPlanetBuiltInDistanceMaterial(mat, settings) {
+    if (!mat || !settings) return;
+    mat.userData = mat.userData || {};
+    let needsModeUpdate = false;
+    if (mat.color) {
+      if (!mat.userData.planetBaseColor) mat.userData.planetBaseColor = mat.color.clone();
+      const tintAmount = Math.min(0.72, settings.effect + 0.08);
+      const nextColor = mat.userData.planetBaseColor.clone().lerp(settings.color, tintAmount);
+      nextColor.multiplyScalar(settings.dim);
+      if (!mat.color.equals(nextColor)) mat.color.copy(nextColor);
+    }
+    if (mat.transparent !== true) {
+      mat.transparent = true;
+      needsModeUpdate = true;
+    }
+    if (mat.opacity !== settings.propOpacity) mat.opacity = settings.propOpacity;
+    if (mat.depthWrite !== false) {
+      mat.depthWrite = false;
+      needsModeUpdate = true;
+    }
+    if (needsModeUpdate) mat.needsUpdate = true;
   }
 
   function configurePlanetLandscapeEngine(engine, config) {
@@ -24829,14 +24953,33 @@
     const styleMode = normalizePlanetLandscapeStyle(config && (config.styleMode || config.style || config.render));
     const fogNear = Math.max(95, drop * 1.12);
     const fogFar = Math.max(fogNear + 245, drop * 3.8);
+    const chunkProfileChanged = !!(
+      engine.chunks && engine.farChunks && (engine.chunks.size || engine.farChunks.size) && (
+        engine.BACKDROP_MODE !== true ||
+        engine.RENDER_RADIUS !== PLANET_LANDSCAPE_NEAR_RADIUS ||
+        engine.FAR_RADIUS !== PLANET_LANDSCAPE_FAR_RADIUS ||
+        engine.CHUNK_RES !== PLANET_LANDSCAPE_NEAR_RES ||
+        engine.FAR_CHUNK_SIZE !== PLANET_LANDSCAPE_FAR_CHUNK_SIZE ||
+        engine.FAR_CHUNK_RES !== PLANET_LANDSCAPE_FAR_RES
+      )
+    );
+    engine.BACKDROP_MODE = true;
     engine.RENDER_RADIUS = PLANET_LANDSCAPE_NEAR_RADIUS;
     engine.FAR_RADIUS = PLANET_LANDSCAPE_FAR_RADIUS;
+    engine.CHUNK_RES = PLANET_LANDSCAPE_NEAR_RES;
+    engine.FAR_CHUNK_SIZE = PLANET_LANDSCAPE_FAR_CHUNK_SIZE;
     engine.FAR_CHUNK_RES = PLANET_LANDSCAPE_FAR_RES;
+    engine.CHUNK_BUILD_BUDGET_NEAR = 1;
+    engine.CHUNK_BUILD_BUDGET_FAR = 1;
+    if (chunkProfileChanged) engine.clearChunks();
+    if (engine.waterMesh) engine.waterMesh.visible = false;
+    const distanceSettings = planetUnderlayDistanceSettings(engine, config, styleMode);
     for (const mat of [engine.sandMat, engine.sandMatLowPoly, engine.waterMat]) {
       if (!mat || !mat.uniforms) continue;
       if (mat.uniforms.fogNear) mat.uniforms.fogNear.value = fogNear;
       if (mat.uniforms.fogFar) mat.uniforms.fogFar.value = fogFar;
-      if (mat.uniforms.hazeStrength) mat.uniforms.hazeStrength.value = Math.max(mat.uniforms.hazeStrength.value || 0, 1.18);
+      if (mat.uniforms.hazeStrength) mat.uniforms.hazeStrength.value = Math.max(mat.uniforms.hazeStrength.value || 0, 1.36);
+      applyPlanetShaderDistanceMaterial(mat, distanceSettings);
     }
     const planetFogColor = planetUnderlayFogColor(engine);
     if (typeof engine.setPlanetFog === 'function') {
@@ -24845,17 +24988,33 @@
         color: planetFogColor,
         near: Math.max(80, fogNear * 0.86),
         far: fogFar,
-        strength: styleMode === 'realistic' ? 1.18 : 0,
+        strength: styleMode === 'realistic' ? 1.34 : 0,
         exponent: 1.36,
+        distanceColor: distanceSettings.color,
+        distanceEffect: distanceSettings.effect,
+        distanceDesaturate: distanceSettings.desaturate,
+        distanceDim: distanceSettings.dim,
       });
     }
+    [engine.rockMat, engine.rockMatLowPoly, engine.floraMat, engine.floraMatLow].forEach(mat => applyPlanetBuiltInDistanceMaterial(mat, distanceSettings));
     engine.userData = {
       ...(engine.userData || {}),
       planetUnderlay: true,
+      backdropProfile: true,
       styleMode,
+      nearRadius: engine.RENDER_RADIUS,
+      nearChunkRes: engine.CHUNK_RES,
+      farRadius: engine.FAR_RADIUS,
+      farChunkSize: engine.FAR_CHUNK_SIZE,
+      farChunkRes: engine.FAR_CHUNK_RES,
+      chunkBuildBudgetNear: engine.CHUNK_BUILD_BUDGET_NEAR,
+      chunkBuildBudgetFar: engine.CHUNK_BUILD_BUDGET_FAR,
+      waterVisible: !!(engine.waterMesh && engine.waterMesh.visible),
       fogNear,
       fogFar,
       planetFogColor: '#' + planetFogColor.getHexString(),
+      planetDistanceColor: '#' + distanceSettings.color.getHexString(),
+      planetDistanceEffect: distanceSettings.effect,
       realisticPlanetFog: styleMode === 'realistic',
     };
   }
@@ -24867,7 +25026,7 @@
     const hazeHex = planetLandscapeEngine && planetLandscapeEngine.currentBiome
       ? planetLandscapeEngine.currentBiome.fogColor
       : 0xe8e4d2;
-    const haze = new THREE.Color(hazeHex).lerp(sky, 0.18);
+    const haze = sky.clone().lerp(new THREE.Color(hazeHex), 0.24);
     return { sky, haze };
   }
 
@@ -24924,14 +25083,14 @@
         void main() {
           vec2 centered = vUv * 2.0 - 1.0;
           float r = length(centered);
-          float edge = 1.0 - smoothstep(0.52, 1.0, r);
+          float edge = 1.0 - smoothstep(0.44, 1.0, r);
           float centreSoftness = smoothstep(0.02, 0.34, r);
           vec2 driftUv = vUv * noiseScale + vec2(time * drift + seed, -time * drift * 0.73);
-          float n = noise(driftUv) * 0.58 + noise(driftUv * 2.17 + seed) * 0.28 + noise(driftUv * 4.6 - seed) * 0.14;
-          float wisps = smoothstep(0.25, 0.86, n);
+          float n = noise(driftUv + seed * 0.017);
+          float wisps = smoothstep(0.22, 0.84, n);
           float veil = edge * mix(0.52, 1.0, wisps) * mix(0.92, 1.0, centreSoftness);
           float horizonLift = smoothstep(-90.0, -18.0, -abs(vWorldPos.y));
-          float a = alpha * veil * (0.70 + horizonLift * 0.30);
+          float a = alpha * veil * (0.82 + horizonLift * 0.28);
           if (a < 0.004) discard;
           vec3 col = mix(skyColor, hazeColor, 0.58 + wisps * 0.24);
           gl_FragColor = vec4(col, a);
@@ -24951,8 +25110,21 @@
   function syncPlanetAtmosphereColors() {
     if (!planetAtmosphereGroup) return;
     const colors = planetAtmosphereColors();
-    if (planetLandscapeEngine && planetLandscapeConfig && planetLandscapeConfig.styleMode === 'realistic' && typeof planetLandscapeEngine.setPlanetFog === 'function') {
-      planetLandscapeEngine.setPlanetFog({ enabled: true, color: planetUnderlayFogColor(planetLandscapeEngine) });
+    if (planetLandscapeEngine && planetLandscapeConfig) {
+      const styleMode = normalizePlanetLandscapeStyle(planetLandscapeConfig.styleMode);
+      const distanceSettings = planetUnderlayDistanceSettings(planetLandscapeEngine, planetLandscapeConfig, styleMode);
+      [planetLandscapeEngine.sandMat, planetLandscapeEngine.sandMatLowPoly, planetLandscapeEngine.waterMat].forEach(mat => applyPlanetShaderDistanceMaterial(mat, distanceSettings));
+      [planetLandscapeEngine.rockMat, planetLandscapeEngine.rockMatLowPoly, planetLandscapeEngine.floraMat, planetLandscapeEngine.floraMatLow].forEach(mat => applyPlanetBuiltInDistanceMaterial(mat, distanceSettings));
+      if (typeof planetLandscapeEngine.setPlanetFog === 'function') {
+        planetLandscapeEngine.setPlanetFog({
+          enabled: styleMode === 'realistic',
+          color: planetUnderlayFogColor(planetLandscapeEngine),
+          distanceColor: distanceSettings.color,
+          distanceEffect: distanceSettings.effect,
+          distanceDesaturate: distanceSettings.desaturate,
+          distanceDim: distanceSettings.dim,
+        });
+      }
     }
     planetAtmosphereGroup.traverse(o => {
       const uniforms = o.material && o.material.uniforms;
@@ -24997,6 +25169,7 @@
     planetAtmosphereGroup = new THREE.Group();
     planetAtmosphereGroup.name = 'planetAtmosphereBetweenLayers';
     planetAtmosphereGroup.position.set(target.x, 0, target.z);
+    planetAtmosphereGroup.userData.noPointerPick = true;
     planetAtmosphereGroup.userData.elapsed = 0;
     PLANET_ATMOSPHERE_LAYERS.forEach((layer, index) => {
       const size = PLANET_ATMOSPHERE_RADIUS * layer.radius * 2;
@@ -25033,6 +25206,30 @@
     }
   }
 
+  function resetPlanetLandscapeStreamState() {
+    planetLandscapeStreamElapsed = PLANET_LANDSCAPE_STREAM_INTERVAL;
+    planetLandscapeLastStreamFocus.set(NaN, 0, NaN);
+  }
+
+  function tickPlanetLandscapeStream(dt) {
+    if (!planetLandscapeEngine) return;
+    const focus = landscapeMeshFocusPos(planetLandscapeFocusScratch);
+    planetLandscapeStreamElapsed += dt;
+    const nearPending = planetLandscapeEngine.pendingChunkBuilds ? planetLandscapeEngine.pendingChunkBuilds.length : 0;
+    const farPending = planetLandscapeEngine.pendingFarChunkBuilds ? planetLandscapeEngine.pendingFarChunkBuilds.length : 0;
+    const moved = !Number.isFinite(planetLandscapeLastStreamFocus.x)
+      || planetLandscapeLastStreamFocus.distanceToSquared(focus) > PLANET_LANDSCAPE_STREAM_MOVE * PLANET_LANDSCAPE_STREAM_MOVE;
+    const shouldStream = moved || ((nearPending || farPending) && planetLandscapeStreamElapsed >= PLANET_LANDSCAPE_STREAM_INTERVAL);
+    if (shouldStream) {
+      planetLandscapeEngine.update(focus, dt);
+      planetLandscapeLastStreamFocus.copy(focus);
+      planetLandscapeStreamElapsed = 0;
+    } else if (planetLandscapeEngine.waterMesh && planetLandscapeEngine.waterMesh.visible !== false && planetLandscapeEngine.waterMat) {
+      planetLandscapeEngine.waterMat.uniforms.time.value += dt;
+      planetLandscapeEngine.waterMat.uniforms.cameraPos.value.copy(focus);
+    }
+  }
+
   function disposePlanetLandscape() {
     disposePlanetAtmosphere();
     if (planetLandscapeEngine) {
@@ -25044,6 +25241,7 @@
       planetLandscapeGroup = null;
     }
     planetLandscapeConfig = null;
+    resetPlanetLandscapeStreamState();
   }
 
   function updatePlanetLandscapeDrop(drop) {
@@ -25073,6 +25271,7 @@
     planetLandscapeConfig = next;
     planetLandscapeGroup = new THREE.Group();
     planetLandscapeGroup.name = 'planetLandscapeUnderlay';
+    planetLandscapeGroup.userData.noPointerPick = true;
     const s = LANDSCAPE_MESH_SCALE;
     planetLandscapeGroup.scale.set(s, s, s);
     planetLandscapeGroup.position.set(
@@ -25089,6 +25288,7 @@
       airfield: false,
     });
     configurePlanetLandscapeEngine(planetLandscapeEngine, next);
+    resetPlanetLandscapeStreamState();
     initPlanetAtmosphere(next);
     planetLandscapeEngine.clearClipBounds();
     // Kick enough near/far chunks to establish a broad horizon immediately,
@@ -25120,8 +25320,13 @@
       atmosphereLayers: planetAtmosphereGroup ? planetAtmosphereGroup.children.length : 0,
       atmosphereVisible: planetAtmosphereGroup ? planetAtmosphereGroup.visible : false,
       nearRadius: planetLandscapeEngine ? planetLandscapeEngine.RENDER_RADIUS : 0,
+      nearChunkRes: planetLandscapeEngine ? planetLandscapeEngine.CHUNK_RES : 0,
       farRadius: planetLandscapeEngine ? planetLandscapeEngine.FAR_RADIUS : 0,
       farChunkRes: planetLandscapeEngine ? planetLandscapeEngine.FAR_CHUNK_RES : 0,
+      backdropProfile: planetLandscapeEngine ? planetLandscapeEngine.BACKDROP_MODE === true : false,
+      chunkBuildBudgetNear: planetLandscapeEngine ? planetLandscapeEngine.CHUNK_BUILD_BUDGET_NEAR : 0,
+      chunkBuildBudgetFar: planetLandscapeEngine ? planetLandscapeEngine.CHUNK_BUILD_BUDGET_FAR : 0,
+      waterVisible: planetLandscapeEngine && planetLandscapeEngine.waterMesh ? planetLandscapeEngine.waterMesh.visible !== false : false,
       pendingChunks: planetLandscapeEngine ? planetLandscapeEngine.pendingChunkBuilds.length : 0,
       pendingFarChunks: planetLandscapeEngine ? planetLandscapeEngine.pendingFarChunkBuilds.length : 0,
       fogNear: planetLandscapeEngine && planetLandscapeEngine.userData ? planetLandscapeEngine.userData.fogNear : null,

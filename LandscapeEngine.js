@@ -43,6 +43,9 @@ class LandscapeEngine {
     this.FAR_CHUNK_SIZE = 1800;
     this.FAR_CHUNK_RES = 90;
     this.FAR_RADIUS = 4; // 9x9 far LOD grid
+    this.CHUNK_BUILD_BUDGET_NEAR = 2;
+    this.CHUNK_BUILD_BUDGET_FAR = 2;
+    this.BACKDROP_MODE = false;
 
     this.airfield = this._makeAirfieldConfig(airfield);
 
@@ -420,6 +423,14 @@ class LandscapeEngine {
         color = mix(color, hazeColor, haze);
         color = mix(hazeColor, color, edgeFade);
 
+        if (planetDistanceEffect > 0.001) {
+          float distMix = clamp(planetDistanceEffect, 0.0, 1.0);
+          float grey = dot(color, vec3(0.299, 0.587, 0.114));
+          color = mix(color, vec3(grey), clamp(planetDistanceDesaturate, 0.0, 1.0) * distMix);
+          color = mix(color, planetDistanceColor, distMix);
+          color *= mix(1.0, planetDistanceDim, distMix);
+        }
+
         gl_FragColor = vec4(color, 1.0);
       }
     `;
@@ -512,6 +523,14 @@ class LandscapeEngine {
         color = mix(color, hazeColor, haze);
         color = mix(hazeColor, color, edgeFade);
 
+        if (planetDistanceEffect > 0.001) {
+          float distMix = clamp(planetDistanceEffect, 0.0, 1.0);
+          float grey = dot(color, vec3(0.299, 0.587, 0.114));
+          color = mix(color, vec3(grey), clamp(planetDistanceDesaturate, 0.0, 1.0) * distMix);
+          color = mix(color, planetDistanceColor, distMix);
+          color *= mix(1.0, planetDistanceDim, distMix);
+        }
+
         gl_FragColor = vec4(color, 1.0);
       }
     `;
@@ -531,6 +550,10 @@ class LandscapeEngine {
         clipEnabled:   { value: 0.0 },
         clipMin:       { value: this._clipMin },
         clipMax:       { value: this._clipMax },
+        planetDistanceEffect:     { value: 0.0 },
+        planetDistanceColor:      { value: new THREE.Color(this.currentBiome.fogColor) },
+        planetDistanceDesaturate: { value: 0.0 },
+        planetDistanceDim:        { value: 1.0 },
       },
       vertexShader: this.SAND_VS,
       fragmentShader: this.SAND_FS,
@@ -551,6 +574,10 @@ class LandscapeEngine {
         clipEnabled:  { value: 0.0 },
         clipMin:      { value: this._clipMin },
         clipMax:      { value: this._clipMax },
+        planetDistanceEffect:     { value: 0.0 },
+        planetDistanceColor:      { value: new THREE.Color(this.currentBiome.fogColor) },
+        planetDistanceDesaturate: { value: 0.0 },
+        planetDistanceDim:        { value: 1.0 },
       },
       vertexShader: this.SAND_VS,
       fragmentShader: this.LOWPOLY_FS,
@@ -603,7 +630,11 @@ class LandscapeEngine {
       planetFogNear: { value: 360 },
       planetFogFar: { value: 6200 },
       planetFogStrength: { value: 0.0 },
-      planetHazeExponent: { value: 1.45 }
+      planetHazeExponent: { value: 1.45 },
+      planetDistanceEffect: { value: 0.0 },
+      planetDistanceColor: { value: new THREE.Color(this.currentBiome.fogColor) },
+      planetDistanceDesaturate: { value: 0.0 },
+      planetDistanceDim: { value: 1.0 }
     };
     this.terrainMat.onBeforeCompile = (shader) => {
       const planetFog = this._ensurePlanetFogUniforms();
@@ -616,6 +647,10 @@ class LandscapeEngine {
       shader.uniforms.planetFogFar = planetFog.planetFogFar;
       shader.uniforms.planetFogStrength = planetFog.planetFogStrength;
       shader.uniforms.planetHazeExponent = planetFog.planetHazeExponent;
+      shader.uniforms.planetDistanceEffect = planetFog.planetDistanceEffect;
+      shader.uniforms.planetDistanceColor = planetFog.planetDistanceColor;
+      shader.uniforms.planetDistanceDesaturate = planetFog.planetDistanceDesaturate;
+      shader.uniforms.planetDistanceDim = planetFog.planetDistanceDim;
       
       shader.vertexShader = shader.vertexShader.replace(
         '#include <common>',
@@ -640,6 +675,10 @@ class LandscapeEngine {
         uniform float planetFogFar;
         uniform float planetFogStrength;
         uniform float planetHazeExponent;
+        uniform float planetDistanceEffect;
+        uniform vec3 planetDistanceColor;
+        uniform float planetDistanceDesaturate;
+        uniform float planetDistanceDim;
         varying vec3 vWorldPositionCustom;`
       );
       shader.fragmentShader = shader.fragmentShader.replace(
@@ -653,6 +692,13 @@ class LandscapeEngine {
           float planetHorizon = pow(clamp(1.0 - abs(planetView.y), 0.0, 1.0), planetHazeExponent);
           float planetFog = clamp(planetFogF * planetFogStrength * (0.76 + planetHorizon * 0.38), 0.0, 1.0);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, planetFogColor, planetFog);
+        }
+        if (planetDistanceEffect > 0.001) {
+          float distMix = clamp(planetDistanceEffect, 0.0, 1.0);
+          float grey = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(grey), clamp(planetDistanceDesaturate, 0.0, 1.0) * distMix);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, planetDistanceColor, distMix);
+          gl_FragColor.rgb *= mix(1.0, planetDistanceDim, distMix);
         }
         if (clipEnabled > 0.5) {
           float dx1 = vWorldPositionCustom.x - clipMin.x;
@@ -685,22 +731,48 @@ class LandscapeEngine {
     if (!u.planetFogFar || typeof u.planetFogFar.value === 'undefined') u.planetFogFar = { value: 6200 };
     if (!u.planetFogStrength || typeof u.planetFogStrength.value === 'undefined') u.planetFogStrength = { value: 0.0 };
     if (!u.planetHazeExponent || typeof u.planetHazeExponent.value === 'undefined') u.planetHazeExponent = { value: 1.45 };
+    if (!u.planetDistanceEffect || typeof u.planetDistanceEffect.value === 'undefined') u.planetDistanceEffect = { value: 0.0 };
+    if (!u.planetDistanceColor || !u.planetDistanceColor.value) u.planetDistanceColor = { value: new THREE.Color(this.currentBiome ? this.currentBiome.fogColor : 0xc4d8c0) };
+    if (!u.planetDistanceDesaturate || typeof u.planetDistanceDesaturate.value === 'undefined') u.planetDistanceDesaturate = { value: 0.0 };
+    if (!u.planetDistanceDim || typeof u.planetDistanceDim.value === 'undefined') u.planetDistanceDim = { value: 1.0 };
     return u;
   }
 
   setPlanetFog(opts = {}) {
     const u = this._ensurePlanetFogUniforms();
     if (!u) return;
+    const ensureUniform = (key, fallback) => {
+      if (!u[key] || typeof u[key].value === 'undefined') u[key] = { value: fallback };
+      return u[key];
+    };
+    const fogEnabled = ensureUniform('planetFogEnabled', 0.0);
+    const fogColor = ensureUniform('planetFogColor', new THREE.Color(this.currentBiome ? this.currentBiome.fogColor : 0xc4d8c0));
+    const fogNear = ensureUniform('planetFogNear', 360);
+    const fogFar = ensureUniform('planetFogFar', 6200);
+    const fogStrength = ensureUniform('planetFogStrength', 0.0);
+    const hazeExponent = ensureUniform('planetHazeExponent', 1.45);
+    const distanceEffect = ensureUniform('planetDistanceEffect', 0.0);
+    const distanceColor = ensureUniform('planetDistanceColor', new THREE.Color(this.currentBiome ? this.currentBiome.fogColor : 0xc4d8c0));
+    const distanceDesaturate = ensureUniform('planetDistanceDesaturate', 0.0);
+    const distanceDim = ensureUniform('planetDistanceDim', 1.0);
+
     const enabled = opts.enabled !== false;
-    u.planetFogEnabled.value = enabled ? 1.0 : 0.0;
+    fogEnabled.value = enabled ? 1.0 : 0.0;
     if (opts.color !== undefined) {
-      if (opts.color && opts.color.isColor) u.planetFogColor.value.copy(opts.color);
-      else u.planetFogColor.value.set(opts.color);
+      if (opts.color && opts.color.isColor) fogColor.value.copy(opts.color);
+      else fogColor.value.set(opts.color);
     }
-    if (Number.isFinite(Number(opts.near))) u.planetFogNear.value = Number(opts.near);
-    if (Number.isFinite(Number(opts.far))) u.planetFogFar.value = Number(opts.far);
-    if (Number.isFinite(Number(opts.strength))) u.planetFogStrength.value = Math.max(0, Number(opts.strength));
-    if (Number.isFinite(Number(opts.exponent))) u.planetHazeExponent.value = Math.max(0.1, Number(opts.exponent));
+    if (Number.isFinite(Number(opts.near))) fogNear.value = Number(opts.near);
+    if (Number.isFinite(Number(opts.far))) fogFar.value = Number(opts.far);
+    if (Number.isFinite(Number(opts.strength))) fogStrength.value = Math.max(0, Number(opts.strength));
+    if (Number.isFinite(Number(opts.exponent))) hazeExponent.value = Math.max(0.1, Number(opts.exponent));
+    if (opts.distanceColor !== undefined) {
+      if (opts.distanceColor && opts.distanceColor.isColor) distanceColor.value.copy(opts.distanceColor);
+      else distanceColor.value.set(opts.distanceColor);
+    }
+    if (Number.isFinite(Number(opts.distanceEffect))) distanceEffect.value = Math.max(0, Math.min(1, Number(opts.distanceEffect)));
+    if (Number.isFinite(Number(opts.distanceDesaturate))) distanceDesaturate.value = Math.max(0, Math.min(1, Number(opts.distanceDesaturate)));
+    if (Number.isFinite(Number(opts.distanceDim))) distanceDim.value = Math.max(0.1, Math.min(1.2, Number(opts.distanceDim)));
   }
 
   _mergeColored(entries) {
@@ -839,6 +911,10 @@ class LandscapeEngine {
         clipEnabled:  { value: 0.0 },
         clipMin:      { value: this._clipMin },
         clipMax:      { value: this._clipMax },
+        planetDistanceEffect:     { value: 0.0 },
+        planetDistanceColor:      { value: new THREE.Color(this.currentBiome.fogColor) },
+        planetDistanceDesaturate: { value: 0.0 },
+        planetDistanceDim:        { value: 1.0 },
       },
       vertexShader: `
         varying vec3 vWorldPos;
@@ -871,6 +947,10 @@ class LandscapeEngine {
         uniform float clipEnabled;
         uniform vec3 clipMin;
         uniform vec3 clipMax;
+        uniform float planetDistanceEffect;
+        uniform vec3 planetDistanceColor;
+        uniform float planetDistanceDesaturate;
+        uniform float planetDistanceDim;
         varying vec3 vWorldPos;
         varying float vDist;
 
@@ -934,6 +1014,14 @@ class LandscapeEngine {
           float fogF = clamp((vDist - fogNear) / (fogFar - fogNear), 0.0, 1.0);
           col = mix(col, fogColor, fogF);
 
+          if (planetDistanceEffect > 0.001) {
+            float distMix = clamp(planetDistanceEffect, 0.0, 1.0);
+            float grey = dot(col, vec3(0.299, 0.587, 0.114));
+            col = mix(col, vec3(grey), clamp(planetDistanceDesaturate, 0.0, 1.0) * distMix);
+            col = mix(col, planetDistanceColor, distMix);
+            col *= mix(1.0, planetDistanceDim, distMix);
+          }
+
           gl_FragColor = vec4(col, waterOpacity * rwFade * edgeFade);
         }
       `,
@@ -959,6 +1047,7 @@ class LandscapeEngine {
     group.position.set(cxW, 0, czW);
 
     const lowPoly = this.styleMode === 'lowpoly';
+    const backdrop = this.BACKDROP_MODE === true;
     const sandM = lowPoly ? this.sandMatLowPoly : this.terrainMat;
     const rockM = lowPoly ? this.rockMatLowPoly : this.rockMat;
 
@@ -1003,8 +1092,13 @@ class LandscapeEngine {
     const mesh = new THREE.Mesh(geo, sandM);
     mesh.position.set(0, 0, 0);
     mesh.castShadow = false;
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = !backdrop;
     group.add(mesh);
+
+    if (backdrop) {
+      this.scene.add(group);
+      return { group, geo, mesh };
+    }
 
     // --- Scatter Instanced Rocks ---
     const ROCKS_PER_CHUNK = 50;
@@ -1455,7 +1549,7 @@ class LandscapeEngine {
       }
     }
 
-    this._processChunkBuildQueues(2, 2);
+    this._processChunkBuildQueues(this.CHUNK_BUILD_BUDGET_NEAR, this.CHUNK_BUILD_BUDGET_FAR);
   }
 
   /**
