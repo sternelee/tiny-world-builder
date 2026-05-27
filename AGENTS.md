@@ -34,6 +34,8 @@ Guidance for AI coding agents working in this repo. Read this before touching
   - `.codex/skills/tinyworld-lowpoly-world-prompt` — model prompting for coherent low-poly worlds.
   - `.codex/skills/tinyworld-lowpoly-stylized-3d` — low-poly/stylized 3D asset design, imports, materials, scale, and animation.
   - `.codex/skills/tinyworld-integrations` — API, webhook, SSE, MCP, plugin, and automation examples.
+  - `.codex/skills/tinyworld-runtime-state` — persisted localStorage, defaults pipeline (`tinyworld-defaults.json` + `/api/save-defaults`), audio, camera, panel positions, inline-script gotcha.
+  - `.codex/skills/tinyworld-island-and-planes` — home island layout, sponsor banner drape, plane/crop-duster flight curves, "front" side conventions.
 
 ## House style
 

@@ -24,3 +24,29 @@ Validation:
 - For targeted parser checks, run `perl -0ne 'print $1 if m#<script>\s*(.*?)\s*</script>#s' tiny-world-builder.html | node --check`.
 - Prefer browser validation at `http://localhost:3000/tiny-world-builder`.
 - Check console errors after visual/UI changes.
+
+## Inline `<script>` gotcha (has burned us twice)
+
+`tools/check.js` extracts the main app script with this regex:
+
+```js
+html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);
+```
+
+It greedily matches from the **first plain `<script>`** through to the last
+`</script></body>`. If you add another inline `<script>` block above the main
+app (e.g. a defaults bootstrap), it MUST carry an HTML attribute or `check.js`
+conflates the two scripts plus the literal `</script><script>` separator into
+one parse target and throws `Unexpected token '<'`.
+
+```html
+<script id="my-bootstrap">...</script>   <!-- ✓ regex skips this -->
+<script>...</script>                     <!-- ✗ becomes part of main app -->
+```
+
+## Related durable systems
+
+For persisted runtime state (defaults pipeline, audio, camera, panel
+positions, feature flags) see `.codex/skills/tinyworld-runtime-state`.
+For island layout, sponsor banner, plane/crop-duster flight paths see
+`.codex/skills/tinyworld-island-and-planes`.

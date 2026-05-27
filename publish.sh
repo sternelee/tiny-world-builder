@@ -57,6 +57,12 @@ cp tiny-world-builder.html "$DIST/tiny-world-builder.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
 
+# Bootstrap defaults — written by the in-app "Save Defaults" button. Optional;
+# if absent the app silently falls back to its hard-coded defaults.
+if [[ -f tinyworld-defaults.json ]]; then
+  cp tinyworld-defaults.json "$DIST/tinyworld-defaults.json"
+fi
+
 # LandscapeEngine mixin modules referenced via engine/landscape/*.js script tags.
 if [[ -d engine ]]; then
   mkdir -p "$DIST/engine"
