@@ -16937,48 +16937,81 @@
     ensureGhostBoardsAroundTarget();
   }
 
-  // Merge all ghost terrain meshes that share the same material into one
-  // BufferGeometry. This turns "64 meshes per ghost board" into "~number of
-  // terrain types" draw calls, making high preview distances practical.
+  // Merge all static ghost terrain leaf meshes that share the same material
+  // into one BufferGeometry. Full-quality ghost tiles are Groups containing
+  // risers, caps, bevel strips, weeds, and other small meshes; merging only
+  // direct board children misses almost all of that work.
   function mergeGhostTerrainByMaterial(board) {
     const byMat = new Map();
-    const toRemove = [];
+    const sourceMeshes = [];
+    const rootStats = new Map();
+    const mergedSources = new Set();
+    const boardCenter = new THREE.Vector3(
+      (board.userData.boardX || 0) * GRID,
+      0,
+      (board.userData.boardZ || 0) * GRID
+    );
+    const boardCenter2 = new THREE.Vector2(boardCenter.x, boardCenter.z);
 
-    for (const child of board.children) {
-      if (!child || !child.isMesh || child.userData.fadeRole !== 'tile') continue;
-      const mat = child.material;
-      if (!byMat.has(mat)) byMat.set(mat, []);
-      byMat.get(mat).push(child);
+    board.updateMatrixWorld(true);
+
+    for (const root of board.children.slice()) {
+      if (!root || !root.userData || root.userData.fadeRole !== 'tile') continue;
+      const stats = { sources: [], unmergedMeshCount: 0 };
+      root.traverse(o => {
+        if (!o || !o.isMesh || !o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+        const material = o.userData && o.userData.baseMat ? o.userData.baseMat : o.material;
+        const mergeable = !Array.isArray(o.material) &&
+          material &&
+          !(o.userData && (o.userData.waterfall || o.userData.weatherFx || o.userData.noMerge));
+        if (!mergeable) {
+          stats.unmergedMeshCount++;
+          return;
+        }
+        if (!byMat.has(material)) byMat.set(material, []);
+        const source = { mesh: o, root };
+        byMat.get(material).push(source);
+        sourceMeshes.push(source);
+        stats.sources.push(source);
+      });
+      if (stats.sources.length || stats.unmergedMeshCount) rootStats.set(root, stats);
     }
 
-    for (const [mat, meshes] of byMat) {
-      if (meshes.length <= 1) continue;
+    for (const [mat, sources] of byMat) {
+      if (sources.length <= 1) continue;
 
-      let posArr = [];
-      let norArr = [];
-      let uvArr = [];
+      const posArr = [];
+      const norArr = [];
+      const uvArr = [];
+      const tempPos = new THREE.Vector3();
+      const tempNormal = new THREE.Vector3();
+      const normalMatrix = new THREE.Matrix3();
 
-      for (const m of meshes) {
+      for (const source of sources) {
+        const m = source.mesh;
         const g = m.geometry;
-        const pos = g.attributes.position.array;
-        const nor = g.attributes.normal ? g.attributes.normal.array : null;
-        const uv = g.attributes.uv ? g.attributes.uv.array : null;
+        const pos = g.attributes.position;
+        const nor = g.attributes.normal || null;
+        const uv = g.attributes.uv || null;
+        const index = g.index ? g.index.array : null;
+        normalMatrix.getNormalMatrix(m.matrixWorld);
+        const count = index ? index.length : pos.count;
 
-        const px = m.position.x;
-        const py = m.position.y;
-        const pz = m.position.z;
-
-        for (let i = 0; i < pos.length; i += 3) {
-          posArr.push(pos[i] + px, pos[i + 1] + py, pos[i + 2] + pz);
+        for (let i = 0; i < count; i++) {
+          const vi = index ? index[i] : i;
+          tempPos.fromBufferAttribute(pos, vi);
+          tempPos.applyMatrix4(m.matrixWorld);
+          tempPos.x -= boardCenter.x;
+          tempPos.z -= boardCenter.z;
+          posArr.push(tempPos.x, tempPos.y, tempPos.z);
           if (nor) {
-            norArr.push(nor[i], nor[i + 1], nor[i + 2]);
+            tempNormal.fromBufferAttribute(nor, vi).applyMatrix3(normalMatrix).normalize();
+            norArr.push(tempNormal.x, tempNormal.y, tempNormal.z);
           }
           if (uv) {
-            const j = (i / 3) * 2;
-            uvArr.push(uv[j], uv[j + 1]);
+            uvArr.push(uv.getX(vi), uv.getY(vi));
           }
         }
-        toRemove.push(m);
       }
 
       if (posArr.length === 0) continue;
@@ -16987,20 +17020,39 @@
       newGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr), 3));
       if (norArr.length) newGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(norArr), 3));
       if (uvArr.length) newGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvArr), 2));
+      newGeo.computeBoundingBox();
       newGeo.computeBoundingSphere();
 
       const mergedMesh = new THREE.Mesh(newGeo, mat);
-      mergedMesh.castShadow = false;
-      mergedMesh.receiveShadow = true;
+      mergedMesh.position.set(boardCenter.x, 0, boardCenter.z);
       mergedMesh.frustumCulled = true;
       mergedMesh.userData = { fadeRole: 'tile', ghostMerged: true };
+      prepareFadeable(mergedMesh, {
+        ghost: true,
+        grayscale: true,
+        opacity: opacityAtWorldPosition(boardCenter2.x, boardCenter2.y),
+      });
       board.add(mergedMesh);
+      sources.forEach(source => mergedSources.add(source));
     }
 
-    // Remove the original per-tile meshes we merged.
-    for (const m of toRemove) {
-      board.remove(m);
-      // Don't dispose — geometries are cached/shared via geomCache.
+    // Remove the original source meshes. Empty all-static tile roots are removed
+    // wholesale; mixed roots keep their special unmerged children.
+    const rootsToRemove = new Set();
+    for (const [root, stats] of rootStats) {
+      if (!stats.sources.length || stats.unmergedMeshCount) continue;
+      if (stats.sources.every(source => mergedSources.has(source))) rootsToRemove.add(root);
+    }
+    for (const root of rootsToRemove) {
+      board.remove(root);
+      disposeGroup(root);
+    }
+    for (const source of sourceMeshes) {
+      if (!mergedSources.has(source)) continue;
+      const { mesh, root } = source;
+      if (rootsToRemove.has(root)) continue;
+      if (mesh.parent) mesh.parent.remove(mesh);
+      safeDisposeGeometry(mesh.geometry);
     }
   }
 
