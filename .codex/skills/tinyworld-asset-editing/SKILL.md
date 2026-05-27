@@ -61,6 +61,7 @@ Stamps panel:
 - Stamps navigation is client-side. `stampBuilderAllTools()` builds model, voxel, and built-in stamp tools; filtering combines active category and search text.
 - Include terrain/landscape tools in Stamps alongside objects so the panel can replace toolbar hunting for grass/path/dirt/water/stone/lava/sand/snow placement.
 - Category counts should reflect the current search. Search is token-based: every whitespace-separated term must match the tool search text. Status text should reflect the number of shown stamps and the active category/search.
+- Stamps search should support fast keyboard selection: Enter activates the first selectable visible stamp, ArrowDown focuses the first selectable card, and Escape clears a non-empty search before closing the panel.
 - The `Recent` stamps category is derived from `tinyworld:stamp-builder-recent.v1` and should use the same `stampBuilderSelectionKey()` values as selected-card state. Keep it ordered by most recent selection and remove deleted template keys.
 - Toolbar, flyout, and keyboard selections that correspond to stamp-builder tools should update `Recent`; ignore Select, Erase, Auto, hidden tools, and other non-stamps so stale keys do not crowd out real stamps.
 - Model-stamp categories are inferred from labels, paths, formats, URLs, and sidecars. Do not add generator manifest fields unless a durable category contract is explicitly needed.

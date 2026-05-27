@@ -20675,6 +20675,7 @@
       card.className = 'stamp-card' + (key === selectedKey ? ' selected' : '') + (unsupported ? ' unsupported' : '');
       card.setAttribute('role', 'button');
       card.tabIndex = 0;
+      card.dataset.stampKey = key;
       card.setAttribute('aria-pressed', key === selectedKey ? 'true' : 'false');
       if (tool.isAssetTemplate) {
         const deleteBtn = document.createElement('button');
@@ -24670,6 +24671,20 @@
 
     function close() { panel.hidden = true; }
 
+    function firstSelectableStampCard() {
+      return panel.querySelector('.stamp-card:not(.unsupported)');
+    }
+
+    function activateFirstSelectableStampCard() {
+      const card = firstSelectableStampCard();
+      if (!card) {
+        if (status) status.textContent = 'No selectable stamps in this view';
+        return false;
+      }
+      card.click();
+      return true;
+    }
+
     openBtn.addEventListener('click', () => {
       if (panel.hidden) open();
       else close();
@@ -24698,6 +24713,27 @@
     }
     if (searchInput) {
       searchInput.addEventListener('input', () => renderStampBuilderCards());
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          activateFirstSelectableStampCard();
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          const card = firstSelectableStampCard();
+          if (!card) return;
+          e.preventDefault();
+          card.focus({ preventScroll: true });
+          card.scrollIntoView({ block: 'nearest' });
+          return;
+        }
+        if (e.key === 'Escape' && searchInput.value) {
+          e.preventDefault();
+          e.stopPropagation();
+          searchInput.value = '';
+          renderStampBuilderCards();
+        }
+      });
     }
     modelRangeInputs.forEach(input => {
       input.addEventListener('input', () => updateSelectedModelStampDefaults(false));
