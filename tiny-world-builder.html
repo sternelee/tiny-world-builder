@@ -21091,6 +21091,28 @@
       ? sel.materialize()
       : (sel.worldCoords ? sel.worldCoords() : []);
     if (!selectedCoords.length) return false;
+    if (selectedTool.kind === 'asset-template') {
+      const template = selectedTool.assetTemplate || assetTemplateById(selectedTool.assetTemplateId || selectedAssetTemplateId);
+      const clipboard = normalizeClipboardPayload(template && template.clipboard);
+      if (!clipboard) return false;
+      const placedCoords = [];
+      selectedCoords.forEach(({ x: sx, z: sz }) => {
+        const placed = pasteClipboardPayloadAtTarget(clipboard, { x: sx, z: sz, userEdited: isOutsideHomeGrid(sx, sz) }, {
+          animate: true,
+          impactDust: true,
+          selectPlaced: false,
+        });
+        if (placed) {
+          clipboard.cells.forEach(item => {
+            placedCoords.push({ x: sx + item.dx, z: sz + item.dz });
+          });
+        }
+      });
+      if (!placedCoords.length) return false;
+      if (sel.replaceWorldCoords) sel.replaceWorldCoords(placedCoords);
+      else notifySelectionChanged();
+      return true;
+    }
     const ghostTransform = {
       rotation: ghostRotation,
       offsetX: ghostOffsetX,
@@ -21973,7 +21995,7 @@
       }));
       placed.push({ x, z });
     });
-    if (placed.length && window.__tinyworldSelection && window.__tinyworldSelection.replaceWorldCoords) {
+    if (opts.selectPlaced !== false && placed.length && window.__tinyworldSelection && window.__tinyworldSelection.replaceWorldCoords) {
       window.__tinyworldSelection.replaceWorldCoords(placed);
     }
     return placed.length > 0;

@@ -14,6 +14,7 @@ Use the existing board intent contract:
 Placement rules:
 
 - Bulk placement over a selection should call the normal `applyTool()` path once per selected world coord with `{ skipSelectionBulk: true }`. This preserves tool variants, terrain overrides, ghost transforms, fence logic, model stamp settings, and existing `setCell` side effects.
+- Bulk placement with a saved asset template should paste a one-shot template payload at each selected world coord and leave every placed template cell selected, not just the final paste.
 - The selection properties `Actions` row can expose an `Apply tool` command; it should reuse the same bulk-placement helper rather than duplicating placement logic.
 - Shift-drag rectangle fill with a placement tool should leave the filled region selected so users can immediately adjust properties, move, copy, template, or apply another tool.
 - Freehand drawing uses `dragMode === 'draw'`, `drawVisitedCells`, `drawLastWorldCoord`, and `applyDrawToolToHit()`. Drawing should not repeatedly stack terrain, bridges, or same-kind objects while the pointer crosses the same cell.
