@@ -19955,7 +19955,9 @@
   }
 
   function stampBuilderToolMatchesSearch(tool, q) {
-    return !q || stampBuilderToolSearchText(tool).includes(q);
+    if (!q) return true;
+    const text = stampBuilderToolSearchText(tool);
+    return q.split(/\s+/).filter(Boolean).every(part => text.includes(part));
   }
 
   function stampBuilderToolMatchesCategory(tool, category) {
