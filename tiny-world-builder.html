@@ -3150,6 +3150,28 @@
     text-align: left;
     padding: 10px 11px;
   }
+  .settings-tab-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    white-space: normal;
+  }
+  .settings-tab-label,
+  .settings-tab-hint {
+    overflow-wrap: anywhere;
+  }
+  .settings-tab-hint {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .settings-tab.active .settings-tab-hint,
+  .settings-tab:hover .settings-tab-hint {
+    color: var(--ink);
+    opacity: 0.72;
+  }
   .settings-tab:hover { background: rgba(255, 255, 255, 0.45); color: var(--ink); }
   .settings-tab:focus-visible {
     outline: 2px solid rgba(96, 125, 179, 0.44);
@@ -3639,7 +3661,12 @@
       padding-right: 0;
       padding-bottom: 8px;
     }
-    .settings-tab { white-space: nowrap; }
+    .settings-tab {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .settings-tab-copy { white-space: nowrap; }
+    .settings-tab-hint { display: none; }
   }
   .welcome-card {
     width: min(620px, calc(100vw - 32px));
@@ -4893,24 +4920,24 @@
         <strong id="render-title">Settings</strong>
         <button class="modal-close" id="render-close" type="button" title="Close" aria-label="Close settings">×</button>
       </div>
-      <p class="modal-copy" id="render-copy">Tune app defaults, rendering, world preview, materials, environment, crowd, and AI configuration.</p>
+      <p class="modal-copy" id="render-copy">Tune workspace defaults, rendering quality, world preview, materials, environment, crowd, and AI configuration.</p>
       <div class="settings-searchbar">
         <input class="settings-search" id="settings-search" type="search" placeholder="Search settings..." autocomplete="off" aria-label="Search settings" />
         <span class="settings-search-status" id="settings-search-status"></span>
       </div>
       <div class="settings-layout">
         <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
-          <button type="button" class="settings-tab active" id="settings-tab-app" role="tab" aria-selected="true" aria-controls="settings-panel-app" tabindex="0" data-settings-tab="app">App</button>
-          <button type="button" class="settings-tab" id="settings-tab-rendering" role="tab" aria-selected="false" aria-controls="settings-panel-rendering" tabindex="-1" data-settings-tab="rendering">Rendering</button>
-          <button type="button" class="settings-tab" id="settings-tab-world" role="tab" aria-selected="false" aria-controls="settings-panel-world" tabindex="-1" data-settings-tab="world">World</button>
-          <button type="button" class="settings-tab" id="settings-tab-materials" role="tab" aria-selected="false" aria-controls="settings-panel-materials" tabindex="-1" data-settings-tab="materials">Materials</button>
-          <button type="button" class="settings-tab" id="settings-tab-environment" role="tab" aria-selected="false" aria-controls="settings-panel-environment" tabindex="-1" data-settings-tab="environment">Environment</button>
-          <button type="button" class="settings-tab" id="settings-tab-crowd" role="tab" aria-selected="false" aria-controls="settings-panel-crowd" tabindex="-1" data-settings-tab="crowd">Crowd</button>
-          <button type="button" class="settings-tab" id="settings-tab-ai" role="tab" aria-selected="false" aria-controls="settings-panel-ai" tabindex="-1" data-settings-tab="ai" data-ai-interface>AI Config</button>
+          <button type="button" class="settings-tab active" id="settings-tab-app" role="tab" aria-selected="true" aria-controls="settings-panel-app" tabindex="0" data-settings-tab="app" data-settings-description="Board size" data-settings-keywords="app workspace defaults board grid size home">Workspace</button>
+          <button type="button" class="settings-tab" id="settings-tab-rendering" role="tab" aria-selected="false" aria-controls="settings-panel-rendering" tabindex="-1" data-settings-tab="rendering" data-settings-description="Quality and lighting" data-settings-keywords="rendering render performance fps quality resolution shadow lighting image effects pixel shader antialias blur">Rendering</button>
+          <button type="button" class="settings-tab" id="settings-tab-world" role="tab" aria-selected="false" aria-controls="settings-panel-world" tabindex="-1" data-settings-tab="world" data-settings-description="Preview and terrain" data-settings-keywords="world mechanics preview ghost terrain voxel landscape opacity distance window floors objects">World</button>
+          <button type="button" class="settings-tab" id="settings-tab-materials" role="tab" aria-selected="false" aria-controls="settings-panel-materials" tabindex="-1" data-settings-tab="materials" data-settings-description="Colors and textures" data-settings-keywords="materials material colors colours texture tint tone wear finish parts surface">Materials</button>
+          <button type="button" class="settings-tab" id="settings-tab-environment" role="tab" aria-selected="false" aria-controls="settings-panel-environment" tabindex="-1" data-settings-tab="environment" data-settings-description="Sky and atmosphere" data-settings-keywords="environment weather sky clouds atmosphere mist backdrop vignette undercloud">Environment</button>
+          <button type="button" class="settings-tab" id="settings-tab-crowd" role="tab" aria-selected="false" aria-controls="settings-panel-crowd" tabindex="-1" data-settings-tab="crowd" data-settings-description="People and motion" data-settings-keywords="crowd people mechanics movement animation zones debug paths">Crowd</button>
+          <button type="button" class="settings-tab" id="settings-tab-ai" role="tab" aria-selected="false" aria-controls="settings-panel-ai" tabindex="-1" data-settings-tab="ai" data-settings-description="Provider and model" data-settings-keywords="ai config generate auto provider model api key openai anthropic grok xai gemini" data-ai-interface>AI</button>
         </nav>
         <div class="settings-panels">
-          <section class="settings-panel active" id="settings-panel-app" role="tabpanel" aria-labelledby="settings-tab-app" data-settings-panel="app">
-            <div class="settings-section-title">App</div>
+          <section class="settings-panel active" id="settings-panel-app" role="tabpanel" aria-labelledby="settings-tab-app" data-settings-panel="app" data-settings-keywords="app workspace defaults board grid size home">
+            <div class="settings-section-title">Workspace</div>
             <label>Home board size
               <select id="render-home-grid">
                 <option value="8">8 × 8</option>
@@ -4923,7 +4950,7 @@
             </label>
           </section>
 
-          <section class="settings-panel" id="settings-panel-rendering" role="tabpanel" aria-labelledby="settings-tab-rendering" data-settings-panel="rendering" hidden>
+          <section class="settings-panel" id="settings-panel-rendering" role="tabpanel" aria-labelledby="settings-tab-rendering" data-settings-panel="rendering" data-settings-keywords="rendering render performance fps quality resolution shadow lighting image effects pixel shader antialias blur" hidden>
             <div class="settings-section-title">Quality</div>
             <label>Shadow quality
               <select id="render-shadow">
@@ -5011,7 +5038,7 @@
             </div>
           </section>
 
-          <section class="settings-panel" id="settings-panel-world" role="tabpanel" aria-labelledby="settings-tab-world" data-settings-panel="world" hidden>
+          <section class="settings-panel" id="settings-panel-world" role="tabpanel" aria-labelledby="settings-tab-world" data-settings-panel="world" data-settings-keywords="world mechanics preview ghost terrain voxel landscape opacity distance window floors objects" hidden>
             <div class="settings-section-title">Preview</div>
             <div class="range-row">
               <span>Preview distance</span>
@@ -5080,7 +5107,7 @@
             </label>
           </section>
 
-          <section class="settings-panel" id="settings-panel-materials" role="tabpanel" aria-labelledby="settings-tab-materials" data-settings-panel="materials" hidden>
+          <section class="settings-panel" id="settings-panel-materials" role="tabpanel" aria-labelledby="settings-tab-materials" data-settings-panel="materials" data-settings-keywords="materials material colors colours texture tint tone wear finish parts surface" hidden>
             <div class="settings-section-title">Finish</div>
             <div class="range-row">
               <span>Wear and tear</span>
@@ -5146,7 +5173,7 @@
             </div>
           </section>
 
-          <section class="settings-panel" id="settings-panel-environment" role="tabpanel" aria-labelledby="settings-tab-environment" data-settings-panel="environment" hidden>
+          <section class="settings-panel" id="settings-panel-environment" role="tabpanel" aria-labelledby="settings-tab-environment" data-settings-panel="environment" data-settings-keywords="environment weather sky clouds atmosphere mist backdrop vignette undercloud" hidden>
             <div class="settings-section-title">Environment</div>
             <div class="range-row">
               <span>Clouds</span>
@@ -5200,7 +5227,7 @@
             </div>
           </section>
 
-          <section class="settings-panel" id="settings-panel-crowd" role="tabpanel" aria-labelledby="settings-tab-crowd" data-settings-panel="crowd" hidden>
+          <section class="settings-panel" id="settings-panel-crowd" role="tabpanel" aria-labelledby="settings-tab-crowd" data-settings-panel="crowd" data-settings-keywords="crowd people mechanics movement animation zones debug paths" hidden>
             <div class="settings-section-title">Crowd</div>
             <div class="range-row">
               <span>People</span>
@@ -5256,7 +5283,7 @@
             <button class="btn" id="crowd-reseed" type="button">Reseed crowd</button>
           </section>
 
-          <section class="settings-panel" id="settings-panel-ai" role="tabpanel" aria-labelledby="settings-tab-ai" data-settings-panel="ai" data-ai-interface hidden>
+          <section class="settings-panel" id="settings-panel-ai" role="tabpanel" aria-labelledby="settings-tab-ai" data-settings-panel="ai" data-settings-keywords="ai config generate auto provider model api key openai anthropic grok xai gemini" data-ai-interface hidden>
             <div class="settings-section-title">AI configuration</div>
             <label>Provider
               <select id="gen-provider">
@@ -23021,17 +23048,27 @@
     settingsTabs.forEach(tab => {
       if (tab.querySelector('.settings-tab-label')) return;
       const labelText = tab.textContent.trim();
+      const hintText = tab.dataset.settingsDescription || '';
       tab.dataset.settingsLabel = labelText;
       tab.textContent = '';
+      const copy = document.createElement('span');
+      copy.className = 'settings-tab-copy';
       const label = document.createElement('span');
       label.className = 'settings-tab-label';
       label.textContent = labelText;
+      copy.appendChild(label);
+      if (hintText) {
+        const hint = document.createElement('span');
+        hint.className = 'settings-tab-hint';
+        hint.textContent = hintText;
+        copy.appendChild(hint);
+      }
       const count = document.createElement('span');
       count.className = 'settings-tab-count';
       count.hidden = true;
       count.setAttribute('aria-hidden', 'true');
-      tab.append(label, count);
-      tab.setAttribute('aria-label', labelText);
+      tab.append(copy, count);
+      tab.setAttribute('aria-label', hintText ? labelText + ', ' + hintText : labelText);
     });
 
     function fillMaterialTextureSelect(select) {
@@ -23084,12 +23121,18 @@
     }
     function searchableSettingsText(el) {
       if (!el) return '';
+      const metadata = [
+        el.dataset && el.dataset.settingsKeywords,
+        el.dataset && el.dataset.settingsDescription,
+        el.dataset && el.dataset.settingsPanel,
+        el.dataset && el.dataset.settingsTab,
+      ].filter(Boolean).join(' ');
       const ids = Array.from(el.querySelectorAll('[id]')).map(node => node.id.replace(/^render-/, '').replace(/^crowd-/, '')).join(' ');
       const values = Array.from(el.querySelectorAll('select, input, output')).map(node => {
         if (node.tagName === 'SELECT') return Array.from(node.options).map(opt => opt.textContent || '').join(' ');
         return node.getAttribute('placeholder') || '';
       }).join(' ');
-      return (el.textContent + ' ' + ids + ' ' + values).toLowerCase();
+      return (el.textContent + ' ' + metadata + ' ' + ids + ' ' + values).toLowerCase();
     }
     function matchesSettingsTerms(text, terms) {
       return !terms.length || terms.every(term => text.includes(term));
@@ -23100,6 +23143,11 @@
       let totalMatches = 0;
       let firstMatchPanel = null;
       settingsPanels.forEach(panel => {
+        const panelMetadata = [
+          panel.dataset && panel.dataset.settingsKeywords,
+          panel.dataset && panel.dataset.settingsPanel,
+        ].filter(Boolean).join(' ').toLowerCase();
+        const panelMetadataMatches = terms.length > 0 && matchesSettingsTerms(panelMetadata, terms);
         const groups = [];
         let current = null;
         Array.from(panel.children).forEach(child => {
@@ -23117,10 +23165,10 @@
         let panelMatches = 0;
         groups.forEach(group => {
           const titleText = searchableSettingsText(group.title);
-          const titleMatches = matchesSettingsTerms(titleText, terms);
+          const titleMatches = panelMetadataMatches || matchesSettingsTerms(titleText, terms);
           let visibleRows = 0;
           group.rows.forEach(row => {
-            const rowMatches = titleMatches || matchesSettingsTerms(searchableSettingsText(row), terms);
+            const rowMatches = panelMetadataMatches || titleMatches || matchesSettingsTerms(searchableSettingsText(row), terms);
             row.hidden = terms.length ? !rowMatches : false;
             if (rowMatches) {
               visibleRows++;
@@ -23142,9 +23190,11 @@
             count.hidden = !(terms.length && panelMatches > 0);
           }
           const label = tab.dataset.settingsLabel || tab.textContent.trim();
+          const hint = tab.dataset.settingsDescription || '';
+          const baseLabel = hint ? label + ', ' + hint : label;
           tab.setAttribute('aria-label', terms.length
-            ? label + ', ' + panelMatches + ' matching setting' + (panelMatches === 1 ? '' : 's')
-            : label);
+            ? baseLabel + ', ' + panelMatches + ' matching setting' + (panelMatches === 1 ? '' : 's')
+            : baseLabel);
         }
       });
       if (terms.length && activePanel && !Number(activePanel.dataset.settingsSearchMatches) && firstMatchPanel && !opts.keepActive) {

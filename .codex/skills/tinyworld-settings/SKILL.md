@@ -5,6 +5,8 @@ description: Use when changing Tiny World Builder Settings modal tabs, panels, c
 
 # Tiny World Settings
 
+Settings live in `tiny-world-builder.html` inside `#render-modal`.
+
 Keep settings changes compatible with the existing static single-file app:
 
 - Preserve `data-settings-tab` values (`app`, `rendering`, `world`, `materials`, `environment`, `crowd`, `ai`) unless every command-palette and settings caller is updated in the same change.
@@ -14,6 +16,15 @@ Keep settings changes compatible with the existing static single-file app:
 - Panels should be `role="tabpanel"` with stable IDs and `aria-labelledby` pointing at the matching tab.
 - Settings search should be a thin UI layer over the existing tab/panel wiring: never rename controls for search, keep hidden rows reversible when the query clears, and route automatic tab changes through `selectSettingsTab()`.
 - Search result counts may be shown inside tab buttons, but keep the tab's `data-settings-tab` value, `role`, keyboard navigation, and accessible label in sync.
+
+Structure rules:
+
+- Keep settings grouped by user intent, not implementation variable names.
+- Current top-level tabs are Workspace, Rendering, World, Materials, Environment, Crowd, and AI.
+- Tabs should stay dense and scannable: desktop may show a short hint; mobile should keep a compact horizontal tab strip.
+- Add `data-settings-keywords` when a setting or panel should be discoverable by broader user language such as performance, mechanics, textures, weather, or model.
+- Preserve the existing `data-settings-tab` / `data-settings-panel` wiring, ARIA roles, keyboard tab navigation, and search-count chips.
+- Search should route broad category terms to the right panel without hiding the controls in that panel.
 
 Organization guidance:
 
@@ -25,3 +36,4 @@ Validation:
 
 - Run the inline script syntax check, `npm test`, and `npm run build`.
 - Browser-check Settings opens, every tab can be selected, only one panel is visible, search routes to matching sections and clears cleanly, Arrow/Home/End navigation works, command-palette-style tab clicks still work, and the console has no app errors.
+- For responsive settings changes, also check desktop and mobile widths: no horizontal page overflow, tab text does not overflow, search switches to expected panels, and console has no fresh warnings/errors.
