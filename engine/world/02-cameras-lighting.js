@@ -270,6 +270,8 @@
   }
   setShadowQuality(renderShadowQuality);
   applyLightingSettings();
-  applyCloudSettings();
+  // applyCloudSettings() deferred to engine/world/99-late-boot.js — the cloud
+  // system (module 23) hasn't loaded yet; calling it here was a guarded no-op
+  // in the original single-script build and now throws on the forward ref.
   applyTiltShiftSettings();
 

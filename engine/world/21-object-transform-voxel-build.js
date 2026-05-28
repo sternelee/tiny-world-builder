@@ -1,5 +1,8 @@
   // -------- render settings --------
-  (function setupRenderSettings() {
+  // Was an immediately-invoked IIFE; converted to a deferred named function
+  // (called from engine/world/99-late-boot.js) because it reaches forward into
+  // later modules (syncPlanetUnderlayToggle @27, syncAiSettings) at run time.
+  function setupRenderSettings() {
     const modal = document.getElementById('render-modal');
     const openBtn = document.getElementById('render-settings');
     const closeBtn = document.getElementById('render-close');
@@ -885,7 +888,7 @@
     }
     syncControls();
     applyColorFilterFallback();
-  })();
+  }
 
   function selectedBoardObjectTarget() {
     const objects = selectedBoardObjectTargets();
