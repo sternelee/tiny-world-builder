@@ -171,6 +171,66 @@
     return tool.id + '|' + (v ? v.id : '') + '|' + (tool.kind || tool.terrain || '') + '|' + (tool.voxelBuildId || '');
   }
 
+  // Animated blue "hologram" material: translucent blue body, fresnel rim glow
+  // at silhouette edges, and scrolling horizontal scanlines + a faint flicker
+  // driven by uTime (updated per-frame from the animation loop via tickGhostHolo).
+  // Faint translucent holographic BODY: light blue, scrolling scanlines, gentle
+  // flicker. Deliberately low-contrast — the thick blue line is the separate
+  // inverted-hull outline below, not a darkening of the body.
+  function makeGhostHoloMaterial() {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x6fb6ff) },
+        uBase:  { value: 0.10 },
+        uTime:  { value: 0 },
+      },
+      vertexShader: [
+        'varying float vWY;',
+        'void main(){',
+        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+        '  vWY = wp.y;',
+        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'uniform float uBase;',
+        'uniform float uTime;',
+        'varying float vWY;',
+        'void main(){',
+        '  float s = sin(vWY * 42.0 - uTime * 5.0) * 0.5 + 0.5;',
+        '  float scan = mix(0.55, 1.0, s);',
+        '  float flicker = 0.9 + 0.1 * sin(uTime * 2.3);',
+        '  float a = uBase * scan * flicker;',
+        '  gl_FragColor = vec4(uColor * (0.92 + 0.18 * scan), clamp(a, 0.0, 0.5));',
+        '}',
+      ].join('\n'),
+      transparent: true,
+      // Writes depth (front faces only) so the inverted-hull outline below is
+      // occluded everywhere except its protruding rim → a thin line, not a fill.
+      depthWrite: true,
+      side: THREE.FrontSide,
+    });
+  }
+
+  // Thick blue silhouette outline — inverted hull (BackSide, scaled up), same
+  // technique as the selection outline. This is the "blue line" around the ghost.
+  const GHOST_OUTLINE_MAT = new THREE.MeshBasicMaterial({
+    color: 0x2f8fff,
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    depthTest: true,
+  });
+  const GHOST_OUTLINE_SCALE = 1.12;
+
+  // Advance the scanline scroll/flicker; called once per frame from animate().
+  function tickGhostHolo(t) {
+    const m = ghostPreview && ghostPreview.visible && ghostPreview.userData.ghostHoloMaterial;
+    if (m && m.uniforms && m.uniforms.uTime) m.uniforms.uTime.value = t;
+  }
+
   function buildGhostMesh(tool) {
     if (!tool || tool.erase || tool.auto) return null;
     const kind = tool.kind;
@@ -220,31 +280,31 @@
       if (cfg.objectScale !== 1) mesh.scale.multiplyScalar(cfg.objectScale);
       if (cfg.offsetY) mesh.position.y += cfg.offsetY;
     }
-    // Translucent ghost look — clone materials so we don't tint the
-    // shared M.* instances. Disable shadows to keep the preview cheap.
-    mesh.traverse(o => {
-      if (!o.isMesh || !o.material) return;
-      if (Array.isArray(o.material)) {
-        o.material = o.material.map(m => {
-          const clone = m.clone();
-          if (m.onBeforeCompile) clone.onBeforeCompile = m.onBeforeCompile;
-          return clone;
-        });
-      } else {
-        const parentMat = o.material;
-        o.material = o.material.clone();
-        if (parentMat.onBeforeCompile) o.material.onBeforeCompile = parentMat.onBeforeCompile;
-      }
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach(m => {
-        m.transparent = true;
-        m.opacity = 0.45;
-        m.depthWrite = false;
-      });
+    // Blue holographic look: swap every mesh material for one shared fresnel
+    // holo material (so the rim glow is consistent across the whole preview)
+    // and drop shadows. We don't keep the real materials — the ghost reads as
+    // a projection, then phases into real colours on placement.
+    const holo = makeGhostHoloMaterial();
+    const meshNodes = [];
+    mesh.traverse(o => { if (o.isMesh) meshNodes.push(o); });
+    meshNodes.forEach(o => {
+      o.material = holo;
       o.castShadow = false;
       o.receiveShadow = false;
+      o.renderOrder = 3;
+      // Thick blue outline: a back-faced, scaled-up hull of the same geometry.
+      if (o.geometry) {
+        const hull = new THREE.Mesh(o.geometry, GHOST_OUTLINE_MAT);
+        hull.userData.sharedGeometry = true;  // teardown must not dispose shared geom
+        hull.scale.setScalar(GHOST_OUTLINE_SCALE);
+        hull.castShadow = false;
+        hull.receiveShadow = false;
+        hull.renderOrder = 4;  // after the body (3) so body depth occludes the fill
+        o.add(hull);
+      }
     });
     mesh.userData.ghostPreview = true;
+    mesh.userData.ghostHoloMaterial = holo;
     return mesh;
   }
 

@@ -26,6 +26,7 @@
     // tile/object drop-in animations (load + placement)
     let tickStart = repaintProfileBegin();
     if (dropAnims.length) tickDropAnims(dt);
+    if (typeof tickGhostHolo === 'function') tickGhostHolo(t);
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
     tickSquashAnims(dt);

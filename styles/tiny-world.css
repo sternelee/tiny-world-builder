@@ -957,7 +957,7 @@
     background: rgba(255, 255, 255, 0.58);
     padding: 0 14px;
     border: 1px solid rgba(255, 255, 255, 0.55);
-    border-radius: 31px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
     gap: 3px;
@@ -3785,19 +3785,16 @@
     flex-direction: column;
     gap: 10px;
     padding: 13px;
-    border: 1px solid rgba(255, 255, 255, 0.58);
-    border-radius: 22px;
-    background:
-      radial-gradient(circle at 18% 0%, rgba(238, 247, 255, 0.86), rgba(238, 247, 255, 0) 34%),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(232, 222, 200, 0.72)),
-      rgba(255, 255, 255, 0.64);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.6);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.88) inset,
-      0 -1px 0 rgba(93, 70, 40, 0.08) inset,
-      0 26px 70px -28px rgba(45, 35, 24, 0.54),
-      0 10px 26px -18px rgba(45, 35, 24, 0.36);
-    backdrop-filter: blur(24px) saturate(1.35);
-    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+      0 1px 0 rgba(255, 255, 255, 0.85) inset,
+      0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+      0 1px 2px rgba(20, 30, 50, 0.05),
+      0 24px 56px -16px rgba(40, 50, 80, 0.30);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
     overflow: hidden;
   }
   .layers-panel[hidden] { display: none; }
@@ -3812,9 +3809,8 @@
     inset: 0;
     pointer-events: none;
     background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 44%),
-      radial-gradient(circle at 90% 10%, rgba(58, 114, 200, 0.16), rgba(58, 114, 200, 0) 28%);
-    opacity: 0.95;
+      linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 40%);
+    opacity: 0.9;
   }
   .layers-panel > * {
     position: relative;
@@ -3888,13 +3884,13 @@
   .layers-tree details {
     margin: 3px 0;
     border: 1px solid rgba(120, 110, 90, 0.10);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.32);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.46);
   }
   .layers-tree details details {
     margin-left: 8px;
     margin-right: 6px;
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.34);
   }
   .layers-tree summary {
     display: flex;
@@ -4043,19 +4039,16 @@
     flex-direction: column;
     gap: 12px;
     padding: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.58);
-    border-radius: 22px;
-    background:
-      radial-gradient(circle at 18% 0%, rgba(255, 245, 214, 0.92), rgba(255, 245, 214, 0) 34%),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(232, 222, 200, 0.72)),
-      rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.6);
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.88) inset,
-      0 -1px 0 rgba(93, 70, 40, 0.08) inset,
-      0 26px 70px -28px rgba(45, 35, 24, 0.54),
-      0 10px 26px -18px rgba(45, 35, 24, 0.36);
-    backdrop-filter: blur(24px) saturate(1.35);
-    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+      0 1px 0 rgba(255, 255, 255, 0.85) inset,
+      0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+      0 1px 2px rgba(20, 30, 50, 0.05),
+      0 24px 56px -16px rgba(40, 50, 80, 0.30);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
     overflow: hidden;
   }
   .stamp-panel::before {
@@ -4064,8 +4057,7 @@
     inset: 0;
     pointer-events: none;
     background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0) 40%),
-      radial-gradient(circle at 86% 12%, rgba(180, 130, 46, 0.18), rgba(180, 130, 46, 0) 26%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 40%);
     opacity: 0.9;
   }
   .stamp-panel > * {
