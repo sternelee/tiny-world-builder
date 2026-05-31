@@ -1409,6 +1409,7 @@
     let payload;
     try { payload = JSON.stringify((list || []).slice(0, 20)); } catch (_) { return; }
     twSafeSetItem(ASSET_TEMPLATES_LS, payload, 'Asset template');
+    if (typeof window.__tinyworldSyncAssetsToCloud === 'function') window.__tinyworldSyncAssetsToCloud();
   }
 
   function assetTemplateCellLabel(cell) {
@@ -1656,16 +1657,161 @@
     setTimeout(() => URL.revokeObjectURL(url), 0);
   });
 
-  // Import a previously-exported JSON file. Validation lives in applyState.
+  function twImportFileBaseName(file) {
+    const raw = file && file.name ? String(file.name) : 'Imported world';
+    const base = raw.replace(/\.[^.]+$/, '').trim();
+    return base || 'Imported world';
+  }
+
+  function twImportSanitizeWorldId(id) {
+    const raw = String(id || '').trim();
+    const cleaned = raw.replace(/[^a-zA-Z0-9:_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 72);
+    if (!cleaned || cleaned.startsWith('cloud:')) {
+      return (typeof makeWorldId === 'function') ? makeWorldId() : ('w_' + Date.now().toString(36));
+    }
+    return cleaned;
+  }
+
+  function twImportLooksLikeWorldState(value) {
+    return !!(value && typeof value === 'object' && !Array.isArray(value) && Array.isArray(value.cells));
+  }
+
+  function twImportWorldStateFromAny(value) {
+    if (twImportLooksLikeWorldState(value)) return value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    for (const key of ['data', 'state', 'world', 'build']) {
+      if (twImportLooksLikeWorldState(value[key])) return value[key];
+    }
+    return null;
+  }
+
+  function twImportWorldStateIsValid(state) {
+    if (!twImportLooksLikeWorldState(state)) return false;
+    if (typeof validateWorld !== 'function') return true;
+    let copy = null;
+    try { copy = JSON.parse(JSON.stringify(state)); } catch (_) { return false; }
+    if (typeof normalizeWorldCells === 'function') normalizeWorldCells(copy);
+    return !validateWorld(copy);
+  }
+
+  function twImportWorldEntriesFromJSON(data, file) {
+    const fallbackName = twImportFileBaseName(file);
+    const direct = twImportWorldStateFromAny(data);
+    if (direct) {
+      return [{
+        id: '',
+        name: (data && data.name) || fallbackName,
+        ts: Date.now(),
+        state: direct,
+      }];
+    }
+
+    let list = null;
+    if (Array.isArray(data)) list = data;
+    else if (data && typeof data === 'object') {
+      if (Array.isArray(data.worlds)) list = data.worlds;
+      else if (Array.isArray(data.slots)) list = data.slots;
+      else if (Array.isArray(data.builds)) list = data.builds;
+    }
+    if (!list) return [];
+
+    const entries = [];
+    for (const item of list) {
+      const state = twImportWorldStateFromAny(item);
+      if (!state) continue;
+      const name = (item && (item.name || item.title || item.label)) || fallbackName;
+      const parsedDate = Date.parse((item && (item.updatedAt || item.updated_at || item.createdAt || item.created_at)) || '');
+      entries.push({
+        id: twImportSanitizeWorldId(item && item.id),
+        name,
+        ts: Number(item && item.ts) || (Number.isFinite(parsedDate) ? parsedDate : Date.now()),
+        state,
+      });
+    }
+    return entries;
+  }
+
+  function twImportLooksLikeAssetLibrary(data) {
+    return !!(data && typeof data === 'object' && !Array.isArray(data)
+      && (data.tinyworldAssets || Array.isArray(data.voxelBuilds) || Array.isArray(data.assetTemplates)));
+  }
+
+  function twImportStoreWorldEntries(entries) {
+    if (!entries.length || typeof readWorldsMeta !== 'function' || typeof writeWorldsMeta !== 'function') return '';
+    const list = readWorldsMeta();
+    const usedIds = new Set(list.map(w => w && w.id).filter(Boolean));
+    let firstId = '';
+    for (const entry of entries) {
+      let id = entry.id || ((typeof makeWorldId === 'function') ? makeWorldId() : ('w_' + Date.now().toString(36)));
+      while (usedIds.has(id)) id = ((typeof makeWorldId === 'function') ? makeWorldId() : ('w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)));
+      usedIds.add(id);
+      if (!firstId) firstId = id;
+      list.push({
+        id,
+        name: String(entry.name || 'Imported world').slice(0, 80),
+        ts: entry.ts || Date.now(),
+        state: entry.state,
+      });
+    }
+    writeWorldsMeta(list);
+    if (firstId && typeof setActiveWorldId === 'function') setActiveWorldId(firstId);
+    if (typeof twCloudQueueLocalWorldSync === 'function') twCloudQueueLocalWorldSync();
+    if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
+    return firstId;
+  }
+
+  function twImportJSONPayload(data, file) {
+    const worldEntries = twImportWorldEntriesFromJSON(data, file);
+    if (worldEntries.length) {
+      const validEntries = worldEntries.filter(entry => twImportWorldStateIsValid(entry.state));
+      if (!validEntries.length) throw new Error('schema check failed');
+      const first = validEntries[0];
+      if (!applyState(first.state)) throw new Error('schema check failed');
+      twImportStoreWorldEntries(validEntries);
+      twToast('Imported ' + validEntries.length + ' world' + (validEntries.length === 1 ? '' : 's') + '.', 'ok');
+      return true;
+    }
+
+    if (twImportLooksLikeAssetLibrary(data) && typeof importAssetLibrary === 'function') {
+      importAssetLibrary(data);
+      return true;
+    }
+
+    return false;
+  }
+
+  // Import TinyWorld JSON. Accepts exported world files, account/cloud build
+  // envelopes, local named-world lists, and asset-library bundles.
   const importFile = document.getElementById('import-file');
-  document.getElementById('import').addEventListener('click', () => importFile.click());
+  const importButton = document.getElementById('import');
+  function twOpenImportFilePicker() {
+    if (!importFile) return;
+    importFile.value = '';
+    try {
+      if (typeof importFile.showPicker === 'function') {
+        importFile.showPicker();
+        return;
+      }
+    } catch (_) {}
+    importFile.click();
+  }
+  if (importButton) {
+    if (importButton.tagName !== 'LABEL') {
+      importButton.addEventListener('click', twOpenImportFilePicker);
+    }
+    importButton.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      twOpenImportFilePicker();
+    });
+  }
   importFile.addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!applyState(data)) throw new Error('schema check failed');
+      if (!twImportJSONPayload(data, file)) throw new Error('schema check failed');
     } catch (err) {
       console.error('Import failed:', err);
       alert('Could not import that file — not a valid Tiny World JSON.');
@@ -2270,4 +2416,3 @@
     if (typeof fireWebhook === 'function') fireWebhook('world.clear', {});
     window.dispatchEvent(new CustomEvent('tinyworld:world-changed', { detail: { scope: 'world.clear' } }));
   }
-

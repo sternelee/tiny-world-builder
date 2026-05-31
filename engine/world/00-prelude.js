@@ -96,22 +96,32 @@
   function twPickJSONFile() {
     return new Promise((resolve) => {
       const input = document.createElement('input');
+      let settled = false;
+      const cleanup = () => {
+        if (input.parentNode) input.parentNode.removeChild(input);
+      };
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
       input.type = 'file';
       input.accept = 'application/json,.json';
       input.style.display = 'none';
       input.addEventListener('change', () => {
         const file = input.files && input.files[0];
-        if (!file) { resolve(null); return; }
+        if (!file) { finish(null); return; }
         const reader = new FileReader();
         reader.onload = () => {
-          try { resolve(JSON.parse(String(reader.result || ''))); }
-          catch (_) { twToast('That file is not valid JSON.', 'err'); resolve(null); }
+          try { finish(JSON.parse(String(reader.result || ''))); }
+          catch (_) { twToast('That file is not valid JSON.', 'err'); finish(null); }
         };
-        reader.onerror = () => { twToast('Could not read that file.', 'err'); resolve(null); };
+        reader.onerror = () => { twToast('Could not read that file.', 'err'); finish(null); };
         reader.readAsText(file);
       });
+      input.addEventListener('cancel', () => finish(null), { once: true });
       document.body.appendChild(input);
       input.click();
-      setTimeout(() => { if (input.parentNode) input.parentNode.removeChild(input); }, 1000);
     });
   }

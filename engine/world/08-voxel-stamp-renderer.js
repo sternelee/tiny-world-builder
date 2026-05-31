@@ -462,6 +462,7 @@
       })));
     } catch (_) { return; }
     twSafeSetItem(VOXEL_BUILD_CUSTOM_LS, payload, 'Custom voxel build');
+    if (typeof window.__tinyworldSyncAssetsToCloud === 'function') window.__tinyworldSyncAssetsToCloud();
   }
 
   function importVoxelBuildPayload(payload, fallbackName = 'Imported Build') {

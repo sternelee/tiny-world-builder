@@ -975,10 +975,21 @@
   function getWorldUrlParam() {
     try {
       const params = new URLSearchParams(window.location.search || '');
+      const shareId = params.get('share');
+      if (shareId && /^[a-zA-Z0-9_-]{8,40}$/.test(shareId)) {
+        return '/api/share?id=' + encodeURIComponent(shareId);
+      }
       let world = params.get('world');
       if (!world) {
         const hash = String(window.location.hash || '').replace(/^#\??/, '');
-        if (hash && hash.includes('=')) world = new URLSearchParams(hash).get('world');
+        if (hash && hash.includes('=')) {
+          const hashParams = new URLSearchParams(hash);
+          const hashShareId = hashParams.get('share');
+          if (hashShareId && /^[a-zA-Z0-9_-]{8,40}$/.test(hashShareId)) {
+            return '/api/share?id=' + encodeURIComponent(hashShareId);
+          }
+          world = hashParams.get('world');
+        }
       }
       return world;
     } catch (_) { return null; }

@@ -53,6 +53,376 @@
     });
   }
 
+  // -------- cloud worlds / assets --------
+  const TW_CLOUD_SLOT_PREFIX = 'cloud:';
+  let twCloudWorldCache = [];
+  let twCloudWorldCacheAt = 0;
+  let twCloudWorldSyncing = false;
+  let twCloudWorldSyncPending = false;
+  let twCloudWorldSyncTimer = null;
+  let twCloudAssetSyncTimer = null;
+  let twCloudAssetSyncing = false;
+  let twCloudApplyingAssets = false;
+
+  function twCloudLoggedIn() {
+    return !!(window.TinyWorldAuth && window.__loggedIn);
+  }
+
+  function twCloudSlotId(buildId) {
+    return TW_CLOUD_SLOT_PREFIX + String(buildId);
+  }
+
+  function twCloudBuildIdFromSlotId(id) {
+    const value = String(id || '');
+    if (!value.startsWith(TW_CLOUD_SLOT_PREFIX)) return null;
+    const n = Number(value.slice(TW_CLOUD_SLOT_PREFIX.length));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+
+  function twCloudIdForSlot(slot) {
+    const explicit = Number(slot && slot.cloudId);
+    if (Number.isInteger(explicit) && explicit > 0) return explicit;
+    return twCloudBuildIdFromSlotId(slot && slot.id);
+  }
+
+  function twCloudBuildTime(build) {
+    if (!build) return 0;
+    const raw = build.updatedAt || build.updated_at || build.createdAt || build.created_at;
+    const t = raw ? Date.parse(raw) : 0;
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function twCloudStateFingerprint(state) {
+    try {
+      return JSON.stringify(state || null);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  async function twCloudAccessToken() {
+    const Auth = window.TinyWorldAuth;
+    if (!Auth) return null;
+    try {
+      const user = await Auth.getUser();
+      if (!user) return null;
+      if (typeof user.jwt === 'function') {
+        try { return await user.jwt(); } catch (_) {}
+      }
+      if (user.token && user.token.access_token) return user.token.access_token;
+    } catch (_) {}
+    const m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  async function twCloudApiCall(path, method, body) {
+    try {
+      const token = await twCloudAccessToken();
+      const opts = {
+        method: method || 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+      };
+      if (token) opts.headers.Authorization = 'Bearer ' + token;
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(path, opts);
+      const text = await r.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) {
+        data = { error: text || r.statusText || ('HTTP ' + r.status) };
+      }
+      if (!r.ok) return data || { error: r.statusText || ('HTTP ' + r.status) };
+      return data;
+    } catch (err) {
+      return { error: err.message || 'Network error' };
+    }
+  }
+
+  async function twCloudLoadWorlds(force) {
+    if (!twCloudLoggedIn()) {
+      twCloudWorldCache = [];
+      twCloudWorldCacheAt = 0;
+      return [];
+    }
+    if (!force && twCloudWorldCacheAt && Date.now() - twCloudWorldCacheAt < 10_000) return twCloudWorldCache;
+    const list = await twCloudApiCall('/api/builds', 'GET');
+    if (Array.isArray(list)) {
+      twCloudWorldCache = list;
+      twCloudWorldCacheAt = Date.now();
+    }
+    return twCloudWorldCache;
+  }
+
+  function twCloudTouchWorldCache(build) {
+    if (!build || !build.id) return;
+    const row = {
+      id: build.id,
+      profileId: build.profileId,
+      name: build.name,
+      createdAt: build.createdAt || build.created_at,
+      updatedAt: build.updatedAt || build.updated_at,
+    };
+    const idx = twCloudWorldCache.findIndex(w => Number(w.id) === Number(build.id));
+    if (idx === -1) twCloudWorldCache.unshift(row);
+    else twCloudWorldCache[idx] = Object.assign({}, twCloudWorldCache[idx], row);
+    twCloudWorldCacheAt = Date.now();
+  }
+
+  function twCloudMergedWorlds(localList, cloudList) {
+    const rows = [];
+    const cloudById = new Map();
+    (Array.isArray(cloudList) ? cloudList : []).forEach(build => {
+      const id = Number(build && build.id);
+      if (Number.isInteger(id) && id > 0) cloudById.set(id, build);
+    });
+    (Array.isArray(localList) ? localList : []).forEach(slot => {
+      if (!slot) return;
+      const cloudId = twCloudIdForSlot(slot);
+      const cloud = cloudId ? cloudById.get(cloudId) : null;
+      if (cloudId) cloudById.delete(cloudId);
+      rows.push({
+        id: slot.id,
+        cloudId,
+        local: true,
+        cloud: !!cloudId,
+        state: slot.state,
+        name: (cloud && cloud.name) || slot.name || 'Untitled world',
+        ts: Math.max(Number(slot.ts) || 0, twCloudBuildTime(cloud)),
+      });
+    });
+    cloudById.forEach(build => {
+      rows.push({
+        id: twCloudSlotId(build.id),
+        cloudId: Number(build.id),
+        local: false,
+        cloud: true,
+        state: null,
+        name: build.name || 'Untitled world',
+        ts: twCloudBuildTime(build),
+      });
+    });
+    return rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  }
+
+  async function twCloudSaveWorld(buildId, name, data) {
+    if (!twCloudLoggedIn() || !data) return null;
+    const n = Number(buildId);
+    const hasBuildId = Number.isInteger(n) && n > 0;
+    const path = hasBuildId ? '/api/builds?id=' + encodeURIComponent(String(n)) : '/api/builds';
+    const result = await twCloudApiCall(path, hasBuildId ? 'PUT' : 'POST', {
+      name: String(name || '').trim() || 'Untitled world',
+      data,
+    });
+    if (result && result.id) twCloudTouchWorldCache(result);
+    return result;
+  }
+
+  async function twCloudDeleteWorld(buildId) {
+    const n = Number(buildId);
+    if (!twCloudLoggedIn() || !Number.isInteger(n) || n < 1) return null;
+    const result = await twCloudApiCall('/api/builds?id=' + encodeURIComponent(String(n)), 'DELETE');
+    if (result && !result.error) {
+      twCloudWorldCache = twCloudWorldCache.filter(w => Number(w.id) !== n);
+      twCloudWorldCacheAt = Date.now();
+    }
+    return result;
+  }
+
+  function twCloudForgetLocalBuild(buildId) {
+    const n = Number(buildId);
+    if (!Number.isInteger(n) || n < 1) return;
+    const activeId = getActiveWorldId();
+    const list = readWorldsMeta();
+    const activeSlot = list.find(slot => slot && slot.id === activeId);
+    const next = list.filter(slot => twCloudIdForSlot(slot) !== n);
+    writeWorldsMeta(next);
+    if (twCloudBuildIdFromSlotId(activeId) === n || twCloudIdForSlot(activeSlot) === n) setActiveWorldId('');
+  }
+
+  function twCloudCacheBuildLocally(build) {
+    if (!build || !build.id || !build.data) return '';
+    const cloudId = Number(build.id);
+    const id = twCloudSlotId(cloudId);
+    const list = readWorldsMeta();
+    const idx = list.findIndex(w => w && (w.id === id || Number(w.cloudId) === cloudId));
+    const row = {
+      id,
+      cloudId,
+      cloudSyncedAt: Date.now(),
+      name: build.name || 'Untitled world',
+      ts: twCloudBuildTime(build) || Date.now(),
+      state: build.data,
+    };
+    if (idx === -1) list.push(row);
+    else list[idx] = Object.assign({}, list[idx], row);
+    writeWorldsMeta(list);
+    return id;
+  }
+
+  function twCloudEnsureCurrentLocalSlot(list) {
+    if (getActiveWorldId()) return false;
+    const state = snapshotCurrentState();
+    if (!state) return false;
+    list.push({
+      id: makeWorldId(),
+      name: 'My world',
+      ts: Date.now(),
+      state,
+    });
+    setActiveWorldId(list[list.length - 1].id);
+    return true;
+  }
+
+  async function twCloudSyncLocalWorldsToCloud(options = {}) {
+    if (!twCloudLoggedIn()) return false;
+    if (twCloudWorldSyncing) {
+      twCloudWorldSyncPending = true;
+      return false;
+    }
+    twCloudWorldSyncing = true;
+    try {
+      const list = readWorldsMeta();
+      let changed = !!(options.includeCurrent && twCloudEnsureCurrentLocalSlot(list));
+      for (const slot of list) {
+        if (!slot || !slot.state) continue;
+        const cloudId = twCloudIdForSlot(slot);
+        const slotTs = Number(slot.ts) || 0;
+        if (cloudId && !options.force && Number(slot.cloudSyncedAt) >= slotTs) continue;
+        const saved = await twCloudSaveWorld(cloudId, slot.name || 'Untitled world', slot.state);
+        if (saved && saved.id) {
+          slot.cloudId = Number(saved.id);
+          slot.cloudSyncedAt = Date.now();
+          slot.cloudUpdatedAt = saved.updatedAt || saved.updated_at || null;
+          if (slot.id && slot.id.startsWith(TW_CLOUD_SLOT_PREFIX)) slot.id = twCloudSlotId(saved.id);
+          changed = true;
+        } else if (saved && saved.error) {
+          console.warn('[cloud-worlds] sync failed:', saved.error);
+        }
+      }
+      if (changed) writeWorldsMeta(list);
+      await twCloudLoadWorlds(true);
+      if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
+      if (typeof window.__tinyworldAccountWorldsRefresh === 'function') window.__tinyworldAccountWorldsRefresh();
+      return changed;
+    } finally {
+      twCloudWorldSyncing = false;
+      if (twCloudWorldSyncPending) {
+        twCloudWorldSyncPending = false;
+        twCloudQueueLocalWorldSync();
+      }
+    }
+  }
+
+  function twCloudQueueLocalWorldSync() {
+    if (!twCloudLoggedIn()) return;
+    if (twCloudWorldSyncing) {
+      twCloudWorldSyncPending = true;
+      return;
+    }
+    clearTimeout(twCloudWorldSyncTimer);
+    twCloudWorldSyncTimer = setTimeout(() => {
+      twCloudWorldSyncTimer = null;
+      twCloudSyncLocalWorldsToCloud({ includeCurrent: false }).catch(err => {
+        console.warn('[cloud-worlds] queued sync failed:', err);
+      });
+    }, 1200);
+  }
+
+  function twCloudCollectAssetLibrary() {
+    return {
+      version: 1,
+      voxelBuilds: collectCustomVoxelBuilds(),
+      assetTemplates: (typeof loadAssetTemplates === 'function') ? loadAssetTemplates() : [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function twCloudMergeAssetsIntoLocal(data) {
+    if (!data || typeof data !== 'object') return false;
+    let changed = false;
+    twCloudApplyingAssets = true;
+    try {
+      const remoteBuilds = Array.isArray(data.voxelBuilds) ? data.voxelBuilds : [];
+      if (remoteBuilds.length && typeof getVoxelBuildStamp === 'function' && typeof importVoxelBuildPayload === 'function') {
+        const missing = remoteBuilds.filter(stamp => stamp && stamp.id && !getVoxelBuildStamp(stamp.id));
+        if (missing.length) {
+          importVoxelBuildPayload(missing, 'Cloud Asset');
+          changed = true;
+        }
+      }
+
+      const remoteTemplates = Array.isArray(data.assetTemplates) ? data.assetTemplates : [];
+      if (remoteTemplates.length && typeof loadAssetTemplates === 'function' && typeof saveAssetTemplates === 'function') {
+        const localTemplates = loadAssetTemplates();
+        const seen = new Set(localTemplates.map(t => t && t.id).filter(Boolean));
+        const merged = localTemplates.slice();
+        for (const template of remoteTemplates) {
+          if (!template || !template.id || seen.has(template.id)) continue;
+          merged.push(template);
+          seen.add(template.id);
+          changed = true;
+        }
+        if (changed) saveAssetTemplates(merged);
+      }
+
+      if (changed && typeof buildToolbar === 'function') {
+        try { buildToolbar(); } catch (_) {}
+      }
+    } finally {
+      twCloudApplyingAssets = false;
+    }
+    return changed;
+  }
+
+  async function twCloudPutAssetLibrary() {
+    return twCloudApiCall('/api/assets', 'PUT', { data: twCloudCollectAssetLibrary() });
+  }
+
+  async function twCloudSyncAssetsToCloudNow() {
+    if (!twCloudLoggedIn() || twCloudApplyingAssets || twCloudAssetSyncing) return null;
+    twCloudAssetSyncing = true;
+    try {
+      return await twCloudPutAssetLibrary();
+    } finally {
+      twCloudAssetSyncing = false;
+    }
+  }
+
+  async function twCloudSyncAssetsBothWays() {
+    if (!twCloudLoggedIn() || twCloudAssetSyncing) return;
+    twCloudAssetSyncing = true;
+    try {
+      const remote = await twCloudApiCall('/api/assets', 'GET');
+      if (remote && !remote.error) twCloudMergeAssetsIntoLocal(remote);
+      const saved = await twCloudPutAssetLibrary();
+      if (saved && saved.error) console.warn('[cloud-assets] sync failed:', saved.error);
+    } finally {
+      twCloudAssetSyncing = false;
+    }
+  }
+
+  function twCloudQueueAssetsSync() {
+    if (!twCloudLoggedIn() || twCloudApplyingAssets) return;
+    clearTimeout(twCloudAssetSyncTimer);
+    twCloudAssetSyncTimer = setTimeout(() => {
+      twCloudSyncAssetsToCloudNow().catch(err => {
+        console.warn('[cloud-assets] queued sync failed:', err);
+      });
+    }, 1200);
+  }
+
+  async function twCloudBootstrapSync() {
+    if (!twCloudLoggedIn()) return;
+    await Promise.all([
+      twCloudSyncLocalWorldsToCloud({ includeCurrent: true }),
+      twCloudSyncAssetsBothWays(),
+    ]);
+  }
+
+  window.__tinyworldCloudApiCall = twCloudApiCall;
+  window.__tinyworldCloudSyncNow = twCloudBootstrapSync;
+  window.__tinyworldSyncAssetsToCloud = twCloudQueueAssetsSync;
+
   // -------- profile + saves --------
   function initAccountModal() {
     const Auth = window.TinyWorldAuth;
@@ -103,33 +473,8 @@
     closeBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-    async function getAccessToken() {
-      const user = await Auth.getUser();
-      if (!user) return null;
-      if (user.token && user.token.access_token) return user.token.access_token;
-      const m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
-      if (m) return decodeURIComponent(m[1]);
-      return null;
-    }
-
     async function apiCall(path, method, body) {
-      try {
-        const opts = {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-        };
-        if (body) opts.body = JSON.stringify(body);
-        const r = await fetch(path, opts);
-        const text = await r.text();
-        let data = null;
-        try { data = text ? JSON.parse(text) : null; } catch (_) {
-          data = { error: text || r.statusText || ('HTTP ' + r.status) };
-        }
-        if (!r.ok) return data || { error: r.statusText || ('HTTP ' + r.status) };
-        return data;
-      } catch (err) {
-        return { error: err.message || 'Network error' };
-      }
+      return twCloudApiCall(path, method, body);
     }
 
     async function loadProfile() {
@@ -205,7 +550,7 @@
     });
 
     async function loadBuilds() {
-      const list = await apiCall('/api/builds', 'GET');
+      const list = await twCloudLoadWorlds(true);
       userBuilds = Array.isArray(list) ? list : [];
       renderBuilds();
     }
@@ -219,6 +564,12 @@
         const nameSpan = document.createElement('div');
         nameSpan.className = 'save-name';
         nameSpan.textContent = b.name;
+        if (b.id) {
+          const cloudMark = document.createElement('span');
+          cloudMark.className = 'save-cloud-badge';
+          cloudMark.textContent = 'Cloud';
+          nameSpan.appendChild(cloudMark);
+        }
         const dateSpan = document.createElement('div');
         dateSpan.className = 'save-date';
         dateSpan.textContent = new Date(b.updatedAt || b.created_at).toLocaleDateString();
@@ -234,8 +585,18 @@
           const full = await apiCall('/api/builds?id=' + b.id, 'GET');
           if (full && full.data) {
             applyState(full.data);
+            const localId = twCloudCacheBuildLocally(full);
+            if (localId) setActiveWorldId(localId);
+            if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
             closeModal();
           }
+        });
+        const shareBtn = document.createElement('button');
+        shareBtn.textContent = 'Share';
+        shareBtn.title = 'Copy share URL';
+        shareBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await shareSavedBuild(b);
         });
         const delBtn = document.createElement('button');
         delBtn.textContent = '×';
@@ -243,10 +604,13 @@
         delBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
           if (!confirm('Delete "' + b.name + '"?')) return;
-          await apiCall('/api/builds?id=' + b.id, 'DELETE');
+          await twCloudDeleteWorld(b.id);
+          twCloudForgetLocalBuild(b.id);
+          if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
           loadBuilds();
         });
         actions.appendChild(loadBtn);
+        actions.appendChild(shareBtn);
         actions.appendChild(delBtn);
         li.appendChild(info);
         li.appendChild(actions);
@@ -255,30 +619,74 @@
     }
 
     saveCurrent.addEventListener('click', async () => {
+      if (!userProfile) await loadProfile();
       if (!userProfile) { alert('Please save your profile first.'); showTab('profile'); return; }
-      const name = saveName.value.trim() || ('Build ' + new Date().toLocaleDateString());
-      const cells = snapshotCells();
-      const data = {
-        v: STORAGE_VERSION,
-        gridSize: GRID,
-        islands: serializeEditableIslands(),
-        moorings: serializeMooringCables(),
-        cells,
-        // Embed referenced custom voxel-build defs so a build opened on another
-        // device isn't left with unresolved voxelBuildId references.
-        voxelBuildStamps: referencedVoxelBuildStamps(cells),
-        cameraMode,
-        toolId: selectedTool && selectedTool.id,
-      };
-      await apiCall('/api/builds', 'POST', { name, data });
+      const name = saveName.value.trim() || ('World ' + new Date().toLocaleDateString());
+      const data = snapshotCurrentState();
+      if (!data) { alert('Could not snapshot this world.'); return; }
+      const activeId = getActiveWorldId();
+      const activeSlot = readWorldsMeta().find(w => w && w.id === activeId);
+      const activeCloudId = twCloudBuildIdFromSlotId(activeId) || twCloudIdForSlot(activeSlot);
+      const result = await twCloudSaveWorld(activeCloudId, name, data);
+      if (result && result.id) {
+        if (activeSlot && !activeCloudId) {
+          const list = readWorldsMeta();
+          const idx = list.findIndex(w => w && w.id === activeSlot.id);
+          if (idx !== -1) {
+            list[idx].cloudId = Number(result.id);
+            list[idx].cloudSyncedAt = Date.now();
+            list[idx].cloudUpdatedAt = result.updatedAt || result.updated_at || null;
+            list[idx].name = result.name || name;
+            list[idx].state = data;
+            list[idx].ts = Date.now();
+            writeWorldsMeta(list);
+            setActiveWorldId(list[idx].id);
+          }
+        } else {
+          const localId = twCloudCacheBuildLocally(Object.assign({}, result, { data }));
+          if (localId) setActiveWorldId(localId);
+        }
+      }
       saveName.value = '';
+      if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
       loadBuilds();
     });
+
+    function absoluteShareUrl(result) {
+      if (!result) return '';
+      if (result.url) return new URL(result.url, location.origin).href;
+      if (result.id) return new URL('/tiny-world-builder?share=' + encodeURIComponent(result.id), location.origin).href;
+      return '';
+    }
+
+    async function copyShareUrl(url) {
+      if (!url) return false;
+      try {
+        await navigator.clipboard.writeText(url);
+        return true;
+      } catch (_) {
+        window.prompt('Copy share URL', url);
+        return false;
+      }
+    }
+
+    async function shareSavedBuild(build) {
+      const result = await apiCall('/api/share', 'POST', { buildId: build.id });
+      if (result && result.error) {
+        twToast(result.error, 'err');
+        return;
+      }
+      const url = absoluteShareUrl(result);
+      await copyShareUrl(url);
+      twToast('Share URL copied.', 'ok');
+    }
 
     accountBtn.addEventListener('click', () => {
       openModal();
       loadProfile();
+      loadBuilds();
     });
+    window.__tinyworldAccountWorldsRefresh = loadBuilds;
   }
 
   // -------- auth --------
@@ -294,8 +702,23 @@
       return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h.endsWith('.local');
     } catch (_) { return false; }
   }
+  function __useLocalAuth() {
+    try {
+      const u = new URL(location.href);
+      if (u.searchParams.get('auth') === '1') return true;
+      if (u.searchParams.get('auth') === '0') return false;
+      return u.hostname === 'localhost' && u.port === '8888';
+    } catch (_) { return false; }
+  }
   function initAuth() {
-    const Auth = __isLocalDev() ? null : window.TinyWorldAuth;
+    const localDev = __isLocalDev();
+    const wantsAuth = !localDev || __useLocalAuth();
+    const Auth = wantsAuth ? window.TinyWorldAuth : null;
+    if (wantsAuth && !Auth && window.__tinyworldAuthReady && !window.__tinyworldAuthBootWaited) {
+      window.__tinyworldAuthBootWaited = true;
+      window.__tinyworldAuthReady.then(() => initAuth()).catch(() => initAuth());
+      return;
+    }
     if (!Auth) {
       // No auth library — single-user local mode. Hide all auth UI
       // and treat the user as logged in so settings/AI aren't
@@ -420,6 +843,7 @@
       setLoggedInState(true);
       bootApp();
       initAccountModal();
+      twCloudBootstrapSync().catch(err => console.warn('[cloud-sync] bootstrap failed:', err));
     }
 
     function enterAnonApp() {
@@ -1690,8 +2114,41 @@
   }
   function snapshotCurrentState() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      const cells = [];
+      for (const xKey of Object.keys(world)) {
+        const x = parseInt(xKey, 10);
+        if (!Number.isFinite(x)) continue;
+        const row = world[xKey];
+        if (!row) continue;
+        const insideHomeX = x >= 0 && x < GRID;
+        for (const zKey of Object.keys(row)) {
+          const z = parseInt(zKey, 10);
+          if (!Number.isFinite(z)) continue;
+          const c = row[zKey];
+          if (!c) continue;
+          const insideHome = insideHomeX && z >= 0 && z < GRID;
+          if (!insideHome && !c.userEdited) continue;
+          const entry = serializeCell(x, z, c);
+          if (entry) cells.push(entry);
+        }
+      }
+      return {
+        v: STORAGE_VERSION,
+        gridSize: GRID,
+        islands: serializeEditableIslands(),
+        moorings: serializeMooringCables(),
+        cells,
+        voxelBuildStamps: referencedVoxelBuildStamps(cells),
+        cameraMode,
+        toolId: selectedTool && selectedTool.id,
+        useLandscapeEngine,
+        landscapeMeshMode,
+        landscapeMeshBiome,
+        landscapeMeshStyle,
+        landscapeEngineSeed: landscapeEngineInstance ? landscapeEngineInstance.seed : null,
+        landscapeEngineBiome: landscapeEngineInstance ? landscapeEngineInstance.currentBiomeName : null,
+        planetLandscape: serializePlanetLandscapeState(),
+      };
     } catch (_) { return null; }
   }
   function relativeTime(ts) {
@@ -1760,10 +2217,20 @@
     const emptyEl = document.getElementById('world-menu-empty');
     if (!trigger || !menu || !labelEl || !nameInput || !listEl) return;
     const manageBtn = menu.querySelector('[data-action="manage"]');
+    const shareBtn = menu.querySelector('[data-action="share"]');
     if (!window.TinyWorldAuth && manageBtn) manageBtn.hidden = true;
+    if (!window.TinyWorldAuth && shareBtn) shareBtn.hidden = true;
 
+    function menuWorlds() {
+      return twCloudMergedWorlds(readWorldsMeta(), twCloudWorldCache);
+    }
+    function findMenuActiveWorld() {
+      const activeId = getActiveWorldId();
+      if (!activeId) return null;
+      return menuWorlds().find(w => w.id === activeId) || findActiveWorld();
+    }
     function paintLabel() {
-      const active = findActiveWorld();
+      const active = findMenuActiveWorld();
       const name = active && active.name ? active.name : 'My world';
       labelEl.innerHTML = escapeName(name);
       nameInput.value = (active && active.name) || '';
@@ -1775,19 +2242,25 @@
       return d.innerHTML;
     }
     function paintList() {
-      const list = readWorldsMeta();
+      const list = menuWorlds();
       const activeId = getActiveWorldId();
       listEl.innerHTML = '';
       if (list.length === 0) { emptyEl.hidden = false; return; }
       emptyEl.hidden = true;
       // Sort by updatedAt desc.
-      list.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(w => {
+      list.forEach(w => {
         const li = document.createElement('li');
         li.className = 'world-menu-slot' + (w.id === activeId ? ' active' : '');
         li.setAttribute('data-id', w.id);
         const name = document.createElement('span');
         name.className = 'slot-name';
         name.textContent = w.name || 'Untitled';
+        if (w.cloud) {
+          const cloud = document.createElement('span');
+          cloud.className = 'slot-cloud-badge';
+          cloud.textContent = 'Cloud';
+          name.appendChild(cloud);
+        }
         const date = document.createElement('span');
         date.className = 'slot-date';
         date.textContent = relativeTime(w.ts);
@@ -1797,8 +2270,18 @@
         del.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
         del.addEventListener('click', e => {
           e.stopPropagation();
-          const next = readWorldsMeta().filter(x => x.id !== w.id);
+          const cloudId = twCloudIdForSlot(w);
+          const next = cloudId
+            ? readWorldsMeta().filter(x => x.id !== w.id && twCloudIdForSlot(x) !== cloudId)
+            : readWorldsMeta().filter(x => x.id !== w.id);
           writeWorldsMeta(next);
+          if (cloudId) {
+            twCloudDeleteWorld(cloudId).then(result => {
+              if (result && result.error) twToast(result.error, 'err');
+              paintList(); paintLabel();
+              if (typeof window.__tinyworldAccountWorldsRefresh === 'function') window.__tinyworldAccountWorldsRefresh();
+            }).catch(err => twToast((err && err.message) || 'Delete failed.', 'err'));
+          }
           if (getActiveWorldId() === w.id) setActiveWorldId('');
           paintList(); paintLabel();
         });
@@ -1808,11 +2291,23 @@
       });
     }
 
-    function loadSlot(id) {
-      const slot = readWorldsMeta().find(w => w.id === id);
-      if (!slot || !slot.state) return;
+    async function loadSlot(id) {
+      const slot = menuWorlds().find(w => w.id === id);
+      if (!slot) return;
       try {
-        if (typeof applyState === 'function' && applyState(slot.state)) {
+        let state = slot.state;
+        if (!state && slot.cloudId) {
+          const full = await twCloudApiCall('/api/builds?id=' + encodeURIComponent(String(slot.cloudId)), 'GET');
+          if (full && full.data) {
+            state = full.data;
+            const localId = twCloudCacheBuildLocally(full);
+            if (localId) id = localId;
+          } else if (full && full.error) {
+            twToast(full.error, 'err');
+            return;
+          }
+        }
+        if (state && typeof applyState === 'function' && applyState(state)) {
           setActiveWorldId(id);
           paintLabel(); paintList();
           close();
@@ -1829,6 +2324,64 @@
       writeWorldsMeta(list);
       setActiveWorldId(id);
       paintLabel(); paintList();
+      twCloudQueueLocalWorldSync();
+    }
+
+    async function worldMenuAccessToken() {
+      const Auth = window.TinyWorldAuth;
+      if (!Auth) return null;
+      try {
+        const user = await Auth.getUser();
+        if (user && typeof user.jwt === 'function') {
+          try { return await user.jwt(); } catch (_) {}
+        }
+        if (user && user.token && user.token.access_token) return user.token.access_token;
+      } catch (_) {}
+      const m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+
+    function worldMenuAbsoluteShareUrl(result) {
+      if (!result) return '';
+      if (result.url) return new URL(result.url, location.origin).href;
+      if (result.id) return new URL('/tiny-world-builder?share=' + encodeURIComponent(result.id), location.origin).href;
+      return '';
+    }
+
+    async function copyWorldMenuShareUrl(url) {
+      if (!url) return false;
+      try {
+        await navigator.clipboard.writeText(url);
+        return true;
+      } catch (_) {
+        window.prompt('Copy share URL', url);
+        return false;
+      }
+    }
+
+    async function shareCurrentWorld() {
+      if (!window.TinyWorldAuth || !window.__loggedIn) {
+        close();
+        if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to save and share worlds');
+        return;
+      }
+      const state = snapshotCurrentState();
+      if (!state) { twToast('Could not snapshot this world.', 'err'); return; }
+      const active = findMenuActiveWorld();
+      const name = (nameInput.value.trim()) || (active && active.name) || 'Tiny World';
+      try {
+        const result = await twCloudApiCall('/api/share', 'POST', { name, data: state });
+        if (!result || result.error) {
+          twToast((result && result.error) || 'Share failed.', 'err');
+          return;
+        }
+        const url = worldMenuAbsoluteShareUrl(result);
+        await copyWorldMenuShareUrl(url);
+        twToast('Share URL copied.', 'ok');
+        close();
+      } catch (err) {
+        twToast((err && err.message) || 'Share failed.', 'err');
+      }
     }
 
     function updateActiveSnapshot() {
@@ -1837,10 +2390,23 @@
       if (!id) return;
       const list = readWorldsMeta();
       const idx = list.findIndex(w => w.id === id);
-      if (idx === -1) return;
-      list[idx].state = snapshotCurrentState();
+      const state = snapshotCurrentState();
+      if (!state) return;
+      if (idx === -1) {
+        const cloudId = twCloudBuildIdFromSlotId(id);
+        if (!cloudId) return;
+        list.push({ id, cloudId, name: 'Untitled world', ts: Date.now(), state });
+        writeWorldsMeta(list);
+        twCloudQueueLocalWorldSync();
+        return;
+      }
+      const previous = twCloudStateFingerprint(list[idx].state);
+      const next = twCloudStateFingerprint(state);
+      if (previous && next && previous === next) return;
+      list[idx].state = state;
       list[idx].ts = Date.now();
       writeWorldsMeta(list);
+      if (twCloudIdForSlot(list[idx])) twCloudQueueLocalWorldSync();
     }
 
     function renameActive(name) {
@@ -1856,10 +2422,16 @@
       list[idx].ts = Date.now();
       writeWorldsMeta(list);
       paintLabel(); paintList();
+      twCloudQueueLocalWorldSync();
     }
 
     function open() {
       paintLabel(); paintList();
+      if (twCloudLoggedIn()) {
+        twCloudLoadWorlds(false).then(() => {
+          if (!menu.hidden) { paintLabel(); paintList(); }
+        }).catch(err => console.warn('[cloud-worlds] menu refresh failed:', err));
+      }
 
       const r = trigger.getBoundingClientRect();
       const menuWidth = menu.offsetWidth || 340;
@@ -1913,7 +2485,7 @@
           setActiveWorldId('');
           paintLabel(); paintList();
         } else if (action === 'duplicate') {
-          const active = findActiveWorld();
+          const active = findMenuActiveWorld();
           const baseName = (active && active.name) || 'World';
           saveAsNew(baseName + ' (copy)');
         } else if (action === 'generate') {
@@ -1923,6 +2495,8 @@
         } else if (action === 'save-as') {
           const name = (nameInput.value.trim()) || ('World ' + (readWorldsMeta().length + 1));
           saveAsNew(name);
+        } else if (action === 'share') {
+          shareCurrentWorld();
         } else if (action === 'manage') {
           const acc = document.getElementById('account-btn');
           if (acc) acc.click();
@@ -1947,6 +2521,10 @@
     setInterval(updateActiveSnapshot, 5000);
 
     paintLabel();
+    window.__tinyworldWorldMenuRefresh = () => {
+      paintLabel();
+      paintList();
+    };
   })();
 
   // -------- command palette (⌘K) --------
@@ -2100,7 +2678,7 @@
       items.push({ group: 'Settings', label: 'Settings — Crowd',        run: settingsTab('crowd') });
       items.push({ group: 'Settings', label: 'Settings — AI Config',    run: settingsTab('ai') });
       if (window.TinyWorldAuth) {
-        items.push({ group: 'Account', label: 'Open account / My Builds', run: topBtnAction('account-btn') });
+        items.push({ group: 'Account', label: 'Open account / My Worlds', run: topBtnAction('account-btn') });
         items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
         items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
       }

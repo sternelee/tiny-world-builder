@@ -23,6 +23,9 @@
     "url": "https://github.com/jasonkneen/tiny-world-builder/issues"
   },
   "homepage": "https://github.com/jasonkneen/tiny-world-builder#readme",
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@netlify/database": "^1.0.0",
+    "@netlify/identity": "^1.2.0",
+    "postgres": "^3.4.9"
+  }
 }

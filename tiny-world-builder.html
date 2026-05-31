@@ -218,9 +218,13 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Save as new
       </button>
+      <button class="world-menu-foot-btn" data-action="share" role="menuitem">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51 15.42 17.49"/><path d="M15.41 6.51 8.59 10.49"/></svg>
+        Copy share URL
+      </button>
       <button class="world-menu-foot-btn" data-action="manage" role="menuitem">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Cloud builds
+        Cloud worlds
       </button>
     </div>
   </div>
@@ -312,9 +316,9 @@
     <button class="btn icon" id="render-settings" data-tooltip="Settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
-    <button class="btn icon" id="import" data-tooltip="Import JSON" aria-label="Import world from JSON">
+    <label class="btn icon" id="import" for="import-file" role="button" tabindex="0" data-tooltip="Import JSON" aria-label="Import world from JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
-    </button>
+    </label>
     <button class="btn icon" id="export" data-tooltip="Export JSON" aria-label="Export world as JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
     </button>
@@ -324,7 +328,7 @@
     <button class="btn icon" id="dev-mode" data-tooltip="Developer overlay (`)" aria-label="Developer overlay">
       <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     </button>
-    <input type="file" id="import-file" accept=".json,application/json" hidden />
+    <input type="file" id="import-file" class="file-input-proxy" accept=".json,application/json" tabindex="-1" aria-hidden="true" />
     <button class="btn icon" id="account-btn" data-tooltip="My account" aria-label="My account" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     </button>
@@ -421,10 +425,10 @@
         <strong id="account-title">My Account</strong>
         <button class="modal-close" id="account-close" title="Close">×</button>
       </div>
-      <p class="modal-copy">Manage your profile, saved builds, and external integrations.</p>
+      <p class="modal-copy">Manage your profile, saved worlds, custom assets, and external integrations.</p>
       <div class="tab-bar">
         <button type="button" id="tab-profile" class="active">Profile</button>
-        <button type="button" id="tab-saves">My Builds</button>
+        <button type="button" id="tab-saves">My Worlds</button>
         <button type="button" id="tab-api">Developer</button>
       </div>
       <div id="panel-profile">
@@ -464,12 +468,12 @@
       <div id="panel-saves" hidden>
         <div class="modal-foot" style="margin-bottom: 10px;">
           <label style="flex:1;">
-            <input type="text" id="save-name" placeholder="Name this build..." style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;" />
+            <input type="text" id="save-name" placeholder="Name this world..." style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;" />
           </label>
-          <button class="btn" id="save-current" type="button">Save Current</button>
+          <button class="btn" id="save-current" type="button">Save Current World</button>
         </div>
         <ul class="saves-list" id="saves-list"></ul>
-        <div class="save-empty" id="saves-empty" hidden>No saved builds yet. Build a world and save it above.</div>
+        <div class="save-empty" id="saves-empty" hidden>No saved worlds yet. Build one and save it above.</div>
       </div>
       <div id="panel-api" hidden>
         <div class="profile-section">
@@ -1354,6 +1358,23 @@
     }
   })();
   </script>
+  <script id="tinyworld-auth-bootstrap">
+  (function tinyworldAuthBootstrap() {
+    window.__tinyworldAuthReady = new Promise(function (resolve) {
+      window.__resolveTinyWorldAuthReady = resolve;
+      setTimeout(function () { resolve(false); }, 2500);
+    });
+  })();
+  </script>
+  <script id="tinyworld-auth-importmap" type="importmap">
+  {
+    "imports": {
+      "@netlify/identity": "./vendor/netlify/identity.js",
+      "gotrue-js": "./vendor/netlify/gotrue.js"
+    }
+  }
+  </script>
+  <script type="module" src="vendor/tinyworld-auth.js"></script>
   <script src="engine/world/00-prelude.js"></script>
   <script src="engine/world/01-render-core.js"></script>
   <script src="engine/world/02-cameras-lighting.js"></script>

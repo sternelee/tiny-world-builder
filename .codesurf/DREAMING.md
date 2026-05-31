@@ -16,8 +16,8 @@ Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.j
 - Primary file: `tiny-world-builder.html` — HTML shell, boot config, and ordered `<script src>` tags only
 - Engine modules: `engine/world/00-prelude.js` through `engine/world/99-late-boot.js` — 39 modules total (00–37 + 99), numbered by load order
   - Newest modules: `34-flight-sim.js`, `35-tool-palette.js`, `36-mooring-interaction.js`, `37-island-placement-holos.js`
-- Skills: 20 `.codex/skills/tinyworld-*` SKILL.md files; `tinyworld-flight-sim` and `tinyworld-block-button-style` added to AGENTS.md routing table as of latest session
-- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` still present on disk but absent from AGENTS.md routing table
+- Skills: 20 `.codex/skills/tinyworld-*` SKILL.md files; all routing entries in AGENTS.md are current
+- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` present on disk but absent from AGENTS.md routing table
 - Three.js pinned to r128; bumping is risky (shadow and material color-space changes in newer releases)
 - All modules share one global scope (classic `<script>` tags, not ES modules) — load order matters; duplicate top-level identifiers throw `SyntaxError` and silently kill the declaring module
 
@@ -58,9 +58,10 @@ Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.j
 - Islands render terrain per-cell, matching home island parity (`ensureEditableIslandCellTiles`)
 - 8-slot placement workflow with hologram snapping; hover/placement wired through `20-input-place-erase.js`
 - Mooring cable routing avoids engine hazards (`MOORING_HAZARD_CLEARANCE`, `avoidMooringHazards`)
+- Island side-backing clone now inherits the voxel seam shader from `M.boardSide` (`03-geometry-materials.js`); grid is fine-scale horizontal/vertical lines — not oversized blocks. Skill `tinyworld-island-and-planes` updated to document this.
 
-**AI Generation** (`26-ai-generation.js` — updated 2026-05-31)
-- Primitive approximation bias removed; primitives are now "components, not a ceiling"
+**AI Generation** (`26-ai-generation.js`)
+- Primitive approximation bias removed; primitives are "components, not a ceiling"
 - Material vocabulary expanded
 - Bespoke/custom part requests go through `customParts` as first-class low-poly models; seed type no longer over-preserved on custom requests
 
@@ -83,7 +84,9 @@ Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.j
 - Asset library export/import: `exportAssetLibrary`, `importAssetLibrary`
 - Custom voxel-build stamps: `referencedVoxelBuildStamps`, `registerEmbeddedVoxelBuildStamps`
 
-**Bug fix (2026-05-31)** — Startup race: texture load callbacks could call `renderScene()` before `worldGroup` exists, producing `ReferenceError: worldGroup is not defined`. Guard added; early texture callbacks no-op until scene graph is initialized.
+**Known fixes (2026-05-31)**
+- Startup race: texture load callbacks could call `renderScene()` before `worldGroup` exists, producing `ReferenceError: worldGroup is not defined`. Guard added; early texture callbacks no-op until scene graph is initialized.
+- Island seam scale: side-backing clone was rendering plain oversized slabs. Fixed by explicitly copying the seam shader hook from `M.boardSide` into cloned island-shell materials (`03-geometry-materials.js`, `04-textures.js`).
 
 ---
 
@@ -110,7 +113,7 @@ Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.j
 | Block button aesthetic (raised square, dark outline) | `tinyworld-block-button-style` |
 | Flyable plane via stunt-plane stamp | `tinyworld-flight-sim` |
 
-Skills on disk but absent from AGENTS.md routing table (open thread — may need wiring):
+Skills on disk but absent from AGENTS.md routing table (stable gap — unresolved across multiple sessions):
 - `tinyworld-ghost-world-gen`
 - `threejs-primitive-reconstructor`
 
@@ -118,9 +121,9 @@ Skills on disk but absent from AGENTS.md routing table (open thread — may need
 
 ## Open Threads
 
-- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` skills exist in `.codex/skills/` but are not in the AGENTS.md routing table
-- `fork-improvements-report.md` present at repo root (added 2026-05-30) — fork findings and recommended lifts; review status unknown
-- OpenClaw cron jobs (VibeClaw Article Generator, Wallpaper Generator, Skills Scout, Tom Doerr Tweet Tracker) all producing repeated assistant-turn failures — platform-level instability in OpenClaw cron execution
+- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` skills exist in `.codex/skills/` but are not in the AGENTS.md routing table — has persisted across multiple dreaming cycles with no action; either wire them or explicitly remove
+- `fork-improvements-report.md` at repo root (added 2026-05-30) — fork findings and recommended lifts; review status unknown
+- OpenClaw cron jobs (VibeClaw Article Generator, Wallpaper Generator, Skills Scout, Tom Doerr Tweet Tracker) producing repeated assistant-turn failures — platform-level instability in OpenClaw cron execution
 - OpenClaw `mc-gateway` session has persistent assistant turn failures; lead-agent heartbeat (Ava, board `c3f78d0c`) remains healthy
 - Tom Doerr tweet tracker blocked by X.com login wall; Nitter fallback also unavailable
 - `split-god-file.js` workflow in `.claude/workflows/` — purpose/status not confirmed in recent sessions

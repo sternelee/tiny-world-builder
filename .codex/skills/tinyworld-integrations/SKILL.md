@@ -5,7 +5,38 @@ description: Use when changing Tiny World Builder API, webhook, SSE, MCP, plugin
 
 # Tiny World Integrations
 
-The app has browser-local integration points, not a backend API:
+The app has browser-local integration points plus a small Netlify account
+backend:
+
+- Account/profile/cloud-save functions live under `netlify/functions/`.
+  `profile.mjs`, `builds.mjs`, `share.mjs`, and `assets.mjs` are routed to
+  `/api/profile`, `/api/builds`, `/api/share`, and `/api/assets` via each
+  function's exported `config.path`.
+- User auth is Netlify Identity. The browser bridge is self-hosted through
+  `vendor/tinyworld-auth.js` with an import map to vendored
+  `@netlify/identity` / `gotrue-js`; do not reintroduce a remote identity
+  widget script.
+- Account API fetches must send `Authorization: Bearer <nf_jwt>` when possible
+  and `credentials: 'same-origin'` so Netlify Functions can resolve the current
+  Identity user.
+- For local account/function work, run `npx netlify dev` and use
+  `http://localhost:8888/tiny-world-builder`; that port keeps the auth/account
+  UI enabled while the plain static dev server remains anonymous.
+- Cloud worlds are stored as full TinyWorld JSON in Netlify Database `builds`
+  rows. Existing rows update through `PUT /api/builds?id=<id>` so named
+  localStorage worlds can stay bound to one cloud row instead of creating
+  duplicates. Public share links create immutable-ish rows in `world_shares` and
+  load through same-origin `?share=<id>` / `/api/share?id=<id>`.
+- Local custom assets are account data too: `/api/assets` stores one
+  `asset_libraries` row per profile containing custom voxel-build stamps and
+  saved asset templates. Browser hooks in `saveCustomVoxelBuildStamps()` and
+  `saveAssetTemplates()` queue a cloud sync after login.
+- Database schema changes belong in `netlify/database/migrations/*.sql`. Deploy
+  previews get their own database branch, so use a preview deploy for real
+  Identity + DB verification; local `netlify dev` is useful for functions but is
+  not a complete Identity social-login test.
+
+Browser-local integration points:
 
 - Outbound webhooks live in `tiny-world-builder.html` under
   `// -------- API / webhooks / SSE bridge --------`.

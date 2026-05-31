@@ -129,6 +129,10 @@ if (remoteRuntime.length) fail('remote script runtime references are not allowed
 if (/cluso\/cluso-embed\.(js|css)/.test(html)) {
   fail('Cluso embed runtime must not be loaded by the app');
 }
+const modelStampScanBody = sourceFunctionBody(html, 'modelStampScanApiEnabled');
+if (!/modelApi'\)\s*===\s*'1'/.test(modelStampScanBody) || !/return false;/.test(modelStampScanBody) || /return stored !== '0'/.test(modelStampScanBody)) {
+  fail('model-stamp scan API must stay local or explicitly opted in');
+}
 
 if (/\(1\s*\+\s*2\s*\*\s*maxPreloadRadius\)\s*\*\s*g/.test(html)) {
   fail('Autoexpand preview window must not use full preload-ring diameter');
@@ -498,10 +502,75 @@ for (const [needle, label] of [
   ['command = "./publish.sh"', 'Netlify build command'],
   ['publish = "dist"', 'Netlify publish directory'],
   ['NODE_VERSION = "22"', 'Netlify Node version'],
+  ['directory = "netlify/functions"', 'Netlify functions directory'],
   ['Content-Security-Policy = "default-src', 'Netlify CSP header'],
   ['script-src \'self\'', 'Netlify self-hosted script policy'],
 ]) {
   if (!netlifyText.includes(needle)) fail('netlify.toml missing ' + label);
+}
+if (!/id="tinyworld-auth-importmap"/.test(htmlRaw) || !/vendor\/tinyworld-auth\.js/.test(htmlRaw)) {
+  fail('Netlify Identity browser bridge must be loaded from self-hosted vendor files');
+}
+if (!/window\.__tinyworldAuthReady/.test(html) || !/window\.__tinyworldAuthBootWaited/.test(html)) {
+  fail('auth boot must wait for the module bridge before falling back to anonymous mode');
+}
+if (!/Authorization'?\]\s*=/.test(html) && !/opts\.headers\.Authorization\s*=/.test(html)) {
+  fail('cloud account API calls must send the Netlify Identity bearer token');
+}
+if (!/data-action="share"/.test(htmlRaw) || !/\/api\/share/.test(html)) {
+  fail('world menu must expose share URL creation through /api/share');
+}
+if (!/params\.get\('share'\)/.test(html) || !/\/api\/share\?id=/.test(html)) {
+  fail('shared worlds must load from ?share= ids through the same-origin API');
+}
+if (!/function twCloudSyncLocalWorldsToCloud/.test(html) || !/function twCloudSyncAssetsBothWays/.test(html) || !/\/api\/assets/.test(html)) {
+  fail('local worlds and asset libraries must sync to the authenticated DB APIs');
+}
+if (!/function twImportJSONPayload/.test(html) || !/function twImportWorldEntriesFromJSON/.test(html) || !/twImportLooksLikeAssetLibrary/.test(html)) {
+  fail('JSON import must accept world files, named-world lists, and asset-library bundles');
+}
+if (!/<label[^>]+id="import"[^>]+for="import-file"/.test(htmlRaw) || !/id="import-file"[^>]+class="file-input-proxy"/.test(htmlRaw)) {
+  fail('JSON import must use native label activation, not a hidden-input click-only path');
+}
+const twPickJSONFileBody = sourceFunctionBody(html, 'twPickJSONFile');
+if (/setTimeout\(\(\) => \{ if \(input\.parentNode\) input\.parentNode\.removeChild\(input\); \}, 1000\)/.test(twPickJSONFileBody) || !/input\.addEventListener\('cancel'/.test(twPickJSONFileBody)) {
+  fail('dynamic JSON file pickers must not remove the input before the native picker returns');
+}
+for (const file of [
+  'netlify/functions/profile.mjs',
+  'netlify/functions/builds.mjs',
+  'netlify/functions/share.mjs',
+  'netlify/functions/assets.mjs',
+  'netlify/functions/lib/auth.mjs',
+  'netlify/functions/lib/db.mjs',
+  'netlify/database/migrations/20260510230951_create_builds_and_profiles_tables/migration.sql',
+  'netlify/database/migrations/20260510234708_familiar_penance/migration.sql',
+  'netlify/database/migrations/20260531120000_tinyworld_accounts.sql',
+  'netlify/database/migrations/20260531124500_tinyworld_asset_libraries.sql',
+]) {
+  if (!fs.existsSync(path.join(root, file))) fail('Netlify account backend missing: ' + file);
+}
+const buildsFunction = fs.readFileSync(path.join(root, 'netlify/functions/builds.mjs'), 'utf8');
+if (!/request\.method === 'PUT'/.test(buildsFunction) || !/updated_at = NOW\(\)/.test(buildsFunction)) {
+  fail('/api/builds must update existing cloud worlds for local world sync');
+}
+const shareFunction = fs.readFileSync(path.join(root, 'netlify/functions/share.mjs'), 'utf8');
+if (!/export const config = \{ path: '\/api\/share' \}/.test(shareFunction) || !/world_shares/.test(shareFunction)) {
+  fail('/api/share function must store public share records');
+}
+const assetsFunction = fs.readFileSync(path.join(root, 'netlify/functions/assets.mjs'), 'utf8');
+if (!/export const config = \{ path: '\/api\/assets' \}/.test(assetsFunction) || !/asset_libraries/.test(assetsFunction)) {
+  fail('/api/assets function must persist the authenticated asset library');
+}
+const accountMigration = fs.readFileSync(path.join(root, 'netlify/database/migrations/20260531120000_tinyworld_accounts.sql'), 'utf8');
+for (const table of ['profiles', 'builds', 'world_shares']) {
+  if (!new RegExp('CREATE TABLE IF NOT EXISTS ' + table).test(accountMigration)) {
+    fail('account migration missing table: ' + table);
+  }
+}
+const assetMigration = fs.readFileSync(path.join(root, 'netlify/database/migrations/20260531124500_tinyworld_asset_libraries.sql'), 'utf8');
+if (!/CREATE TABLE IF NOT EXISTS asset_libraries/.test(assetMigration)) {
+  fail('asset library migration missing table');
 }
 
 console.log('ok');

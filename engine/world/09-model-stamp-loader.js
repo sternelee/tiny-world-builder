@@ -36,12 +36,17 @@
   function modelStampScanApiEnabled() {
     if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return false;
     try {
+      const flag = window.__TWB_MODEL_STAMP_API_ENABLED__;
+      if (typeof flag === 'boolean') return flag;
       const qs = new URLSearchParams(window.location.search);
+      if (qs.get('modelApi') === '1' || qs.get('modelStampApi') === '1') return true;
       if (qs.get('modelApi') === '0' || qs.get('modelStampApi') === '0') return false;
       const stored = window.localStorage && window.localStorage.getItem('tinyworld:features:model-stamp-api');
-      return stored !== '0';
+      if (stored === '1') return true;
+      if (stored === '0') return false;
+      return false;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 

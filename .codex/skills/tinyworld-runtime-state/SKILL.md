@@ -5,10 +5,41 @@ description: Use when adding or changing persisted user state — settings defau
 
 # Tiny World Runtime State
 
-All persisted user state lives in `localStorage` under the `tinyworld:*` prefix.
-Read/write convention: stringified primitives or `JSON.stringify` for objects.
-Never store credentials, world saves, or per-viewport pixel positions in the
-shipped defaults file — see exclusion list below.
+Most browser-local persisted user state lives in `localStorage` under the
+`tinyworld:*` prefix. Read/write convention: stringified primitives or
+`JSON.stringify` for objects. Never store credentials, local world saves, cloud
+world saves, or per-viewport pixel positions in the shipped defaults file — see
+exclusion list below.
+
+Cloud saves are separate from defaults/localStorage:
+
+- The account modal posts full TinyWorld JSON to Netlify Functions
+  (`/api/builds`) backed by Netlify Database.
+- On authenticated boot, local named worlds from `tinyworld:worlds.v1` are
+  uploaded to `/api/builds`; the active unslotted `tinyworld:v1` state gets a
+  local slot first so it can be bound to a cloud row. Top-menu "My worlds" and
+  account-modal "My Worlds" must read from the same cloud-aware list.
+- The world menu's share action posts the same full state to `/api/share`;
+  public share URLs load by resolving `?share=<id>` to same-origin
+  `/api/share?id=<id>`.
+- Local custom assets are also synced once authenticated. `/api/assets` stores
+  custom voxel-build stamps and saved asset templates, then merges the remote
+  library into localStorage before pushing the merged local copy back up.
+- Keep `snapshotCurrentState()` in sync with `saveState()` so account saves and
+  share URLs include grid size, islands, moorings, custom voxel stamps, camera,
+  landscape settings, and cells outside the home board that the user edited.
+- Top-bar JSON import should accept the app's own portability shapes: a bare
+  world state (`cells` at the root), cloud/account envelopes (`data` or `state`
+  containing a world), named-world/localStorage lists, and exported asset
+  bundles. Imported worlds should be inserted into `tinyworld:worlds.v1` so the
+  account DB sync can pick them up after login.
+- The visible top-bar JSON import affordance should be a native
+  `<label for="import-file">` trigger with an off-screen file input, not only a
+  button that programmatically clicks a hidden input. Some browsers silently
+  drop hidden-input file picker calls even when the click handler ran.
+- Queued account syncs must not be dropped while a previous `/api/builds`
+  request is in flight. Keep a pending retry flag around `twCloudWorldSyncing`
+  so imports and saves made during bootstrap still reach the database.
 
 ## Defaults pipeline (dev → all users)
 
@@ -168,6 +199,9 @@ After any persistence change:
 - Adding a new inline `<script>` without an attribute (breaks `npm test`).
 - Forgetting to restart `npm run dev` after editing `tools/dev-server.js` —
   the running process won't have the new route, returns 405.
+- Removing a temporary `<input type="file">` while the native file picker is
+  still open. Dynamic JSON pickers should clean up after `change`/`cancel`, not
+  via a short timeout.
 - Letting a hard-coded camera default drift from `DEFAULT_AZIMUTH`/
   `DEFAULT_POLAR`/`DEFAULT_TARGET` — keep restored state clamped to those
   ranges.
