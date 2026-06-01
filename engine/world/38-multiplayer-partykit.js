@@ -16,6 +16,8 @@
     let socket = null;
     let reconnectTimer = null;
     let reconnectDelay = 800;
+    let connectAttempts = 0;
+    let everConnected = false;
     let statusEl = null;
     let serverClientId = '';
     let applyingRemote = false;
@@ -69,7 +71,12 @@
       const host = String(explicit || '').trim().replace(/\/+$/, '');
       if (host) return host.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://');
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') return 'ws://localhost:1999';
-      return 'wss://' + location.host;
+      // Deployed PartyKit room server — separate infra from the Netlify static
+      // site. The previous `wss://' + location.host` default could never work:
+      // the static host has no WebSocket server, so collab silently looped
+      // "reconnecting" in production. Override via ?partyHost or
+      // window.__TINY_WORLD_PARTYKIT_HOST__ / localStorage for other deploys.
+      return 'wss://tinyworld-shared-building.jasonkneen.partykit.dev';
     }
 
     function multiplayerSocketUrl() {
@@ -406,13 +413,21 @@
       }
       socket.addEventListener('open', () => {
         reconnectDelay = 800;
+        connectAttempts = 0;
+        everConnected = true;
         setStatus('online', 'Shared room: ' + roomId);
         publishPresence(true);
       });
       socket.addEventListener('message', handleMessage);
       socket.addEventListener('close', () => {
         peers.forEach((_, id) => removePeer(id));
-        setStatus('offline', 'Shared room: reconnecting');
+        connectAttempts++;
+        // Never opened a single connection after several tries => the host is
+        // almost certainly misconfigured or down, not a transient blip. Say so
+        // plainly instead of an endless, misleading "reconnecting". Keep retrying
+        // (capped) so it still self-heals if the server comes back.
+        const unreachable = !everConnected && connectAttempts >= 4;
+        setStatus('offline', unreachable ? 'Shared building unavailable' : 'Shared room: reconnecting');
         reconnectTimer = setTimeout(connect, reconnectDelay);
         reconnectDelay = Math.min(8000, reconnectDelay * 1.5);
       });
