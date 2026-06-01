@@ -971,8 +971,12 @@
     // ------------------------------------------------------------
     function updateGuestMenuVisibility() {
       const isGuest = admitted && !isHost && (myRole === 'viewer' || myRole === 'player' || myRole === 'editor');
+      // viewer/player have no edit rights at all: mp-noedit hides every editing
+      // control (tools, panels, appbar, agent prompt). editor keeps them (scoped).
+      const noEdit = admitted && !isHost && (myRole === 'viewer' || myRole === 'player');
       try {
         document.body.classList.toggle('mp-guest', !!isGuest);
+        document.body.classList.toggle('mp-noedit', !!noEdit);
         // If a guest had the world menu open, close it so it cannot linger.
         if (isGuest) {
           const menu = document.getElementById('world-menu');

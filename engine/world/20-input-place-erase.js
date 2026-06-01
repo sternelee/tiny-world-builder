@@ -699,7 +699,7 @@
       return;
     }
 
-    if (selectedTool && selectedTool.mooring && e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    if (selectedTool && selectedTool.mooring && e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey && mpEditAllowed()) {
       const anchor = pickMooringAnchor(e.clientX, e.clientY);
       if (anchor) handleMooringAnchorPick(anchor);
       else showMooringStatus('Pick a visible island surface, away from engines', true);
@@ -714,7 +714,7 @@
       return;
     }
 
-    const gizmoHit = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey
+    const gizmoHit = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey && mpEditAllowed()
       ? pickTransformGizmo(e.clientX, e.clientY)
       : null;
     if (gizmoHit) {
@@ -731,7 +731,7 @@
       return;
     }
 
-    const engineHit = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey
+    const engineHit = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey && mpEditAllowed()
       ? pickEditableIslandEngine(e.clientX, e.clientY)
       : null;
     if (engineHit) {
@@ -748,8 +748,8 @@
     }
 
     const pressHit = pickTile(e.clientX, e.clientY);
-    const wantsDraw = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && isDrawablePlacementTool(selectedTool);
-    const wantsSelectionMove = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && selectedTool && selectedTool.select && isSelectedWorldHit(pressHit);
+    const wantsDraw = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && mpEditAllowed() && isDrawablePlacementTool(selectedTool);
+    const wantsSelectionMove = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && mpEditAllowed() && selectedTool && selectedTool.select && isSelectedWorldHit(pressHit);
     dragMode = wantsDraw ? 'draw' : wantsSelectionMove ? 'move-selection' : ((e.button === 2 || spaceDown) ? 'pan' : 'orbit');
     selectionMoveDragLastCoord = wantsSelectionMove ? drawWorldCoordForHit(pressHit) : null;
     // Rectangle drag (Shift+drag):
@@ -957,7 +957,11 @@
         && isFlyableStampCell(world[_planeWX][_planeWZ]);
       if (_clickedPlane && typeof showFlightMenu === 'function') {
         showFlightMenu(_planeWX, _planeWZ, e.clientX, e.clientY);
-        if (selectedTool.select) { setRectangleSelection(hit, hit, 'replace'); lastSelectionAnchor = hit; }
+        if (selectedTool.select && mpEditAllowed()) { setRectangleSelection(hit, hit, 'replace'); lastSelectionAnchor = hit; }
+      } else if (!mpEditAllowed()) {
+        // Multiplayer viewer/player: a plain click is camera-only — no select,
+        // no radial, no place. (A plane click is the fly branch above for a
+        // player; a viewer cannot interact at all.)
       } else if (mods.meta && mods.shift) {
         // Cmd/Ctrl+Shift+click → toggle one cell on/off (discontiguous).
         if (hit) { toggleCellSelection(hit); lastSelectionAnchor = hit; }

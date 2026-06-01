@@ -938,6 +938,25 @@
   body.mp-guest #world-pill,
   body.mp-guest #world-menu { display: none !important; }
 
+  /* Viewer / player have NO edit rights: hide ALL editing chrome so there are no
+     controls to reach for. Camera gestures (orbit/zoom/pan) still work, and a
+     player can still click a placed plane to fly (Esc exits). Chat, roster and
+     the connection status pill stay visible. Editor keeps the chrome (scoped to
+     its island); host / null-role / single-player never get body.mp-noedit. */
+  body.mp-noedit #toolbar,
+  body.mp-noedit #tool-palette,
+  body.mp-noedit .controls,
+  body.mp-noedit .appbar,
+  body.mp-noedit #layers-toggle,
+  body.mp-noedit #layers-panel,
+  body.mp-noedit #agent-panel,
+  body.mp-noedit #agent-input,
+  body.mp-noedit #agent-panel-handle,
+  body.mp-noedit #view-popup,
+  body.mp-noedit #time-popup,
+  body.mp-noedit #world-pill,
+  body.mp-noedit #world-menu { display: none !important; }
+
   .controls {
     position: fixed;
     top: 50%;
