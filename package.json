@@ -14,7 +14,8 @@
     "party:dev": "partykit dev party/index.js --port 1999",
     "dev:party": "partykit dev party/index.js --port 1999",
     "demo:vehicles": "node plugins/examples/vehicle-road-demo.js",
-    "test": "npm run check && npm run smoke"
+    "test:unit": "node --test tests/*.test.mjs",
+    "test": "npm run check && npm run smoke && npm run test:unit"
   },
   "repository": {
     "type": "git",

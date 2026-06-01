@@ -555,3 +555,12 @@ export default class TinyWorldParty {
     this.onClose(conn);
   }
 }
+
+// Named exports for unit tests only. PartyKit consumes the default export (the
+// room class); these pure helpers are inert at runtime and let
+// tests/party.test.mjs exercise the validation / gating logic directly.
+export {
+  cleanText, cleanNumber, cleanVec3, cleanCursor, cleanSelection,
+  cleanPresence, cleanCell, cleanCellSet, cleanRole, cleanIsland,
+  clampFloors, inIsland, takeToken, safeJson, RATE_LIMITS, MAX_CELL_COORD, MAX_FLOORS,
+};
