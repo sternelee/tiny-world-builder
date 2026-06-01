@@ -644,8 +644,12 @@ if (!/"main"\s*:\s*"party\/index\.js"/.test(partykitConfig) || !/"port"\s*:\s*19
 const partyServerPath = path.join(root, 'party/index.js');
 if (!fs.existsSync(partyServerPath)) fail('PartyKit room server missing');
 const partyServer = fs.readFileSync(partyServerPath, 'utf8');
-if (!/onConnect\(conn\)/.test(partyServer) || !/this\.room\.broadcast/.test(partyServer) || !/cell\.set/.test(partyServer) || !/presence/.test(partyServer)) {
-  fail('PartyKit room server must broadcast presence and cell.set messages');
+// Relays presence + cell.set to participants. Originally via this.room.broadcast;
+// the lobby/roles work narrows world+presence to admitted peers only, so
+// broadcastToAdmitted is now the sanctioned relay (lobby members must not
+// receive world data). Accept either so the guard tracks the real architecture.
+if (!/onConnect\(conn\)/.test(partyServer) || !(/this\.room\.broadcast/.test(partyServer) || /broadcastToAdmitted/.test(partyServer)) || !/cell\.set/.test(partyServer) || !/presence/.test(partyServer)) {
+  fail('PartyKit room server must relay presence and cell.set messages');
 }
 const pkgText = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 if (!/"party:dev"\s*:\s*"partykit dev party\/index\.js --port 1999"/.test(pkgText)) {

@@ -158,8 +158,22 @@
     return true;
   }
 
+  // True unless a shared-room role forbids editing entirely (viewer/player).
+  // Gates the non-per-cell edit paths (clipboard, keyboard shortcuts).
+  function mpEditAllowed() {
+    const mp = window.__tinyworldMultiplayer;
+    return !mp || typeof mp.canEditAny !== 'function' || mp.canEditAny();
+  }
+
   function applyTool(x, z, opts = {}) {
     if (window.__flightActive) return;
+    // Multiplayer role gate: in a shared room a viewer/player cannot edit at
+    // all, and an editor only within its granted island bounds. We gate the
+    // LOCAL mutation here (not just the broadcast) so a restricted client can't
+    // desync its own view. Single-player and the host see no __tinyworldMultiplayer
+    // gate (canEdit returns true), so this is a no-op outside shared rooms.
+    const mp = window.__tinyworldMultiplayer;
+    if (mp && typeof mp.canEdit === 'function' && !mp.canEdit(x, z)) return;
     if (selectedTool.mooring) return;
     if (selectedTool.island) {
       createEditableIsland(nextEditableIslandPosition(currentHover));
@@ -931,7 +945,12 @@
       // click on a plane never stacks/replaces it.
       const _planeWX = hit ? hit.x + (hit.boardX || 0) * GRID : 0;
       const _planeWZ = hit ? hit.z + (hit.boardZ || 0) * GRID : 0;
-      const _clickedPlane = hit && !mods.shift && !mods.meta
+      // Multiplayer: viewers cannot interact with placed things (no fly);
+      // players and editors/host can. Outside a shared room canInteract is
+      // absent => unrestricted.
+      const _mpInteract = window.__tinyworldMultiplayer;
+      const _canInteract = !_mpInteract || typeof _mpInteract.canInteract !== 'function' || _mpInteract.canInteract();
+      const _clickedPlane = _canInteract && hit && !mods.shift && !mods.meta
         && selectedTool && !selectedTool.erase
         && world[_planeWX] && world[_planeWX][_planeWZ]
         && typeof isFlyableStampCell === 'function'
@@ -1252,6 +1271,7 @@
   }
 
   function clearCellForCut(x, z) {
+    if (!mpEditAllowed()) return;
     const cell = getWorldCell(x, z);
     if (!cell) return;
     const hadExtras = !!(cell.extras && cell.extras.length);
@@ -1311,6 +1331,7 @@
   }
 
   function pasteClipboardPayloadAtTarget(payload, target, opts = {}) {
+    if (!mpEditAllowed()) return false;
     const cells = normalizeClipboardCells(payload && payload.cells);
     if (!cells.length) return false;
     if (!target) return false;
@@ -1489,6 +1510,18 @@
   window.addEventListener('keydown', e => {
     if (shortcutTargetBlocked(e.target)) return;
     const comboKey = e.key.toLowerCase();
+    // Viewers/players cannot mutate the world: block editing shortcuts (undo/
+    // redo, cut/paste, delete, duplicate, clear, raise/lower, selection move).
+    // Camera, tool-select, copy and escape stay available.
+    if (!mpEditAllowed()) {
+      const blockMutate = (e.metaKey || e.ctrlKey) && !e.altKey
+        ? (comboKey === 'z' || comboKey === 'y' || comboKey === 'x' || comboKey === 'v')
+        : (e.key === 'Backspace' || e.key === 'Delete'
+           || comboKey === 'c' || comboKey === 'd' || comboKey === 'l'
+           || comboKey === 'r' || comboKey === 'f'
+           || (e.key.indexOf('Arrow') === 0 && e.shiftKey));
+      if (blockMutate) { e.preventDefault(); return; }
+    }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && comboKey === 'z') {
       const didHistory = e.shiftKey ? redoWorldEdit() : undoWorldEdit();
       if (didHistory) e.preventDefault();

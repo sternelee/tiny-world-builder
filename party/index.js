@@ -166,20 +166,110 @@ function cleanCellSet(input) {
   return out;
 }
 
+// Valid lobby/admit roles. 'host' is assigned by promotion only, never by the
+// wire `role` field on admit/setRole (a host cannot mint another host).
+const ASSIGNABLE_ROLES = new Set(['viewer', 'player', 'editor']);
+
+function cleanRole(value) {
+  return ASSIGNABLE_ROLES.has(value) ? value : 'viewer';
+}
+
+// Editor scope bounds. Returns null when not a usable rectangle (so an editor
+// granted no/invalid bounds is treated as having no scope -> all edits drop).
+function cleanIsland(value) {
+  if (!value || typeof value !== 'object') return null;
+  const minX = Math.round(cleanNumber(value.minX, NaN));
+  const maxX = Math.round(cleanNumber(value.maxX, NaN));
+  const minZ = Math.round(cleanNumber(value.minZ, NaN));
+  const maxZ = Math.round(cleanNumber(value.maxZ, NaN));
+  if (![minX, maxX, minZ, maxZ].every(Number.isFinite)) return null;
+  if (maxX < minX || maxZ < minZ) return null;
+  return { minX, maxX, minZ, maxZ };
+}
+
+function inIsland(island, x, z) {
+  if (!island) return false;
+  return x >= island.minX && x <= island.maxX && z >= island.minZ && z <= island.maxZ;
+}
+
 export default class TinyWorldParty {
   constructor(room) {
     this.room = room;
     this.presence = new Map();
     // sender.id -> Map(type -> token bucket). Per-connection rate limit state.
     this.rateLimits = new Map();
+    // The first connection becomes host. Only host messages (admit/decline/
+    // kick/setRole) are honored.
+    this.hostId = null;
+    // id -> { role, island }. Admitted participants (presence + edits flow).
+    this.admitted = new Map();
+    // id -> { id, name, presence }. Pending lobby members awaiting admit.
+    this.lobby = new Map();
+    // id -> { role, island }. Remembered seats so a WS reconnect (stable _pk
+    // conn id) re-admits a returning member instead of re-lobbying them.
+    // Cleared on kick/decline; kept across a normal disconnect.
+    this.seats = new Map();
+  }
+
+  sendTo(id, obj) {
+    const c = this.room.getConnection(id);
+    if (c) c.send(JSON.stringify(obj));
+  }
+
+  // Broadcast only to admitted participants (incl. host). Lobby/un-admitted
+  // connections must never receive world or presence data until admitted.
+  broadcastToAdmitted(obj, exceptId) {
+    const msg = JSON.stringify(obj);
+    for (const id of this.admitted.keys()) {
+      if (id === exceptId) continue;
+      const c = this.room.getConnection(id);
+      if (c) c.send(msg);
+    }
+  }
+
+  pendingList() {
+    return Array.from(this.lobby.values()).map(e => ({ id: e.id, name: e.name }));
   }
 
   onConnect(conn) {
+    if (!this.hostId) {
+      // First in the room is host: full rights, no lobby gate.
+      this.hostId = conn.id;
+      this.admitted.set(conn.id, { role: 'host', island: null });
+      conn.send(JSON.stringify({
+        type: 'welcome',
+        room: this.room.id,
+        id: conn.id,
+        role: 'host',
+        admitted: true,
+        peers: Array.from(this.presence.values()),
+      }));
+      return;
+    }
+    // Returning admitted member: a WS reconnect reuses the same _pk conn id, so
+    // re-admit from the remembered seat instead of bouncing them to the lobby.
+    const seat = this.seats.get(conn.id);
+    if (seat) {
+      this.admitted.set(conn.id, { role: seat.role, island: seat.island });
+      conn.send(JSON.stringify({
+        type: 'welcome',
+        room: this.room.id,
+        id: conn.id,
+        role: seat.role,
+        admitted: true,
+        peers: Array.from(this.presence.values()),
+      }));
+      return;
+    }
+    // Everyone after the host starts in the lobby, un-admitted, no peers yet.
+    this.lobby.set(conn.id, { id: conn.id, name: '', presence: null });
     conn.send(JSON.stringify({
       type: 'welcome',
       room: this.room.id,
       id: conn.id,
-      peers: Array.from(this.presence.values()),
+      role: 'viewer',
+      admitted: false,
+      peers: [],
     }));
   }
 
@@ -189,7 +279,9 @@ export default class TinyWorldParty {
 
     // Per-connection rate limit, separate buckets per message type. A hostile
     // client opening a raw socket ignores the client-side throttle, so drop
-    // (return, no broadcast) once a connection exceeds its sustained rate.
+    // (return, no broadcast) once a connection exceeds its sustained rate. Host
+    // moderation types (admit/decline/kick/setRole) are unbucketed (unknown to
+    // RATE_LIMITS, so takeToken passes) — host-only and low volume.
     let buckets = this.rateLimits.get(sender.id);
     if (!buckets) {
       buckets = new Map();
@@ -201,23 +293,146 @@ export default class TinyWorldParty {
       const presence = cleanPresence(data.presence, sender.id);
       if (!presence) return;
       presence.id = sender.id;
-      this.presence.set(sender.id, presence);
-      this.room.broadcast(JSON.stringify({ type: 'presence', presence }), [sender.id]);
+      if (this.admitted.has(sender.id)) {
+        // Admitted: store and re-broadcast presence to the room as before.
+        this.presence.set(sender.id, presence);
+        this.broadcastToAdmitted({ type: 'presence', presence }, sender.id);
+        return;
+      }
+      // Lobby client: never re-broadcast. Just learn their name so the host can
+      // label the admit panel; notify the host only when the name first appears
+      // or changes (avoids re-toasting on the ~2.5s presence heartbeat).
+      const entry = this.lobby.get(sender.id);
+      if (!entry) return;
+      const prevName = entry.name;
+      entry.presence = presence;
+      entry.name = presence.name || '';
+      if (this.hostId && entry.name && entry.name !== prevName) {
+        this.sendTo(this.hostId, { type: 'lobby.join', id: entry.id, name: entry.name });
+      }
       return;
     }
 
     if (data.type === 'cell.set') {
       const op = cleanCellSet(data.op);
       if (!op) return;
+      // GATING: edits flow only from the host or an admitted editor. Viewers,
+      // players, and lobby clients are dropped. Never trust the client to stay
+      // in scope: an editor's op is bounds-checked against its granted island.
+      if (sender.id === this.hostId) {
+        // host: unrestricted.
+      } else {
+        const seat = this.admitted.get(sender.id);
+        if (!seat || seat.role !== 'editor') return;
+        if (!inIsland(seat.island, op.x, op.z)) return;
+      }
       op.userId = sender.id;
-      this.room.broadcast(JSON.stringify({ type: 'cell.set', op }), [sender.id]);
+      this.broadcastToAdmitted({ type: 'cell.set', op }, sender.id);
+      return;
+    }
+
+    // ---- Host-only moderation. Honored only from the current host. ----
+    if (data.type === 'admit') {
+      if (sender.id !== this.hostId) return;
+      const id = cleanText(data.id, 96);
+      const entry = this.lobby.get(id);
+      if (!entry) return;
+      const role = cleanRole(data.role);
+      const island = role === 'editor' ? cleanIsland(data.island) : null;
+      this.lobby.delete(id);
+      this.admitted.set(id, { role, island });
+      this.seats.set(id, { role, island });
+      if (this.hostId) this.sendTo(this.hostId, { type: 'lobby.leave', id });
+      this.sendTo(id, {
+        type: 'admitted',
+        role,
+        island,
+        peers: Array.from(this.presence.values()),
+      });
+      return;
+    }
+
+    if (data.type === 'decline') {
+      if (sender.id !== this.hostId) return;
+      const id = cleanText(data.id, 96);
+      if (!this.lobby.has(id)) return;
+      this.lobby.delete(id);
+      if (this.hostId) this.sendTo(this.hostId, { type: 'lobby.leave', id });
+      this.sendTo(id, { type: 'declined' });
+      const c = this.room.getConnection(id);
+      if (c) c.close();
+      return;
+    }
+
+    if (data.type === 'kick') {
+      if (sender.id !== this.hostId) return;
+      const id = cleanText(data.id, 96);
+      if (id === this.hostId || !this.admitted.has(id)) return;
+      this.admitted.delete(id);
+      this.presence.delete(id);
+      this.seats.delete(id);
+      this.sendTo(id, { type: 'kicked' });
+      const c = this.room.getConnection(id);
+      if (c) c.close();
+      // The kicked peer's presence vanishes; tell everyone else to drop them.
+      this.broadcastToAdmitted({ type: 'leave', id }, id);
+      return;
+    }
+
+    if (data.type === 'setRole') {
+      if (sender.id !== this.hostId) return;
+      const id = cleanText(data.id, 96);
+      if (id === this.hostId) return;
+      const seat = this.admitted.get(id);
+      if (!seat) return;
+      const role = cleanRole(data.role);
+      const island = role === 'editor' ? cleanIsland(data.island) : null;
+      seat.role = role;
+      seat.island = island;
+      this.seats.set(id, { role, island });
+      this.sendTo(id, { type: 'role', role, island, admitted: true });
+      return;
     }
   }
 
   onClose(conn) {
+    const wasLobby = this.lobby.has(conn.id);
+    const wasHost = conn.id === this.hostId;
     this.presence.delete(conn.id);
     this.rateLimits.delete(conn.id);
-    this.room.broadcast(JSON.stringify({ type: 'leave', id: conn.id }));
+    this.admitted.delete(conn.id);
+    this.lobby.delete(conn.id);
+    // Only an admitted peer's departure is meaningful to other participants;
+    // a lobby member was never visible to them.
+    if (!wasLobby) this.broadcastToAdmitted({ type: 'leave', id: conn.id }, conn.id);
+    // A pending lobby member leaving removes a row from the host's admit panel.
+    if (wasLobby && this.hostId) this.sendTo(this.hostId, { type: 'lobby.leave', id: conn.id });
+
+    if (wasHost) {
+      this.hostId = null;
+      // Prefer the oldest still-admitted connection (Map insertion order = age).
+      let next = null;
+      for (const id of this.admitted.keys()) { next = id; break; }
+      if (next) {
+        const seat = this.admitted.get(next);
+        seat.role = 'host';
+        seat.island = null;
+        this.hostId = next;
+        this.sendTo(next, { type: 'role', role: 'host', island: null, admitted: true, pending: this.pendingList() });
+        this.sendTo(next, { type: 'lobby.list', pending: this.pendingList() });
+        return;
+      }
+      // No admitted peers left: auto-promote + admit the oldest lobby member.
+      let oldest = null;
+      for (const id of this.lobby.keys()) { oldest = id; break; }
+      if (oldest) {
+        this.lobby.delete(oldest);
+        this.admitted.set(oldest, { role: 'host', island: null });
+        this.hostId = oldest;
+        this.sendTo(oldest, { type: 'role', role: 'host', island: null, admitted: true, pending: this.pendingList() });
+        this.sendTo(oldest, { type: 'lobby.list', pending: this.pendingList() });
+      }
+    }
   }
 
   onError(conn) {
