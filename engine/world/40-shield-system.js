@@ -177,7 +177,7 @@
     const SHIELD_WEAPON_SPEED = 1.6;        // hatch + cannon deploy speed (after the shield locks)
     const SHIELD_EDGE_HATCH_ANGLE = 1.6;    // radians the gunport DOOR swings open on its side edge (~92deg)
     const SHIELD_EDGE_GUN_SCALE = 1.5;       // edge gun size on the dark cliff wall
-    const SHIELD_EDGE_GUN_WORLD_Y = -0.8;    // target world Y: on the DARK cliff wall, flush below the greeble lumps (tune)
+    const SHIELD_EDGE_GUN_WORLD_Y = -1.5;    // target world Y: on the DARK cliff wall, flush below the greeble lumps (tune)
     const SHIELD_EDGE_GUN_INSET = 0.3;       // ring-local pull inward (toward island) so the door sits flush in the wall (tune)
     const SHIELD_EDGE_GUN_EVERY = 2;         // arm every Nth panel: 16 guns = 4 per side (end cannons + 2 between)
 
