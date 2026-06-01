@@ -63,6 +63,9 @@
   let twCloudAssetSyncTimer = null;
   let twCloudAssetSyncing = false;
   let twCloudApplyingAssets = false;
+  let twCloudPrefSyncTimer = null;
+  let twCloudPrefSyncing = false;
+  let twCloudApplyingPrefs = false;
 
   function twCloudLoggedIn() {
     return !!(window.TinyWorldAuth && window.__loggedIn);
@@ -460,11 +463,127 @@
     }, 1200);
   }
 
+  // -------- user preferences (settings that follow the account) --------
+  // Synced: render/graphics, audio, crowd, world-gen, camera, weather/season,
+  // UI theme + language, panel positions. NEVER synced: API keys / secrets
+  // (ai:*, api:v1), user content (worlds/stamps/templates — synced elsewhere),
+  // and device/ephemeral keys (multiplayer:client-id, *-changed events).
+  const PREF_SYNC_PREFIXES = [
+    'tinyworld:render:', 'tinyworld:audio:', 'tinyworld:crowd:', 'tinyworld:crowd.', 'tinyworld:gen:',
+  ];
+  const PREF_SYNC_KEYS = new Set([
+    'tinyworld:view.camera', 'tinyworld:season.v1', 'tinyworld:weather.v1',
+    'tinyworld:weather-intensity.v2', 'tinyworld:weather-splashes.v1', 'tinyworld:tod.v1',
+    'tinyworld:uiTheme', 'tinyworld:lang', 'tinyworld:showGroups', 'tinyworld:tips.dismissed',
+    'tinyworld:welcome:dismissedId', 'tinyworld:stamp-builder-recent.v1',
+    'tinyworld:agent:input-pos', 'tinyworld:agent:panel-pos', 'tinyworld:minimap.pos',
+    'tinyworld:toolPalette.pos', 'tinyworld:stamp-panel-pos', 'tinyworld:layers-panel-pos.v1',
+    'tinyworld:layers-panel-open.v1', 'tinyworld:selection-props-active-tab.v1',
+    'tinyworld:selection-props-collapsed.v1',
+  ]);
+  function twCloudIsSyncedPrefKey(key) {
+    if (typeof key !== 'string') return false;
+    // Hard exclusions first: secrets must never leave the device.
+    if (key.startsWith('tinyworld:ai:') || key === 'tinyworld:api:v1') return false;
+    if (PREF_SYNC_KEYS.has(key)) return true;
+    return PREF_SYNC_PREFIXES.some(p => key.startsWith(p));
+  }
+
+  function twCloudCollectPreferences() {
+    const prefs = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!twCloudIsSyncedPrefKey(key)) continue;
+        const v = localStorage.getItem(key);
+        if (typeof v === 'string') prefs[key] = v;
+      }
+    } catch (_) {}
+    return { version: 1, prefs, updatedAt: new Date().toISOString() };
+  }
+
+  // Write remote preference values into localStorage (remote wins). Guarded by
+  // twCloudApplyingPrefs so the setItem auto-sync hook below does not echo.
+  // Note: applied values take effect on the next load (we do not re-run every
+  // subsystem's setter live); a fresh device gets your settings after a reload.
+  function twCloudApplyPreferences(remote) {
+    if (!remote || typeof remote !== 'object' || !remote.prefs || typeof remote.prefs !== 'object') return false;
+    let changed = false;
+    twCloudApplyingPrefs = true;
+    try {
+      for (const [key, value] of Object.entries(remote.prefs)) {
+        if (!twCloudIsSyncedPrefKey(key) || typeof value !== 'string') continue;
+        if (localStorage.getItem(key) === value) continue;
+        try { localStorage.setItem(key, value); changed = true; } catch (_) {}
+      }
+    } finally {
+      twCloudApplyingPrefs = false;
+    }
+    return changed;
+  }
+
+  async function twCloudPutPreferences() {
+    return twCloudApiCall('/api/preferences', 'PUT', { data: twCloudCollectPreferences() });
+  }
+
+  async function twCloudSyncPreferencesToCloudNow() {
+    if (!twCloudLoggedIn() || twCloudApplyingPrefs || twCloudPrefSyncing) return null;
+    twCloudPrefSyncing = true;
+    try {
+      return await twCloudPutPreferences();
+    } finally {
+      twCloudPrefSyncing = false;
+    }
+  }
+
+  async function twCloudSyncPreferencesBothWays() {
+    if (!twCloudLoggedIn() || twCloudPrefSyncing) return false;
+    twCloudPrefSyncing = true;
+    try {
+      const remote = await twCloudApiCall('/api/preferences', 'GET');
+      const pulled = (remote && !remote.error) ? twCloudApplyPreferences(remote) : false;
+      const saved = await twCloudPutPreferences();
+      if (saved && saved.error) console.warn('[cloud-prefs] sync failed:', saved.error);
+      return pulled;
+    } finally {
+      twCloudPrefSyncing = false;
+    }
+  }
+
+  function twCloudQueuePreferencesSync() {
+    if (!twCloudLoggedIn() || twCloudApplyingPrefs) return;
+    clearTimeout(twCloudPrefSyncTimer);
+    twCloudPrefSyncTimer = setTimeout(() => {
+      twCloudSyncPreferencesToCloudNow().catch(err => {
+        console.warn('[cloud-prefs] queued sync failed:', err);
+      });
+    }, 1500);
+  }
+  window.__tinyworldSyncPrefsToCloud = twCloudQueuePreferencesSync;
+
+  // One Storage.prototype hook catches every setItem to a synced preference key,
+  // so a setting change anywhere debounce-pushes to the account without touching
+  // the ~120 scattered call sites. Patched on the prototype (not the instance,
+  // which would create a bogus "setItem" storage entry).
+  if (!Storage.prototype.__twPrefSyncPatched) {
+    const _origSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      _origSetItem.call(this, key, value);
+      try {
+        if (this === window.localStorage && !twCloudApplyingPrefs && twCloudIsSyncedPrefKey(key)) {
+          twCloudQueuePreferencesSync();
+        }
+      } catch (_) {}
+    };
+    Storage.prototype.__twPrefSyncPatched = true;
+  }
+
   async function twCloudBootstrapSync() {
     if (!twCloudLoggedIn()) return;
     await Promise.all([
       twCloudSyncLocalWorldsToCloud({ includeCurrent: true }),
       twCloudSyncAssetsBothWays(),
+      twCloudSyncPreferencesBothWays(),
     ]);
   }
 
