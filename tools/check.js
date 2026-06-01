@@ -616,4 +616,16 @@ if (!/"party:dev"\s*:\s*"partykit dev party\/index\.js --port 1999"/.test(pkgTex
   fail('package.json missing party:dev script');
 }
 
+// i18n: locale parity (en/fr/es/zh) + referenced-key validation. Runs as part
+// of the publish gate so a missing or empty translation blocks the build.
+try {
+  require('child_process').execFileSync(
+    process.execPath,
+    [path.join(__dirname, 'i18n-check.js')],
+    { stdio: 'inherit' }
+  );
+} catch (_) {
+  fail('i18n check failed (see tools/i18n-check.js output above)');
+}
+
 console.log('ok');

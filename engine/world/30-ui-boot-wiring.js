@@ -1951,6 +1951,16 @@
       });
     }
 
+    // i18n language switcher. Reflects the resolved locale; changing it persists
+    // the choice and reloads (reload-on-switch — see engine/i18n/i18n-core.js).
+    const uiLangSelect = document.getElementById('ui-lang-mode');
+    if (uiLangSelect && window.TWI18N) {
+      uiLangSelect.value = window.TWI18N.locale;
+      uiLangSelect.addEventListener('change', () => {
+        window.TWI18N.setLocale(uiLangSelect.value);
+      });
+    }
+
     if (timeBtn && timePopup) {
       const range = document.getElementById('time-range');
       const readout = document.getElementById('time-readout');

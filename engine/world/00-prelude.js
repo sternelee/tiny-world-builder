@@ -87,7 +87,7 @@
       return true;
     } catch (err) {
       console.error('[tinyworld] download failed', err);
-      twToast('Download failed.', 'err');
+      twToast(window.t ? window.t('toast.downloadFailed') : 'Download failed.', 'err');
       return false;
     }
   }
@@ -115,9 +115,9 @@
         const reader = new FileReader();
         reader.onload = () => {
           try { finish(JSON.parse(String(reader.result || ''))); }
-          catch (_) { twToast('That file is not valid JSON.', 'err'); finish(null); }
+          catch (_) { twToast(window.t ? window.t('toast.invalidJson') : 'That file is not valid JSON.', 'err'); finish(null); }
         };
-        reader.onerror = () => { twToast('Could not read that file.', 'err'); finish(null); };
+        reader.onerror = () => { twToast(window.t ? window.t('toast.readFailed') : 'Could not read that file.', 'err'); finish(null); };
         reader.readAsText(file);
       });
       input.addEventListener('cancel', () => finish(null), { once: true });

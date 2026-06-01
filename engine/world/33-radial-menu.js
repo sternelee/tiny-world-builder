@@ -20,23 +20,23 @@
     // Root ring — angles in screen degrees (0=right, 90=down, 270=up). The top
     // slot (270) is reserved for Close / Back.
     const ROOT = [
-      { id: 'color',     label: 'Color',     icon: 'palette',  angle: 225, submenu: 'color' },
-      { id: 'style',     label: 'Style',     icon: 'sparkles', angle: 315, action: 'style' },
-      { id: 'size',      label: 'Size',      icon: 'size',     angle: 0,   action: 'size' },
-      { id: 'rotate',    label: 'Rotate',    icon: 'rotate',   angle: 45,  action: 'rotate' },
-      { id: 'more',      label: 'More',      icon: 'more',     angle: 90,  action: 'more' },
-      { id: 'move',      label: 'Move',      icon: 'move',     angle: 135, action: 'move' },
-      { id: 'duplicate', label: 'Duplicate', icon: 'copy',     angle: 180, action: 'duplicate' },
+      { id: 'color',     label: window.t('radial.color'),     icon: 'palette',  angle: 225, submenu: 'color' },
+      { id: 'style',     label: window.t('radial.style'),     icon: 'sparkles', angle: 315, action: 'style' },
+      { id: 'size',      label: window.t('radial.size'),      icon: 'size',     angle: 0,   action: 'size' },
+      { id: 'rotate',    label: window.t('radial.rotate'),    icon: 'rotate',   angle: 45,  action: 'rotate' },
+      { id: 'more',      label: window.t('radial.more'),      icon: 'more',     angle: 90,  action: 'more' },
+      { id: 'move',      label: window.t('radial.move'),      icon: 'move',     angle: 135, action: 'move' },
+      { id: 'duplicate', label: window.t('radial.duplicate'), icon: 'copy',     angle: 180, action: 'duplicate' },
     ];
     const COLORS = [
-      { label: 'Default', hex: null },
-      { label: 'Red',     hex: '#d24a4f' },
-      { label: 'Orange',  hex: '#e07c2a' },
-      { label: 'Gold',    hex: '#e6c354' },
-      { label: 'Green',   hex: '#6fb442' },
-      { label: 'Teal',    hex: '#3aa6a0' },
-      { label: 'Blue',    hex: '#3a72c8' },
-      { label: 'Purple',  hex: '#8b5ec8' },
+      { label: window.t('radial.color.default'), hex: null },
+      { label: window.t('radial.color.red'),     hex: '#d24a4f' },
+      { label: window.t('radial.color.orange'),  hex: '#e07c2a' },
+      { label: window.t('radial.color.gold'),    hex: '#e6c354' },
+      { label: window.t('radial.color.green'),   hex: '#6fb442' },
+      { label: window.t('radial.color.teal'),    hex: '#3aa6a0' },
+      { label: window.t('radial.color.blue'),    hex: '#3a72c8' },
+      { label: window.t('radial.color.purple'),  hex: '#8b5ec8' },
     ];
     const RADIUS = 116;
     const TOP_ANGLE = 270;
@@ -91,7 +91,7 @@
       root.innerHTML = '';
       // Top Close (root) / Back (submenu).
       const top = makeBtn('radial-top', iconHtml(level === 'root' ? 'close' : 'back'), TOP_ANGLE, 0);
-      top.title = level === 'root' ? 'Close' : 'Back';
+      top.title = level === 'root' ? window.t('radial.close') : window.t('radial.back');
       top.addEventListener('click', e => {
         e.stopPropagation();
         if (level === 'root') { if (typeof clearSelection === 'function') clearSelection(); }

@@ -55,6 +55,26 @@
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep'], iconTool: 'cow' },
   ];
 
+  // i18n: localize tool/variant/group labels at boot from a single point so
+  // every downstream render site (toolbar buttons, flyouts, status, stamp
+  // browser) picks up the active locale without per-site changes. tx() keeps
+  // the hard-coded English when no translation key exists. Language switching
+  // is reload-on-switch, so localizing once here is sufficient.
+  if (typeof window !== 'undefined' && window.TWI18N) {
+    TOOLS.forEach((tool) => {
+      tool.label = tx('tool.' + tool.id, tool.label);
+      if (Array.isArray(tool.variants)) {
+        tool.variants.forEach((v) => {
+          v.label = tx('toolVariant.' + v.id, v.label);
+          if (v.hint) v.hint = tx('toolHint.' + v.id, v.hint);
+        });
+      }
+    });
+    TOOL_GROUPS.forEach((group) => {
+      group.label = tx('group.' + group.id, group.label);
+    });
+  }
+
   function groupForTool(tool) {
     return TOOL_GROUPS.find(g => g.toolIds.includes(tool.id)) || null;
   }
@@ -1553,14 +1573,14 @@
   // building by surprise. Select/Move reads calm; any build/paint/erase tool
   // reads "armed" (coloured) so it's obvious the canvas is hot.
   function modeDescriptor(t) {
-    if (!t || t.select) return { cls: 'select', label: 'Select / Move', sub: 'Click to inspect — drag to orbit' };
-    if (t.erase) return { cls: 'erase', label: 'Erasing', sub: 'Click a cell to remove' };
-    if (t.auto) return { cls: 'build', label: 'Auto', sub: 'AI suggests placements' };
-    if (t.island) return { cls: 'build', label: 'New Island', sub: 'Click empty space to add land' };
-    if (t.mooring) return { cls: 'build', label: 'Connect', sub: 'Pin two anchors to link' };
+    if (!t || t.select) return { cls: 'select', label: window.t('mode.select.label'), sub: window.t('mode.select.sub') };
+    if (t.erase) return { cls: 'erase', label: window.t('mode.erase.label'), sub: window.t('mode.erase.sub') };
+    if (t.auto) return { cls: 'build', label: window.t('mode.auto.label'), sub: window.t('mode.auto.sub') };
+    if (t.island) return { cls: 'build', label: window.t('mode.island.label'), sub: window.t('mode.island.sub') };
+    if (t.mooring) return { cls: 'build', label: window.t('mode.connect.label'), sub: window.t('mode.connect.sub') };
     const variant = t.activeVariant && t.activeVariant.label ? ' · ' + t.activeVariant.label : '';
-    const noun = t.terrain ? 'Painting' : 'Building';
-    return { cls: 'build', label: noun + ': ' + t.label + variant, sub: 'Esc to return to Select' };
+    const noun = t.terrain ? window.t('mode.painting') : window.t('mode.building');
+    return { cls: 'build', label: noun + ': ' + t.label + variant, sub: window.t('mode.build.sub') };
   }
   function updateModeIndicator() {
     const el = document.getElementById('mode-indicator');

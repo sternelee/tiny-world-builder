@@ -48,55 +48,55 @@
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
         <span id="minimap-size">8×8</span>
-        <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
-        <button type="button" class="minimap-toggle" id="minimap-toggle" aria-label="Toggle map" title="Hide/show map (N)">–</button>
+        <span id="minimap-fps" data-tooltip="Frames per second" data-i18n-tooltip="minimap.fps">60 fps</span>
+        <button type="button" class="minimap-toggle" id="minimap-toggle" aria-label="Toggle map" title="Hide/show map (N)" data-i18n-title="minimap.toggle">–</button>
       </div>
     </div>
   </div>
 
   <div class="crowd-panel" id="crowd-panel">
     <div class="crowd-panel-head">
-      <h3>Crowd controls</h3>
-      <button type="button" class="crowd-panel-toggle" id="crowd-panel-toggle" aria-label="Close crowd controls">×</button>
+      <h3 data-i18n="crowd.title">Crowd controls</h3>
+      <button type="button" class="crowd-panel-toggle" id="crowd-panel-toggle" aria-label="Close crowd controls" data-i18n-aria-label="crowd.close">×</button>
     </div>
-    <label class="crowd-row">Mode
+    <label class="crowd-row"><span data-i18n="crowd.mode">Mode</span>
       <select id="crowd-mode">
-        <option value="wander">Wander path</option>
-        <option value="cross">Cross map</option>
-        <option value="circle">Circle plaza</option>
-        <option value="static">Static idle</option>
+        <option value="wander" data-i18n="crowd.mode.wander">Wander path</option>
+        <option value="cross" data-i18n="crowd.mode.cross">Cross map</option>
+        <option value="circle" data-i18n="crowd.mode.circle">Circle plaza</option>
+        <option value="static" data-i18n="crowd.mode.static">Static idle</option>
       </select>
     </label>
-    <label class="crowd-row">People
+    <label class="crowd-row"><span data-i18n="crowd.people">People</span>
       <input id="crowd-count-live" type="range" min="0" max="80" step="1" />
       <output id="crowd-count-live-value"></output>
     </label>
-    <label class="crowd-row">Height
+    <label class="crowd-row"><span data-i18n="crowd.height">Height</span>
       <input id="crowd-scale-live" type="range" min="25" max="160" step="1" />
       <output id="crowd-scale-live-value"></output>
     </label>
-    <label class="crowd-row">Speed
+    <label class="crowd-row"><span data-i18n="crowd.speed">Speed</span>
       <input id="crowd-speed-live" type="range" min="0" max="100" step="1" />
       <output id="crowd-speed-live-value"></output>
     </label>
-    <label class="crowd-row">Zone
+    <label class="crowd-row"><span data-i18n="crowd.zone">Zone</span>
       <input id="crowd-zone-radius-live" type="range" min="8" max="80" step="1" />
       <output id="crowd-zone-radius-live-value"></output>
     </label>
-    <label class="crowd-check"><input id="crowd-enabled-live" type="checkbox" /> Enable crowd</label>
-    <label class="crowd-check"><input id="crowd-show-zones-live" type="checkbox" /> Show rings</label>
-    <label class="crowd-check"><input id="crowd-show-arrows-live" type="checkbox" /> Show direction arrows</label>
-    <label class="crowd-check"><input id="crowd-paused-live" type="checkbox" /> Pause</label>
+    <label class="crowd-check"><input id="crowd-enabled-live" type="checkbox" /> <span data-i18n="crowd.enable">Enable crowd</span></label>
+    <label class="crowd-check"><input id="crowd-show-zones-live" type="checkbox" /> <span data-i18n="crowd.showRings">Show rings</span></label>
+    <label class="crowd-check"><input id="crowd-show-arrows-live" type="checkbox" /> <span data-i18n="crowd.showArrows">Show direction arrows</span></label>
+    <label class="crowd-check"><input id="crowd-paused-live" type="checkbox" /> <span data-i18n="crowd.pause">Pause</span></label>
     <div class="crowd-actions">
-      <button class="btn" id="crowd-reseed-live" type="button">Reseed</button>
-      <button class="btn" id="crowd-debug-live" type="button">Debug</button>
+      <button class="btn" id="crowd-reseed-live" type="button" data-i18n="crowd.reseed">Reseed</button>
+      <button class="btn" id="crowd-debug-live" type="button" data-i18n="crowd.debug">Debug</button>
     </div>
   </div>
-  <button id="crowd-panel-handle" class="crowd-panel-handle" title="Show crowd controls" aria-label="Show crowd controls" hidden>👥</button>
+  <button id="crowd-panel-handle" class="crowd-panel-handle" title="Show crowd controls" aria-label="Show crowd controls" data-i18n-title="crowd.show" data-i18n-aria-label="crowd.show" hidden>👥</button>
 
   <div class="brand">
     <div class="title">Tiny World <em>Builder</em></div>
-    <div class="sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
+    <div class="sub" data-i18n="brand.sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
   </div>
 
   <!-- World menu trigger — top-center rounded pill; menu opens beneath it. -->
@@ -114,93 +114,93 @@
 
   <!-- View modes popup -->
   <div class="topbar-popup" id="view-popup" hidden role="menu">
-    <div class="topbar-popup-title">Camera view</div>
+    <div class="topbar-popup-title" data-i18n="view.title">Camera view</div>
     <button class="view-option" data-view="topdown" role="menuitem">
       <span class="view-thumb" aria-hidden="true">
         <svg viewBox="0 0 32 28" width="36" height="32"><rect x="6" y="6" width="20" height="16" rx="1" fill="#a08454"/><rect x="9" y="9" width="14" height="10" fill="#cdb98a"/><rect x="11" y="11" width="3" height="3" fill="#86b53e"/><rect x="18" y="14" width="3" height="3" fill="#86b53e"/></svg>
       </span>
-      <span class="view-body"><strong>Top-down</strong><em>bird's eye, straight down</em></span>
+      <span class="view-body"><strong data-i18n="view.topdown">Top-down</strong><em data-i18n="view.topdown.desc">bird's eye, straight down</em></span>
     </button>
     <button class="view-option" data-view="ortho" role="menuitem">
       <span class="view-thumb" aria-hidden="true">
         <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 4 28 11l-12 7L4 11z" fill="#cdb98a"/><path d="M16 18l12-7v9l-12 7z" fill="#a08454"/><path d="M16 18l-12-7v9l12 7z" fill="#8a6f44"/></svg>
       </span>
-      <span class="view-body"><strong>Isometric</strong><em>angled overhead</em></span>
+      <span class="view-body"><strong data-i18n="view.iso">Isometric</strong><em data-i18n="view.iso.desc">angled overhead</em></span>
     </button>
     <button class="view-option" data-view="perspective" role="menuitem">
       <span class="view-thumb" aria-hidden="true">
         <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 10 26 12l-10 4L6 12z" fill="#cdb98a"/><path d="M16 16l10-4v6l-10 4z" fill="#a08454"/><path d="M16 16l-10-4v6l10 4z" fill="#8a6f44"/></svg>
       </span>
-      <span class="view-body"><strong>Perspective</strong><em>close orbit</em></span>
+      <span class="view-body"><strong data-i18n="view.perspective">Perspective</strong><em data-i18n="view.perspective.desc">close orbit</em></span>
     </button>
     <button class="view-option" data-view="fp" role="menuitem">
       <span class="view-thumb" aria-hidden="true">
         <svg viewBox="0 0 32 28" width="36" height="32"><circle cx="16" cy="13" r="3" fill="#cdb98a"/><path d="M14 17h4l-2 8z" fill="#a08454"/><path d="M10 22l6-4 6 4" stroke="#8a6f44" stroke-width="1.5" fill="none"/></svg>
       </span>
-      <span class="view-body"><strong>Walk (first-person)</strong><em>WASD · mouse · space jumps · esc exits</em></span>
+      <span class="view-body"><strong data-i18n="view.walk">Walk (first-person)</strong><em data-i18n="view.walk.desc">WASD · mouse · space jumps · esc exits</em></span>
     </button>
   </div>
 
   <!-- Time / season / weather popup -->
   <div class="topbar-popup time-popup" id="time-popup" hidden role="menu">
-    <div class="topbar-popup-title">Time &amp; weather</div>
+    <div class="topbar-popup-title" data-i18n="time.title">Time &amp; weather</div>
     <label class="time-row">
-      <span class="time-row-label">Time of day</span>
+      <span class="time-row-label" data-i18n="time.timeOfDay">Time of day</span>
       <input id="time-range" type="range" min="0" max="1440" step="5" value="720" />
       <span class="time-row-val" id="time-readout">12:00</span>
     </label>
     <div class="time-row time-row-pills">
-      <span class="time-row-label">Season</span>
+      <span class="time-row-label" data-i18n="time.season">Season</span>
       <div class="pill-row" id="season-pills">
-        <button class="pill" data-season="spring">Spring</button>
-        <button class="pill" data-season="summer">Summer</button>
-        <button class="pill" data-season="autumn">Autumn</button>
-        <button class="pill" data-season="winter">Winter</button>
+        <button class="pill" data-season="spring" data-i18n="season.spring">Spring</button>
+        <button class="pill" data-season="summer" data-i18n="season.summer">Summer</button>
+        <button class="pill" data-season="autumn" data-i18n="season.autumn">Autumn</button>
+        <button class="pill" data-season="winter" data-i18n="season.winter">Winter</button>
       </div>
     </div>
     <div class="time-row time-row-pills">
-      <span class="time-row-label">Weather</span>
+      <span class="time-row-label" data-i18n="time.weather">Weather</span>
       <div class="pill-row" id="weather-pills">
-        <button class="pill" data-weather="clear">Clear</button>
-        <button class="pill" data-weather="cloudy">Cloudy</button>
-        <button class="pill" data-weather="rain">Rain</button>
-        <button class="pill" data-weather="storm">Storm</button>
-        <button class="pill" data-weather="snow">Snow</button>
+        <button class="pill" data-weather="clear" data-i18n="weather.clear">Clear</button>
+        <button class="pill" data-weather="cloudy" data-i18n="weather.cloudy">Cloudy</button>
+        <button class="pill" data-weather="rain" data-i18n="weather.rain">Rain</button>
+        <button class="pill" data-weather="storm" data-i18n="weather.storm">Storm</button>
+        <button class="pill" data-weather="snow" data-i18n="weather.snow">Snow</button>
       </div>
     </div>
     <label class="time-row">
-      <span class="time-row-label">Weather intensity</span>
+      <span class="time-row-label" data-i18n="time.intensity">Weather intensity</span>
       <input id="weather-intensity" type="range" min="25" max="300" step="5" value="25" />
       <span class="time-row-val" id="weather-intensity-readout">25%</span>
     </label>
     <label class="time-row">
-      <span class="time-row-label">Splashes / buildup</span>
+      <span class="time-row-label" data-i18n="time.splashes">Splashes / buildup</span>
       <input id="weather-splashes" type="range" min="0" max="300" step="5" value="150" />
       <span class="time-row-val" id="weather-splashes-readout">150%</span>
     </label>
     <div class="time-foot">
-      <em>Intensity controls falling particles and storm severity; splashes controls rain impacts, puddles, and snow buildup.</em>
+      <em data-i18n="time.foot">Intensity controls falling particles and storm severity; splashes controls rain impacts, puddles, and snow buildup.</em>
     </div>
   </div>
 
   <!-- World-name popup menu -->
   <div class="world-menu" id="world-menu" hidden role="menu">
     <div class="world-menu-head">
-      <input class="world-menu-input" id="world-menu-name" placeholder="Whispering Vale" maxlength="80" aria-label="World name" />
-      <button class="world-menu-rename" id="world-menu-rename" data-tooltip="Save name">
+      <input class="world-menu-input" id="world-menu-name" placeholder="Whispering Vale" maxlength="80" aria-label="World name" data-i18n-placeholder="worldmenu.namePlaceholder" data-i18n-aria-label="worldmenu.nameAria" />
+      <button class="world-menu-rename" id="world-menu-rename" data-tooltip="Save name" data-i18n-tooltip="worldmenu.saveName">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </button>
     </div>
     <div class="world-menu-section">
       <button class="world-menu-item" data-action="new" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
-        <span class="world-menu-label">New world</span>
-        <span class="world-menu-hint">clear to grass</span>
+        <span class="world-menu-label" data-i18n="worldmenu.new">New world</span>
+        <span class="world-menu-hint" data-i18n="worldmenu.new.hint">clear to grass</span>
       </button>
       <button class="world-menu-item" data-action="duplicate" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
-        <span class="world-menu-label">Duplicate</span>
-        <span class="world-menu-hint">copy of this world</span>
+        <span class="world-menu-label" data-i18n="worldmenu.duplicate">Duplicate</span>
+        <span class="world-menu-hint" data-i18n="worldmenu.duplicate.hint">copy of this world</span>
       </button>
       <button class="world-menu-item" data-action="generate" role="menuitem" data-ai-interface>
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span>
@@ -209,53 +209,53 @@
       </button>
     </div>
     <div class="world-menu-section" id="world-menu-slots">
-      <div class="world-menu-section-title">My worlds</div>
+      <div class="world-menu-section-title" data-i18n="worldmenu.myWorlds">My worlds</div>
       <ul class="world-menu-list" id="world-menu-list"></ul>
-      <div class="world-menu-empty" id="world-menu-empty" hidden>No saved worlds yet. Build one and choose “Save as new”.</div>
+      <div class="world-menu-empty" id="world-menu-empty" data-i18n="worldmenu.empty" hidden>No saved worlds yet. Build one and choose “Save as new”.</div>
     </div>
     <div class="world-menu-foot">
       <button class="world-menu-foot-btn" data-action="save-as" role="menuitem">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save as new
+        <span data-i18n="worldmenu.saveAs">Save as new</span>
       </button>
       <button class="world-menu-foot-btn" data-action="share" role="menuitem">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51 15.42 17.49"/><path d="M15.41 6.51 8.59 10.49"/></svg>
-        Copy share URL
+        <span data-i18n="worldmenu.share">Copy share URL</span>
       </button>
       <button class="world-menu-foot-btn" data-action="collaborate" role="menuitem">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11c1.66 0 3-1.12 3-2.5S17.66 6 16 6s-3 1.12-3 2.5S14.34 11 16 11Z"/><path d="M8 12c1.66 0 3-1.12 3-2.5S9.66 7 8 7 5 8.12 5 9.5 6.34 12 8 12Z"/><path d="M2 20c.8-3 3-4.5 6-4.5 1.5 0 2.8.38 3.8 1.14"/><path d="M22 20c-.65-2.42-2.32-3.93-5-4.4"/><path d="M14 17h6"/><path d="M17 14v6"/></svg>
-        Copy collaborate URL
+        <span data-i18n="worldmenu.collaborate">Copy collaborate URL</span>
       </button>
       <button class="world-menu-foot-btn" data-action="manage" role="menuitem">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Cloud worlds
+        <span data-i18n="worldmenu.cloud">Cloud worlds</span>
       </button>
     </div>
   </div>
 
   <div class="unsaved-banner" id="unsaved-banner" hidden>
     <span class="dot" aria-hidden="true"></span>
-    <span id="unsaved-banner-text">Areas outside your home grid aren't saved</span>
+    <span id="unsaved-banner-text" data-i18n="unsaved.banner">Areas outside your home grid aren't saved</span>
   </div>
 
-  <button type="button" id="sound-icon" class="sound-icon" data-tooltip="Sound" aria-label="Sound controls" aria-expanded="false" aria-controls="sound-panel">
+  <button type="button" id="sound-icon" class="sound-icon" data-tooltip="Sound" data-i18n-tooltip="sound.toggle" aria-label="Sound controls" aria-expanded="false" aria-controls="sound-panel">
     <svg class="ic-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     <svg class="ic-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>
   </button>
-  <button type="button" id="layers-toggle" class="layers-handle" data-tooltip="Layers" aria-label="Open layers panel" aria-expanded="false" aria-controls="layers-panel">
+  <button type="button" id="layers-toggle" class="layers-handle" data-tooltip="Layers" data-i18n-tooltip="layers.toggle" aria-label="Open layers panel" data-i18n-aria-label="layers.open" aria-expanded="false" aria-controls="layers-panel">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
   </button>
 
   <div id="sound-panel" class="sound-panel" role="dialog" aria-label="Sound controls" hidden>
     <div class="sound-panel-head">
-      <h3>Sound</h3>
-      <button type="button" class="sound-panel-close" id="sound-panel-close" aria-label="Close sound panel">×</button>
+      <h3 data-i18n="sound.title">Sound</h3>
+      <button type="button" class="sound-panel-close" id="sound-panel-close" aria-label="Close sound panel" data-i18n-aria-label="sound.close">×</button>
     </div>
 
     <div class="sound-section">
-      <div class="sound-section-title">Music</div>
+      <div class="sound-section-title" data-i18n="sound.music">Music</div>
       <div class="sound-row">
-        <button type="button" class="sound-mute" id="snd-music-mute" data-tooltip="Mute music" aria-label="Mute music">
+        <button type="button" class="sound-mute" id="snd-music-mute" data-tooltip="Mute music" data-i18n-tooltip="sound.muteMusic" aria-label="Mute music" data-i18n-aria-label="sound.muteMusic">
           <svg class="ic-on" viewBox="0 0 24 24"><path d="M9 18V6l11-3v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="15" r="3"/></svg>
           <svg class="ic-off" viewBox="0 0 24 24"><path d="M9 18V6l11-3v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="15" r="3"/><path d="M3 3l18 18"/></svg>
         </button>
@@ -265,9 +265,9 @@
     </div>
 
     <div class="sound-section">
-      <div class="sound-section-title">Effects</div>
+      <div class="sound-section-title" data-i18n="sound.effects">Effects</div>
       <div class="sound-row">
-        <button type="button" class="sound-mute" id="snd-sfx-mute" data-tooltip="Mute SFX" aria-label="Mute SFX">
+        <button type="button" class="sound-mute" id="snd-sfx-mute" data-tooltip="Mute SFX" data-i18n-tooltip="sound.muteSfx" aria-label="Mute SFX" data-i18n-aria-label="sound.muteSfx">
           <svg class="ic-on" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
           <svg class="ic-off" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>
         </button>
@@ -276,9 +276,9 @@
     </div>
 
     <div class="sound-section">
-      <div class="sound-section-title">Ambient (water · wind)</div>
+      <div class="sound-section-title" data-i18n="sound.ambient">Ambient (water · wind)</div>
       <div class="sound-row">
-        <button type="button" class="sound-mute" id="snd-ambient-mute" data-tooltip="Mute ambient" aria-label="Mute ambient">
+        <button type="button" class="sound-mute" id="snd-ambient-mute" data-tooltip="Mute ambient" data-i18n-tooltip="sound.muteAmbient" aria-label="Mute ambient" data-i18n-aria-label="sound.muteAmbient">
           <svg class="ic-on" viewBox="0 0 24 24"><path d="M3 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/></svg>
           <svg class="ic-off" viewBox="0 0 24 24"><path d="M3 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/><path d="M3 3l18 18"/></svg>
         </button>
@@ -287,9 +287,9 @@
     </div>
 
     <div class="sound-section">
-      <div class="sound-section-title">Engines</div>
+      <div class="sound-section-title" data-i18n="sound.engines">Engines</div>
       <div class="sound-row">
-        <button type="button" class="sound-mute" id="snd-engines-mute" data-tooltip="Mute engines" aria-label="Mute engines">
+        <button type="button" class="sound-mute" id="snd-engines-mute" data-tooltip="Mute engines" data-i18n-tooltip="sound.muteEngines" aria-label="Mute engines" data-i18n-aria-label="sound.muteEngines">
           <svg class="ic-on" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M5 8h14"/><path d="M7 16h10"/></svg>
           <svg class="ic-off" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M5 8h14"/><path d="M7 16h10"/><path d="M3 3l18 18"/></svg>
         </button>
@@ -299,34 +299,34 @@
   </div>
 
   <div class="tips-panel" id="tips-panel" role="region" aria-label="Keyboard and mouse tips" hidden>
-    <button type="button" class="tips-close" id="tips-close" aria-label="Hide tips">×</button>
+    <button type="button" class="tips-close" id="tips-close" aria-label="Hide tips" data-i18n-aria-label="tips.hide">×</button>
     <div class="tips-grid" id="tips-grid"></div>
   </div>
-  <button type="button" id="tips-show" class="tips-show" data-tooltip="Show controls" aria-label="Show controls" hidden>
+  <button type="button" id="tips-show" class="tips-show" data-tooltip="Show controls" data-i18n-tooltip="tips.show" aria-label="Show controls" data-i18n-aria-label="tips.show" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
   </button>
 
   <div class="appbar">
-    <a class="btn icon" id="github-link" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" aria-label="View Tiny World Builder on GitHub">
+    <a class="btn icon" id="github-link" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" data-i18n-tooltip="appbar.github" aria-label="View Tiny World Builder on GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5a13.4 13.4 0 0 0-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5a4.8 4.8 0 0 0-1 3.5v4"/><path d="M9 18c-4.5 2-5-2-7-2"/></svg>
     </a>
-    <button class="btn icon" id="tips-toggle" data-tooltip="Keyboard &amp; mouse controls" aria-label="Show keyboard controls">
+    <button class="btn icon" id="tips-toggle" data-tooltip="Keyboard &amp; mouse controls" data-i18n-tooltip="appbar.controls" aria-label="Show keyboard controls">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="2" y="6" width="20" height="12" rx="2" ry="2"/>
         <path d="M6 10h.01"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M18 10h.01"/>
         <path d="M6 14h12"/>
       </svg>
     </button>
-    <button class="btn icon" id="render-settings" data-tooltip="Settings" aria-label="Settings">
+    <button class="btn icon" id="render-settings" data-tooltip="Settings" data-i18n-tooltip="appbar.settings" aria-label="Settings" data-i18n-aria-label="appbar.settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
-    <label class="btn icon" id="import" for="import-file" role="button" tabindex="0" data-tooltip="Import JSON" aria-label="Import world from JSON">
+    <label class="btn icon" id="import" for="import-file" role="button" tabindex="0" data-tooltip="Import JSON" data-i18n-tooltip="appbar.import" aria-label="Import world from JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
     </label>
-    <button class="btn icon" id="export" data-tooltip="Export JSON" aria-label="Export world as JSON">
+    <button class="btn icon" id="export" data-tooltip="Export JSON" data-i18n-tooltip="appbar.export" aria-label="Export world as JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
     </button>
-    <button class="btn icon" id="reset" data-tooltip="Reset world" aria-label="Reset world">
+    <button class="btn icon" id="reset" data-tooltip="Reset world" data-i18n-tooltip="appbar.reset" aria-label="Reset world" data-i18n-aria-label="appbar.reset">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
     </button>
     <button class="btn icon" id="dev-mode" data-tooltip="Developer overlay (`)" aria-label="Developer overlay">
@@ -343,28 +343,28 @@
   </a>
 
   <div class="controls">
-    <button class="btn icon" id="home" data-tooltip="Center on your grid" aria-label="Center on your grid">
+    <button class="btn icon" id="home" data-tooltip="Center on your grid" data-i18n-tooltip="controls.home" aria-label="Center on your grid" data-i18n-aria-label="controls.home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg>
     </button>
-    <button class="btn icon" id="persp" data-tooltip="Perspective" aria-label="Toggle camera mode">
+    <button class="btn icon" id="persp" data-tooltip="Perspective" data-i18n-tooltip="controls.perspective" aria-label="Toggle camera mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
     </button>
-    <button class="btn icon" id="view-modes" data-tooltip="View modes" aria-label="Pick a camera view">
+    <button class="btn icon" id="view-modes" data-tooltip="View modes" data-i18n-tooltip="controls.viewModes" aria-label="Pick a camera view">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
-    <button class="btn icon" id="time-weather" data-tooltip="Time &amp; weather" aria-label="Time and weather">
+    <button class="btn icon" id="time-weather" data-tooltip="Time &amp; weather" data-i18n-tooltip="controls.timeWeather" aria-label="Time and weather">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
     </button>
-    <button class="btn icon" id="showcase-mode" data-tooltip="Showcase mode (hide chrome + orbit)" aria-label="Showcase mode">
+    <button class="btn icon" id="showcase-mode" data-tooltip="Showcase mode (hide chrome + orbit)" data-i18n-tooltip="controls.showcase" aria-label="Showcase mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
     </button>
-    <button class="btn icon" id="stamp-builder" data-tooltip="Stamps" aria-label="Open stamps">
+    <button class="btn icon" id="stamp-builder" data-tooltip="Stamps" data-i18n-tooltip="controls.stamps" aria-label="Open stamps">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="m3 7 9 5v10l-9-5V7Z"/><path d="m21 7-9 5v10l9-5V7Z"/></svg>
     </button>
     <button class="btn icon" id="generate" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-ai-interface hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
     </button>
-    <button class="btn icon" id="clear" data-tooltip="Clear to grass" aria-label="Clear world to grass">
+    <button class="btn icon" id="clear" data-tooltip="Clear to grass" data-i18n-tooltip="controls.clear" aria-label="Clear world to grass">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </button>
   </div>
@@ -399,28 +399,28 @@
 
   <section id="layers-panel" class="layers-panel" role="dialog" aria-modal="false" hidden>
     <div class="layers-panel-head" id="layers-panel-head" aria-label="Drag to move layers panel">
-      <button class="layers-panel-close" id="layers-close" type="button" title="Close" aria-label="Close layers">×</button>
+      <button class="layers-panel-close" id="layers-close" type="button" title="Close" aria-label="Close layers" data-i18n-aria-label="layers.close">×</button>
     </div>
     <div class="layers-tabs" role="tablist" aria-label="Layers / Properties">
-      <button class="layers-tab is-active" id="layers-tab-layers" type="button" role="tab" aria-selected="true" data-layers-tab="layers">Layers</button>
-      <button class="layers-tab" id="layers-tab-properties" type="button" role="tab" aria-selected="false" data-layers-tab="properties">Properties</button>
+      <button class="layers-tab is-active" id="layers-tab-layers" type="button" role="tab" aria-selected="true" data-layers-tab="layers" data-i18n="layers.tabLayers">Layers</button>
+      <button class="layers-tab" id="layers-tab-properties" type="button" role="tab" aria-selected="false" data-layers-tab="properties" data-i18n="layers.tabProperties">Properties</button>
     </div>
     <div class="layers-tabpanel" id="layers-panel-layers" role="tabpanel" data-layers-panel="layers">
       <label class="layers-search">
-        <span class="sr-only">Search layers</span>
-        <input id="layers-search" type="search" placeholder="Search…" autocomplete="off" />
+        <span class="sr-only" data-i18n="layers.searchAria">Search layers</span>
+        <input id="layers-search" type="search" placeholder="Search…" autocomplete="off" data-i18n-placeholder="layers.search" />
       </label>
       <div class="layers-tree" id="layers-tree" role="tree" aria-label="World hierarchy"></div>
     </div>
     <div class="layers-tabpanel" id="layers-panel-properties" role="tabpanel" data-layers-panel="properties" hidden>
       <div class="layers-props" id="layers-props-host"></div>
-      <p class="layers-props-empty" id="layers-props-empty">Select an item in Layers to see its properties.</p>
+      <p class="layers-props-empty" id="layers-props-empty" data-i18n="layers.propsEmpty">Select an item in Layers to see its properties.</p>
     </div>
     <span id="layers-summary" hidden></span>
   </section>
 
   <button class="showcase-exit" id="showcase-exit" type="button" aria-label="Exit showcase mode">
-    Exit showcase <span aria-hidden="true">Esc</span>
+    <span data-i18n="controls.showcaseExit">Exit showcase</span> <span aria-hidden="true">Esc</span>
   </button>
 
   <div id="account-modal" class="modal" hidden>
@@ -613,42 +613,42 @@
         <button class="modal-close" id="welcome-close" title="Close" aria-label="Close welcome dialog">×</button>
       </div>
 
-      <div class="welcome-subtitle">
+      <div class="welcome-subtitle" data-i18n="welcome.subtitle">
         Choose how you'd like to begin
       </div>
 
       <!-- Original instructions / tips -->
       <div class="welcome-tips">
         <div class="welcome-tip">
-          <strong>Tap or click to build</strong>
-          Select a tool, then tap any tile to place it.
+          <strong data-i18n="welcome.tip1.title">Tap or click to build</strong>
+          <span data-i18n="welcome.tip1.body">Select a tool, then tap any tile to place it.</span>
         </div>
         <div class="welcome-tip">
-          <strong>Move the camera</strong>
-          One finger or left-drag to orbit · two fingers / right-drag / Space to pan · pinch or scroll to zoom.
+          <strong data-i18n="welcome.tip2.title">Move the camera</strong>
+          <span data-i18n="welcome.tip2.body">One finger or left-drag to orbit · two fingers / right-drag / Space to pan · pinch or scroll to zoom.</span>
         </div>
         <div class="welcome-tip">
-          <strong>Keep going</strong>
-          Use Reset, Clear, Export, Import, and Render from the top bar.
+          <strong data-i18n="welcome.tip3.title">Keep going</strong>
+          <span data-i18n="welcome.tip3.body">Use Reset, Clear, Export, Import, and Render from the top bar.</span>
         </div>
       </div>
 
       <div class="welcome-options">
         <!-- Farm - Primary / Default -->
         <button class="welcome-option primary" id="welcome-farm" type="button">
-          <div class="option-title">Start with the Farm</div>
-          <div class="option-desc">Classic village with houses, crops, river &amp; bridge</div>
+          <div class="option-title" data-i18n="welcome.farm.title">Start with the Farm</div>
+          <div class="option-desc" data-i18n="welcome.farm.desc">Classic village with houses, crops, river &amp; bridge</div>
         </button>
 
         <!-- Vehicle Demo -->
         <button class="welcome-option" id="welcome-vehicle" type="button">
-          <div class="option-title">Vehicle Demo</div>
-          <div class="option-desc">Roads + multiple cars &amp; trucks driving around</div>
+          <div class="option-title" data-i18n="welcome.vehicle.title">Vehicle Demo</div>
+          <div class="option-desc" data-i18n="welcome.vehicle.desc">Roads + multiple cars &amp; trucks driving around</div>
         </button>
       </div>
 
       <div class="welcome-footer">
-        The Farm is the default starting world. Use <strong>Reset</strong> anytime to return to it.
+        <span data-i18n="welcome.footer">The Farm is the default starting world. Use Reset anytime to return to it.</span>
       </div>
     </form>
   </div>
@@ -825,35 +825,44 @@
       </div>
       <div class="settings-layout">
         <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
-          <button type="button" class="settings-tab active" id="settings-tab-app" role="tab" aria-selected="true" aria-controls="settings-panel-app" tabindex="0" data-settings-tab="app" data-settings-description="Board size" data-settings-keywords="app workspace defaults board grid size home">Workspace</button>
-          <button type="button" class="settings-tab" id="settings-tab-rendering" role="tab" aria-selected="false" aria-controls="settings-panel-rendering" tabindex="-1" data-settings-tab="rendering" data-settings-description="Quality and lighting" data-settings-keywords="rendering render performance fps quality resolution shadow lighting image effects pixel shader antialias blur">Rendering</button>
-          <button type="button" class="settings-tab" id="settings-tab-world" role="tab" aria-selected="false" aria-controls="settings-panel-world" tabindex="-1" data-settings-tab="world" data-settings-description="Preview and terrain" data-settings-keywords="world mechanics preview ghost terrain voxel landscape opacity distance window floors objects">World</button>
-          <button type="button" class="settings-tab" id="settings-tab-materials" role="tab" aria-selected="false" aria-controls="settings-panel-materials" tabindex="-1" data-settings-tab="materials" data-settings-description="Colors and textures" data-settings-keywords="materials material colors colours texture tint tone wear finish parts surface">Materials</button>
-          <button type="button" class="settings-tab" id="settings-tab-environment" role="tab" aria-selected="false" aria-controls="settings-panel-environment" tabindex="-1" data-settings-tab="environment" data-settings-description="Sky and atmosphere" data-settings-keywords="environment weather sky clouds atmosphere mist backdrop vignette undercloud">Environment</button>
-          <button type="button" class="settings-tab" id="settings-tab-crowd" role="tab" aria-selected="false" aria-controls="settings-panel-crowd" tabindex="-1" data-settings-tab="crowd" data-settings-description="People and motion" data-settings-keywords="crowd people mechanics movement animation zones debug paths">Crowd</button>
+          <button type="button" class="settings-tab active" id="settings-tab-app" role="tab" aria-selected="true" aria-controls="settings-panel-app" tabindex="0" data-settings-tab="app" data-settings-description="Board size" data-settings-keywords="app workspace defaults board grid size home" data-i18n="settings.tab.app">Workspace</button>
+          <button type="button" class="settings-tab" id="settings-tab-rendering" role="tab" aria-selected="false" aria-controls="settings-panel-rendering" tabindex="-1" data-settings-tab="rendering" data-settings-description="Quality and lighting" data-settings-keywords="rendering render performance fps quality resolution shadow lighting image effects pixel shader antialias blur" data-i18n="settings.tab.rendering">Rendering</button>
+          <button type="button" class="settings-tab" id="settings-tab-world" role="tab" aria-selected="false" aria-controls="settings-panel-world" tabindex="-1" data-settings-tab="world" data-settings-description="Preview and terrain" data-settings-keywords="world mechanics preview ghost terrain voxel landscape opacity distance window floors objects" data-i18n="settings.tab.world">World</button>
+          <button type="button" class="settings-tab" id="settings-tab-materials" role="tab" aria-selected="false" aria-controls="settings-panel-materials" tabindex="-1" data-settings-tab="materials" data-settings-description="Colors and textures" data-settings-keywords="materials material colors colours texture tint tone wear finish parts surface" data-i18n="settings.tab.materials">Materials</button>
+          <button type="button" class="settings-tab" id="settings-tab-environment" role="tab" aria-selected="false" aria-controls="settings-panel-environment" tabindex="-1" data-settings-tab="environment" data-settings-description="Sky and atmosphere" data-settings-keywords="environment weather sky clouds atmosphere mist backdrop vignette undercloud" data-i18n="settings.tab.environment">Environment</button>
+          <button type="button" class="settings-tab" id="settings-tab-crowd" role="tab" aria-selected="false" aria-controls="settings-panel-crowd" tabindex="-1" data-settings-tab="crowd" data-settings-description="People and motion" data-settings-keywords="crowd people mechanics movement animation zones debug paths" data-i18n="settings.tab.crowd">Crowd</button>
           <button type="button" class="settings-tab" id="settings-tab-ai" role="tab" aria-selected="false" aria-controls="settings-panel-ai" tabindex="-1" data-settings-tab="ai" data-settings-description="Provider and model" data-settings-keywords="ai config generate auto provider model api key openai anthropic grok xai gemini" data-ai-interface>AI</button>
         </nav>
         <div class="settings-panels">
           <section class="settings-panel active" id="settings-panel-app" role="tabpanel" aria-labelledby="settings-tab-app" data-settings-panel="app" data-settings-keywords="app workspace defaults board grid size home sponsors partners autoincentive">
-            <div class="settings-section-title">Workspace</div>
-            <label>Home board size
+            <div class="settings-section-title" data-i18n="settings.workspace">Workspace</div>
+            <label><span data-i18n="settings.homeBoard">Home board size</span>
               <select id="render-home-grid">
                 <option value="8">8 × 8</option>
                 <option value="12">12 × 12</option>
                 <option value="16">16 × 16</option>
               </select>
             </label>
+            <label data-settings-keywords="language locale translation english french chinese spanish français 中文 español langue idioma 语言">
+              <span data-i18n="settings.language">Language</span>
+              <select id="ui-lang-mode">
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+                <option value="zh">中文</option>
+              </select>
+            </label>
             <label data-settings-keywords="theme ui dark mode light night auto chrome after hours">
-              UI theme
+              <span data-i18n="settings.uiTheme">UI theme</span>
               <select id="ui-theme-mode">
-                <option value="auto">Auto</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="auto" data-i18n="settings.theme.auto">Auto</option>
+                <option value="light" data-i18n="settings.theme.light">Light</option>
+                <option value="dark" data-i18n="settings.theme.dark">Dark</option>
               </select>
             </label>
             <label class="gen-check" data-settings-keywords="toolbar groups blocks palette floating panel tools dock">
               <input type="checkbox" id="toolbar-show-groups" checked />
-              <span>Show groups <em class="gen-hint">off swaps the grouped toolbar for a floating palette of every block</em></span>
+              <span><span data-i18n="settings.showGroups">Show groups</span> <em class="gen-hint" data-i18n="settings.showGroups.hint">off swaps the grouped toolbar for a floating palette of every block</em></span>
             </label>
             <div class="settings-section-title sponsors-title">Thanks to our partners and sponsors</div>
             <div class="sponsors-logos">
@@ -1406,6 +1415,14 @@
   }
   </script>
   <script type="module" src="vendor/tinyworld-auth.js"></script>
+  <!-- i18n: locale data registers onto window.TWI18N_DATA, then the core
+       resolves the active locale and exposes global t()/tx(). Must load before
+       the engine modules so their top-level code can translate at build time. -->
+  <script src="engine/i18n/en.js"></script>
+  <script src="engine/i18n/fr.js"></script>
+  <script src="engine/i18n/es.js"></script>
+  <script src="engine/i18n/zh.js"></script>
+  <script src="engine/i18n/i18n-core.js"></script>
   <script src="engine/world/00-prelude.js"></script>
   <script src="engine/world/01-render-core.js"></script>
   <script src="engine/world/02-cameras-lighting.js"></script>

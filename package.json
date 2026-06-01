@@ -7,6 +7,8 @@
     "dev": "node tools/dev-server.js",
     "build": "./publish.sh",
     "check": "node tools/check.js",
+    "i18n:check": "node tools/i18n-check.js",
+    "i18n:report": "node tools/i18n-check.js --report",
     "smoke": "node tools/smoke-static.js",
     "perf": "node tools/perf-probe.js",
     "party:dev": "partykit dev party/index.js --port 1999",
