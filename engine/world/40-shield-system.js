@@ -174,8 +174,11 @@
       }
     }
 
-    const SHIELD_HATCH_OPEN_ANGLE = 2.0;   // radians the gunport flap hinges open (out + down)
     const SHIELD_WEAPON_SPEED = 1.6;        // hatch + cannon deploy speed (after the shield locks)
+    const SHIELD_EDGE_HATCH_ANGLE = 1.85;   // radians the perimeter gunport flap drops (out + down)
+    const SHIELD_EDGE_GUN_SCALE = 0.5;       // edge guns sized to match the island-edge greebles
+    const SHIELD_EDGE_GUN_Y = 0.0;           // vertical offset from a panel's base down to the greeble line (tune)
+    const SHIELD_EDGE_GUN_EVERY = 4;         // arm every Nth panel around the ring (a few greebles per side)
 
     // Voxel laser cannon in the shield's own VoxelKit style, barrel pointing +Z
     // (a panel's outward normal). Added to a panel before optimizeVoxelObjectGroup,
@@ -210,7 +213,6 @@
         seed = 1,
         damage = 0.25,
         gap = 0.08,
-        weapon = false,
       } = {}) {
         super();
 
@@ -223,7 +225,6 @@
         this.seed = seed;
         this.damage = damage;
         this.gap = gap;
-        this.weapon = weapon;
 
         this.userData.kind = 'blast-panel';
         this.userData.width = width;
@@ -270,38 +271,6 @@
         // Dimmer, shorter-range point light: a rim accent on the shield edge, not
         // a flood that lights the interior.
         k.addPointGlow(this, 0, height + 0.42, depth / 2 + 0.04, 0.5, 3.5);
-
-        if (this.weapon) {
-          // Weapon gunport on the outer (+Z) face: a dark recessed socket, a flap
-          // that hinges down at its bottom edge, and a voxel cannon retracted
-          // behind it that slides out once the shield is up. Refs stored for the
-          // weapon-deploy animation in ShieldRing.applyWeapons(). noBatch keeps
-          // the moving parts transformable through optimizeVoxelObjectGroup.
-          const midY = height * 0.5;
-          const portW = Math.min(1.5, width * 0.5);
-          const portH = 1.5;
-          const faceZ = depth / 2;
-          const wp = (parent, x, y, z, sx, sy, sz, mat) => {
-            const c = k.cube(parent, x, y, z, sx, sy, sz, mat, false);
-            c.userData.noBatch = true;
-            c.userData.noStaticBaseMerge = true;
-            return c;
-          };
-          wp(this, 0, midY, faceZ + 0.01, portW + 0.18, portH + 0.18, 0.06, m.edge);
-          wp(this, 0, midY, faceZ - 0.01, portW, portH, 0.06, m.slot);
-          const hatchPivot = new THREE.Group();
-          hatchPivot.position.set(0, midY - portH / 2, faceZ + 0.07);
-          wp(hatchPivot, 0, portH / 2, 0, portW, portH, 0.08, m.stoneDark);
-          wp(hatchPivot, 0, portH * 0.82, 0, portW * 0.88, 0.09, 0.11, m.edge);
-          this.add(hatchPivot);
-          const cannon = buildShieldCannon(k);
-          const cannonRetractZ = faceZ - 0.6;
-          const cannonDeployZ = faceZ + 0.6;
-          cannon.position.set(0, midY, cannonRetractZ);
-          cannon.visible = false;
-          this.add(cannon);
-          this.userData.weaponPort = { hatchPivot, cannon, cannonRetractZ, cannonDeployZ };
-        }
       }
     }
 
@@ -396,6 +365,7 @@
         this.panels = [];
         this.keystones = [];
         this.weaponProgress = 0;
+        this.batteryUnits = [];
         this.slots = [];
         this.progress = 0;
         this.targetProgress = 0;
@@ -405,6 +375,7 @@
 
         this.build();
         this.optimiseForTinyWorld();
+        this.buildPerimeterBattery();
         this.applyDeployment(0, 0);
       }
 
@@ -525,8 +496,6 @@
             seed: side.sideIndex * 100 + cornerIndex * 20 + i,
             damage,
             gap: this.gap,
-            // Arm the middle panel of each corner-segment: a few cannons per side.
-            weapon: i === Math.floor(this.panelsPerCornerSide / 2),
           });
 
           const finalDistance = inset + slotWidth / 2 + i * (slotWidth + this.gap);
@@ -603,7 +572,7 @@
         // Instant set (e.g. ?shield=1 boot): match the weapon state to the shield
         // so a fully-deployed shield comes up with its cannons already out.
         this.weaponProgress = this.progress > 0.985 ? 1 : 0;
-        this.applyWeapons(this.weaponProgress, 0);
+        this.applyBattery(this.weaponProgress, 0);
         this._settled = false;
         notifyVoxelShieldChanged(this);
       }
@@ -628,33 +597,67 @@
         const active = this.progress !== this.targetProgress || (this.progress > 0.001 && this.progress < 0.986) || weaponsMoving;
         if (!active && this._settled) return;
         this.applyDeployment(this.progress, time);
-        this.applyWeapons(this.weaponProgress, time);
+        this.applyBattery(this.weaponProgress, time);
         this._settled = !active;
       }
 
-      // Hatches hinge down (weaponProgress 0 -> 0.5), then cannons slide out and
-      // aim (0.45 -> 1). Reverses on retract. Cheap: only the armed panels.
-      applyWeapons(wp, time) {
-        if (!this._weaponPorts) this._weaponPorts = this.panels.filter(p => p.userData.weaponPort);
-        if (!this._weaponPorts.length) return;
+      // Island-edge gun battery. A voxel cannon tucked into a greeble-style stone
+      // socket at the island perimeter. Anchored to a subset of panels' finalPos +
+      // rotation.y, so each gun sits on the island edge aimed outward (+Z) and
+      // inherits the ring's UNIFORM fitScale (the non-uniform 0.3-z squish lives on
+      // the panels, NOT the ring -> no squish, no shear correction needed). Built
+      // after optimiseForTinyWorld so the optimizer never touches the moving parts.
+      buildPerimeterBattery() {
+        this.panels.forEach((panel, idx) => {
+          if (idx % SHIELD_EDGE_GUN_EVERY !== 0) return;
+          const unit = this.buildEdgeGunUnit();
+          unit.scale.setScalar(SHIELD_EDGE_GUN_SCALE);
+          const fp = panel.userData.finalPos;
+          // finalPos is the panel base (where it meets the island) = the greeble
+          // line; SHIELD_EDGE_GUN_Y nudges to the exact edge height.
+          unit.position.set(fp.x, fp.y + SHIELD_EDGE_GUN_Y, fp.z);
+          unit.rotation.y = panel.rotation.y;
+          unit.userData.kind = 'shield-edge-gun';
+          this.add(unit);
+          this.batteryUnits.push(unit);
+        });
+      }
+
+      // One edge gun: a stone socket, a bottom-hinged gunport flap, and a cannon
+      // retracted inside that slides out (+Z) past the edge once the port is open.
+      buildEdgeGunUnit() {
+        const k = this.kit;
+        const m = k.materials;
+        const unit = new THREE.Group();
+        const free = (c) => { c.userData.noBatch = true; c.userData.noStaticBaseMerge = true; return c; };
+        free(k.cube(unit, 0, 0.30, -0.20, 1.05, 0.60, 0.78, m.stoneDark, false));
+        free(k.cube(unit, 0, 0.62, -0.20, 1.12, 0.10, 0.86, m.edge, false));
+        const hatchPivot = new THREE.Group();
+        hatchPivot.position.set(0, 0.06, 0.36);
+        free(k.cube(hatchPivot, 0, 0.46, 0, 0.96, 0.92, 0.14, m.stone, false));
+        free(k.cube(hatchPivot, 0, 0.86, 0.02, 0.86, 0.12, 0.10, m.edge, false));
+        unit.add(hatchPivot);
+        const cannon = buildShieldCannon(k);
+        const retractZ = -0.45;
+        const deployZ = 0.95;
+        cannon.position.set(0, 0.46, retractZ);
+        cannon.visible = false;
+        unit.add(cannon);
+        unit.userData.gun = { hatchPivot, cannon, retractZ, deployZ };
+        return unit;
+      }
+
+      // Hatches hinge down (weaponProgress 0 -> 0.5), then cannons slide out + aim
+      // (0.45 -> 1). Reverses on retract. Only the armed edge greebles animate.
+      applyBattery(wp, time) {
+        if (!this.batteryUnits || !this.batteryUnits.length) return;
         const hatchOpen = shieldSmoothstep(wp / 0.5);
         const cannonOut = shieldSmoothstep((wp - 0.45) / 0.55);
-        for (const panel of this._weaponPorts) {
-          const port = panel.userData.weaponPort;
-          // Panels deploy with a non-uniform scale: uniform in x/y (~1.2) but
-          // compressed to ~0.3 in z (thin slabs). The cannon + hatch are children,
-          // so without correction they get squished flat into the panel and never
-          // visibly protrude. Counter the z compression (x==y, so the effective
-          // scale stays uniform -> no shear with the hinge rotation). The slide
-          // position also divides by sz so the cannon travels a real world span.
-          const sx = panel.scale.x || 1;
-          const sz = panel.scale.z || 1;
-          const zc = sz !== 0 ? sx / sz : 1;
-          port.cannon.scale.z = zc;
-          port.hatchPivot.scale.z = zc;
-          port.hatchPivot.rotation.x = SHIELD_HATCH_OPEN_ANGLE * hatchOpen;
-          port.cannon.position.z = shieldLerp(port.cannonRetractZ, port.cannonDeployZ, cannonOut) / sz;
-          port.cannon.visible = wp > 0.4;
+        for (const unit of this.batteryUnits) {
+          const g = unit.userData.gun;
+          g.hatchPivot.rotation.x = SHIELD_EDGE_HATCH_ANGLE * hatchOpen;
+          g.cannon.position.z = shieldLerp(g.retractZ, g.deployZ, cannonOut);
+          g.cannon.visible = wp > 0.4;
         }
       }
 
