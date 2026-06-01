@@ -282,24 +282,65 @@
     twCloudWorldSyncing = true;
     try {
       const list = readWorldsMeta();
-      let changed = !!(options.includeCurrent && twCloudEnsureCurrentLocalSlot(list));
+      const includedCurrent = !!(options.includeCurrent && twCloudEnsureCurrentLocalSlot(list));
+      // The includeCurrent slot is brand-new this call (not in persisted storage
+      // yet); capture it so it survives the post-loop re-read below.
+      const newSlot = includedCurrent ? list[list.length - 1] : null;
+      let changed = includedCurrent;
+      // Stable-identity -> cloud-metadata delta collected during the await loop.
+      // Re-applied after the loop onto a fresh re-read so concurrent persisted
+      // mutations (deletes/renames/new slots) are not clobbered.
+      const cloudDeltas = new Map();
+      const slotIdentity = (slot) => {
+        if (slot && slot.id) return 'id:' + slot.id;
+        const cid = twCloudIdForSlot(slot);
+        return cid ? 'cloud:' + cid : null;
+      };
       for (const slot of list) {
         if (!slot || !slot.state) continue;
         const cloudId = twCloudIdForSlot(slot);
         const slotTs = Number(slot.ts) || 0;
         if (cloudId && !options.force && Number(slot.cloudSyncedAt) >= slotTs) continue;
+        const identity = slotIdentity(slot);
         const saved = await twCloudSaveWorld(cloudId, slot.name || 'Untitled world', slot.state);
         if (saved && saved.id) {
-          slot.cloudId = Number(saved.id);
-          slot.cloudSyncedAt = Date.now();
-          slot.cloudUpdatedAt = saved.updatedAt || saved.updated_at || null;
-          if (slot.id && slot.id.startsWith(TW_CLOUD_SLOT_PREFIX)) slot.id = twCloudSlotId(saved.id);
+          const delta = {
+            cloudId: Number(saved.id),
+            cloudSyncedAt: Date.now(),
+            cloudUpdatedAt: saved.updatedAt || saved.updated_at || null,
+            // Only slots whose id is a cloud-prefix placeholder get re-keyed.
+            renameId: (slot.id && slot.id.startsWith(TW_CLOUD_SLOT_PREFIX)) ? twCloudSlotId(saved.id) : null,
+          };
+          // Mutate the in-memory slot too so the captured newSlot reference and
+          // any later identity lookups stay consistent.
+          slot.cloudId = delta.cloudId;
+          slot.cloudSyncedAt = delta.cloudSyncedAt;
+          slot.cloudUpdatedAt = delta.cloudUpdatedAt;
+          if (delta.renameId) slot.id = delta.renameId;
+          if (identity) cloudDeltas.set(identity, delta);
           changed = true;
         } else if (saved && saved.error) {
           console.warn('[cloud-worlds] sync failed:', saved.error);
         }
       }
-      if (changed) writeWorldsMeta(list);
+      if (changed) {
+        // Re-read current persisted meta and merge only the cloud deltas onto
+        // matching slots. Slots deleted/renamed concurrently are absent here and
+        // stay that way (no resurrection); concurrent edits are preserved.
+        const fresh = readWorldsMeta();
+        for (const slot of fresh) {
+          const delta = cloudDeltas.get(slotIdentity(slot));
+          if (!delta) continue;
+          slot.cloudId = delta.cloudId;
+          slot.cloudSyncedAt = delta.cloudSyncedAt;
+          slot.cloudUpdatedAt = delta.cloudUpdatedAt;
+          if (delta.renameId) slot.id = delta.renameId;
+        }
+        // The includeCurrent slot is genuinely new (created by this call) — append
+        // it if a concurrent write has not already added an equivalent slot.
+        if (newSlot && !fresh.some(s => s.id === newSlot.id)) fresh.push(newSlot);
+        writeWorldsMeta(fresh);
+      }
       await twCloudLoadWorlds(true);
       if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
       if (typeof window.__tinyworldAccountWorldsRefresh === 'function') window.__tinyworldAccountWorldsRefresh();
