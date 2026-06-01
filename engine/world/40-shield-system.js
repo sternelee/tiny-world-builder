@@ -176,8 +176,8 @@
 
     const SHIELD_WEAPON_SPEED = 1.6;        // hatch + cannon deploy speed (after the shield locks)
     const SHIELD_EDGE_HATCH_ANGLE = 1.85;   // radians the perimeter gunport flap drops (out + down)
-    const SHIELD_EDGE_GUN_SCALE = 0.5;       // edge guns sized to match the island-edge greebles
-    const SHIELD_EDGE_GUN_WORLD_Y = -0.42;   // target world Y: the greeble LUMP band on the cliff face, below the grass rim (tune)
+    const SHIELD_EDGE_GUN_SCALE = 1.0;       // edge guns sized to match the island-edge greebles
+    const SHIELD_EDGE_GUN_WORLD_Y = -1.0;    // target world Y: down on the DARK cliff wall, below the tan/grey greeble lumps (tune)
     const SHIELD_EDGE_GUN_EVERY = 4;         // arm every Nth panel around the ring (a few greebles per side)
 
     // Voxel laser cannon in the shield's own VoxelKit style, barrel pointing +Z
