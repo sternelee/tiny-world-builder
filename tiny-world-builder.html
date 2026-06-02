@@ -307,38 +307,38 @@
   </button>
 
   <div class="appbar">
-    <a class="btn icon" id="github-link" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" data-i18n-tooltip="appbar.github" aria-label="View Tiny World Builder on GitHub">
+    <a class="btn icon" id="github-link" data-pos-type="neutral" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" data-i18n-tooltip="appbar.github" aria-label="View Tiny World Builder on GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5a13.4 13.4 0 0 0-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5a4.8 4.8 0 0 0-1 3.5v4"/><path d="M9 18c-4.5 2-5-2-7-2"/></svg>
     </a>
-    <button class="btn icon" id="tips-toggle" data-tooltip="Keyboard &amp; mouse controls" data-i18n-tooltip="appbar.controls" aria-label="Show keyboard controls">
+    <button class="btn icon" id="tips-toggle" data-pos-type="primary" data-tooltip="Keyboard &amp; mouse controls" data-i18n-tooltip="appbar.controls" aria-label="Show keyboard controls">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="2" y="6" width="20" height="12" rx="2" ry="2"/>
         <path d="M6 10h.01"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M18 10h.01"/>
         <path d="M6 14h12"/>
       </svg>
     </button>
-    <button class="btn icon" id="render-settings" data-tooltip="Settings" data-i18n-tooltip="appbar.settings" aria-label="Settings" data-i18n-aria-label="appbar.settings">
+    <button class="btn icon" id="render-settings" data-pos-type="neutral" data-tooltip="Settings" data-i18n-tooltip="appbar.settings" aria-label="Settings" data-i18n-aria-label="appbar.settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
-    <label class="btn icon" id="import" for="import-file" role="button" tabindex="0" data-tooltip="Import JSON" data-i18n-tooltip="appbar.import" aria-label="Import world from JSON">
+    <label class="btn icon" id="import" data-pos-type="neutral" for="import-file" role="button" tabindex="0" data-tooltip="Import JSON" data-i18n-tooltip="appbar.import" aria-label="Import world from JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
     </label>
-    <button class="btn icon" id="export" data-tooltip="Export JSON" data-i18n-tooltip="appbar.export" aria-label="Export world as JSON">
+    <button class="btn icon" id="export" data-pos-type="neutral" data-tooltip="Export JSON" data-i18n-tooltip="appbar.export" aria-label="Export world as JSON">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
     </button>
-    <button class="btn icon" id="reset" data-tooltip="Reset world" data-i18n-tooltip="appbar.reset" aria-label="Reset world" data-i18n-aria-label="appbar.reset">
+    <button class="btn icon" id="reset" data-pos-type="neutral" data-tooltip="Reset world" data-i18n-tooltip="appbar.reset" aria-label="Reset world" data-i18n-aria-label="appbar.reset">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
     </button>
-    <button class="btn icon" id="dev-mode" data-tooltip="Developer overlay (`)" aria-label="Developer overlay">
+    <button class="btn icon" id="dev-mode" data-pos-type="neutral" data-tooltip="Developer overlay (`)" aria-label="Developer overlay">
       <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     </button>
     <input type="file" id="import-file" class="file-input-proxy" accept=".json,application/json" tabindex="-1" aria-hidden="true" />
-    <button class="btn icon" id="account-btn" data-tooltip="My account" aria-label="My account" hidden>
+    <button class="btn icon" id="account-btn" data-pos-type="neutral" data-tooltip="My account" aria-label="My account" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     </button>
     <span class="appbar-sep" aria-hidden="true"></span>
     <div class="lang-flags" id="lang-flags" role="group" aria-label="Language">
-      <button class="lang-flag" type="button" data-lang="en" aria-label="English" data-tooltip="English">
+      <button class="lang-flag" type="button" data-pos-type="neutral" data-lang="en" aria-label="English" data-tooltip="English">
         <svg viewBox="0 0 30 20" aria-hidden="true">
           <rect width="30" height="20" fill="#012169"/>
           <path d="M0 0 30 20M30 0 0 20" stroke="#fff" stroke-width="4"/>
@@ -347,20 +347,20 @@
           <path d="M15 0V20M0 10H30" stroke="#C8102E" stroke-width="3.5"/>
         </svg>
       </button>
-      <button class="lang-flag" type="button" data-lang="fr" aria-label="Français" data-tooltip="Français">
+      <button class="lang-flag" type="button" data-pos-type="neutral" data-lang="fr" aria-label="Français" data-tooltip="Français">
         <svg viewBox="0 0 30 20" aria-hidden="true">
           <rect width="30" height="20" fill="#fff"/>
           <rect width="10" height="20" fill="#0055A4"/>
           <rect x="20" width="10" height="20" fill="#EF4135"/>
         </svg>
       </button>
-      <button class="lang-flag" type="button" data-lang="es" aria-label="Español" data-tooltip="Español">
+      <button class="lang-flag" type="button" data-pos-type="neutral" data-lang="es" aria-label="Español" data-tooltip="Español">
         <svg viewBox="0 0 30 20" aria-hidden="true">
           <rect width="30" height="20" fill="#AA151B"/>
           <rect y="5" width="30" height="10" fill="#F1BF00"/>
         </svg>
       </button>
-      <button class="lang-flag" type="button" data-lang="zh" aria-label="中文" data-tooltip="中文">
+      <button class="lang-flag" type="button" data-pos-type="neutral" data-lang="zh" aria-label="中文" data-tooltip="中文">
         <svg viewBox="0 0 30 20" aria-hidden="true">
           <rect width="30" height="20" fill="#EE1C25"/>
           <g fill="#FFDE00">
@@ -380,28 +380,28 @@
   </a>
 
   <div class="controls">
-    <button class="btn icon" id="home" data-tooltip="Center on your grid" data-i18n-tooltip="controls.home" aria-label="Center on your grid" data-i18n-aria-label="controls.home">
+    <button class="btn icon" id="home" data-pos-type="primary" data-tooltip="Center on your grid" data-i18n-tooltip="controls.home" aria-label="Center on your grid" data-i18n-aria-label="controls.home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg>
     </button>
-    <button class="btn icon" id="persp" data-tooltip="Perspective" data-i18n-tooltip="controls.perspective" aria-label="Toggle camera mode">
+    <button class="btn icon" id="persp" data-pos-type="primary" data-tooltip="Perspective" data-i18n-tooltip="controls.perspective" aria-label="Toggle camera mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
     </button>
-    <button class="btn icon" id="view-modes" data-tooltip="View modes" data-i18n-tooltip="controls.viewModes" aria-label="Pick a camera view">
+    <button class="btn icon" id="view-modes" data-pos-type="primary" data-tooltip="View modes" data-i18n-tooltip="controls.viewModes" aria-label="Pick a camera view">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
-    <button class="btn icon" id="time-weather" data-tooltip="Time &amp; weather" data-i18n-tooltip="controls.timeWeather" aria-label="Time and weather">
+    <button class="btn icon" id="time-weather" data-pos-type="tertiary" data-tooltip="Time &amp; weather" data-i18n-tooltip="controls.timeWeather" aria-label="Time and weather">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
     </button>
-    <button class="btn icon" id="showcase-mode" data-tooltip="Showcase mode (hide chrome + orbit)" data-i18n-tooltip="controls.showcase" aria-label="Showcase mode">
+    <button class="btn icon" id="showcase-mode" data-pos-type="neutral" data-tooltip="Showcase mode (hide chrome + orbit)" data-i18n-tooltip="controls.showcase" aria-label="Showcase mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
     </button>
-    <button class="btn icon" id="stamp-builder" data-tooltip="Stamps" data-i18n-tooltip="controls.stamps" aria-label="Open stamps">
+    <button class="btn icon" id="stamp-builder" data-pos-type="primary" data-tooltip="Stamps" data-i18n-tooltip="controls.stamps" aria-label="Open stamps">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="m3 7 9 5v10l-9-5V7Z"/><path d="m21 7-9 5v10l9-5V7Z"/></svg>
     </button>
-    <button class="btn icon" id="generate" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-ai-interface hidden>
+    <button class="btn icon" id="generate" data-pos-type="tertiary" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-ai-interface hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
     </button>
-    <button class="btn icon" id="clear" data-tooltip="Clear to grass" data-i18n-tooltip="controls.clear" aria-label="Clear world to grass">
+    <button class="btn icon" id="clear" data-pos-type="neutral" data-tooltip="Clear to grass" data-i18n-tooltip="controls.clear" aria-label="Clear world to grass">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </button>
   </div>

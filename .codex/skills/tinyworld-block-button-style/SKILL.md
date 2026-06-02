@@ -82,6 +82,12 @@ Raised, outlined square (per posType; same pattern for `.tool` and
   and the mooring style radial in `36-mooring-interaction.js` uses
   `tertiary`. Style them via `.radial-btn[data-pos-type]`, not by returning to
   pale generic circles.
+- Appbar icon buttons, language flags, and the left side-rail controls are also
+  category chrome now. Keep `data-pos-type` on those static HTML buttons and
+  style them through `.appbar .btn.icon[data-pos-type]`,
+  `.controls .btn.icon[data-pos-type]`, and `.lang-flag[data-pos-type]`; do not
+  let generic `.btn.icon` dark/theme rules flatten them back to plain line icons
+  or pale active circles.
 - Build the icon with `buildToolButton(tool, { flyout: true })` so it reuses the
   `.tool-glyph` / `.tool-icon` machinery and the outline rules.
 - Bottom-toolbar utility buttons use `buildToolbarUtilityButton(...)` and the

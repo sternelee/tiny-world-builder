@@ -314,6 +314,23 @@ if (!/function buttonPosTypeForTool/.test(html) || !/if \(t\.select\) return 'pr
 if (!/Unified block buttons/.test(cssRaw) || !/\.toolbar \.tool-group-btn\[data-pos-type\]/.test(cssRaw) || !/\.flyout \.tool\.flyout-tool\[data-pos-type\]/.test(cssRaw) || !/body\.ui-theme-dark \.toolbar \.tool\[data-pos-type\]:not\(\.active\):not\(\[aria-pressed="true"\]\)/.test(cssRaw)) {
   fail('bottom toolbar and flyout buttons must share the category block-button border treatment');
 }
+const chromeBlockButtonIds = [
+  'github-link', 'tips-toggle', 'render-settings', 'import', 'export', 'reset', 'dev-mode', 'account-btn',
+  'home', 'persp', 'view-modes', 'time-weather', 'showcase-mode', 'stamp-builder', 'generate', 'clear',
+];
+for (const id of chromeBlockButtonIds) {
+  const idThenPos = new RegExp('id="' + id + '"[^>]*data-pos-type="(?:primary|tertiary|shield|neutral)"');
+  const posThenId = new RegExp('data-pos-type="(?:primary|tertiary|shield|neutral)"[^>]*id="' + id + '"');
+  if (!idThenPos.test(htmlRaw) && !posThenId.test(htmlRaw)) {
+    fail('appbar and side-rail icon buttons must carry stable data-pos-type: ' + id);
+  }
+}
+if (!/Unified chrome icon buttons/.test(cssRaw) || !/\.appbar \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.controls \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.lang-flag\[data-pos-type\]/.test(cssRaw)) {
+  fail('appbar, language flags, and side-rail controls must use the same category block-button chrome');
+}
+if (!/body\.ui-theme-dark \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw) || !/body\.ui-theme-dark \.appbar \.btn\.icon\[data-pos-type\]\.active/.test(cssRaw) || !/body\.tod-night \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw)) {
+  fail('dark and after-hours themes must preserve chrome icon active/on block-button states');
+}
 if (!/btn\.dataset\.posType = posType/.test(html) || !/close\.dataset\.posType = 'neutral'/.test(html) || !/btn\.dataset\.posType = 'tertiary'/.test(html)) {
   fail('radial action buttons must carry toolbar-compatible data-pos-type values');
 }
