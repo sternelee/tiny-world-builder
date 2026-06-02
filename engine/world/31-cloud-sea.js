@@ -7,9 +7,9 @@
   //   - soft clouds : small drifting clumps at cloud height, an alternative to
   //                   the blocky voxel clouds (the "cloud style" toggle hides
   //                   cloudGroup and shows these instead)
-  // depthTest ON (islands occlude clouds behind them), depthWrite OFF
-  // (overlapping puffs blend by draw order — fine for soft clouds, avoids hard
-  // transparency-sort popping).
+  // depthTest ON (islands occlude clouds behind them), depthWrite OFF, and a
+  // late transparent renderOrder so foreground clouds veil full-opacity terrain
+  // instead of being overwritten by the terrain fade-material queue.
 
   let _cloudTex = null;
   function cloudPuffTexture() {
@@ -114,7 +114,7 @@
 
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = -1;
+    mesh.renderOrder = (typeof CLOUD_OCCLUSION_RENDER_ORDER !== 'undefined') ? CLOUD_OCCLUSION_RENDER_ORDER : 18;
     mesh.raycast = function () {};
     mesh.userData.cloudTint = tint;
     mesh.userData.softCloudRim = true;

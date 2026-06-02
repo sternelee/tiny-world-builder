@@ -191,6 +191,7 @@
       if (statusEl) return statusEl;
       statusEl = document.createElement('div');
       statusEl.className = 'multiplayer-status';
+      statusEl.dataset.posType = 'primary';
       statusEl.setAttribute('aria-live', 'polite');
       document.body.appendChild(statusEl);
       return statusEl;
@@ -283,6 +284,7 @@
       if (rosterEl) return rosterEl;
       rosterEl = document.createElement('div');
       rosterEl.className = 'multiplayer-roster';
+      rosterEl.dataset.posType = 'neutral';
       rosterEl.setAttribute('aria-live', 'polite');
       document.body.appendChild(rosterEl);
       return rosterEl;
@@ -673,6 +675,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'mp-chat-toggle';
+      btn.dataset.posType = 'primary';
       btn.setAttribute('aria-label', 'Open chat');
       btn.appendChild(svgGlyph('chat'));
       const badge = document.createElement('span');

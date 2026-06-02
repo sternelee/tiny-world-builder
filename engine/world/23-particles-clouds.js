@@ -338,6 +338,7 @@
   var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
   var CLOUD_Z_RANGE = 18;
   var SKY_CLOUD_MIN_HEIGHT = 9.5;
+  var CLOUD_OCCLUSION_RENDER_ORDER = 18;
 
   function skyCloudHeight() {
     return Math.max(SKY_CLOUD_MIN_HEIGHT, renderCloudHeight || 0);
@@ -484,6 +485,7 @@
       const opacity = bright ? (0.82 + Math.random() * 0.16) : (0.56 + Math.random() * 0.20);
       const mat = cloneCloudMat(bright ? M.cloud : M.cloudShade, opacity);
       const mesh = new THREE.Mesh(getDodecahedronGeometry(r), mat);
+      mesh.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER;
       mesh.position.set(
         (Math.random() - 0.5) * (core ? 1.4 : 3.5),
         core ? (0.18 + Math.random() * 0.48) : Math.random() * 0.95,
@@ -525,6 +527,7 @@
       if (!specs.length) return;
       const mat = cloneCloudMat(baseMat, opacity);
       const mesh = new THREE.InstancedMesh(getDodecahedronGeometry(1), mat, specs.length);
+      mesh.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER;
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       mesh.frustumCulled = true;
@@ -639,7 +642,7 @@
       c.userData.baseY = c.position.y;
       c.traverse(o => {
         if (!o.isMesh) return;
-        o.renderOrder = UNDER_ISLAND_EFFECT_RENDER_ORDER;
+        o.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER;
         o.castShadow = false;
         o.receiveShadow = false;
         if (o.customDepthMaterial && o.customDepthMaterial.userData && o.customDepthMaterial.userData.cloudShadowDepth) {

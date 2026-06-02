@@ -840,22 +840,24 @@
     }
     resetBtn.addEventListener('click', () => {
       setShadowQuality('balanced');
-      setRenderResolutionScale(1);
+      setRenderResolutionScale(0.75);
       setRenderVisibleDistance(0);
       setRenderVisibleSize(0);
-      renderBrightness = 1;
-      renderLighting = 1.0;
-      renderAmbientFill = 0.58;
-      renderFrontFill = 0.55;
-      renderSideFill = 0.45;
-      renderBackFill = 0.38;
+      renderBrightness = 0.80;
+      renderLighting = 0.50;
+      renderAmbientFill = 1.00;
+      renderFrontFill = 0.10;
+      renderSideFill = 0.10;
+      renderBackFill = 0.10;
       applyLightingSettings();
-      renderSaturation = 1;
-      renderContrast = 1;
-      renderCloudAmount = 0.61;
+      renderSaturation = 1.09;
+      renderContrast = 1.20;
+      renderCloudAmount = 0.40;
       renderCloudSpeed = 0.35;
       renderCloudHeight = 9.5;
       renderCloudShadow = 0;
+      renderCloudSea = true;
+      renderCloudStyle = 'soft';
       renderPlanesEnabled = false;
       if (typeof setPlanesEnabled === 'function') setPlanesEnabled(false);
       renderStarVault = true;
@@ -867,6 +869,8 @@
       if (typeof applyAccentLightingSettings === 'function') applyAccentLightingSettings();
       applyCloudSettings();
       if (typeof applyCloudHeight === 'function') applyCloudHeight();
+      if (typeof setCloudSeaEnabled === 'function') setCloudSeaEnabled(renderCloudSea);
+      if (typeof setCloudStyle === 'function') setCloudStyle(renderCloudStyle);
       renderDistanceMist = 0.28;
       applyDistanceMistSettings();
       renderBackdrop = 0.78;
@@ -876,8 +880,8 @@
       renderPixelDepthEdge = 0;
       renderPixelNormalEdge = 0;
       renderShaderAntialias = 0;
-      renderTiltBlur = 3.5;
-      renderTiltFocus = 18;
+      renderTiltBlur = 10.5;
+      renderTiltFocus = 21;
       applyTiltShiftSettings();
       renderGhostOpacity = 0;
       renderFloorOpacity = 0;
@@ -907,7 +911,7 @@
       crowdSway = 1.4;
       crowdLean = 0.07;
       crowdZoneRadius = 0.16;
-      crowdShowZones = true;
+      crowdShowZones = false;
       crowdPaused = false;
       crowdDebug = true;
       crowdMode = 'wander';

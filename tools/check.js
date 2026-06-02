@@ -311,25 +311,93 @@ if (!/toolbar-shield-toggle/.test(html) || !/buildToolbarUtilityButton\('toolbar
 if (!/function buttonPosTypeForTool/.test(html) || !/if \(t\.select\) return 'primary';/.test(html) || !/if \(t\.erase \|\| t\.eraser\) return 'neutral';/.test(html) || !/function posTypeForToolGroup/.test(html)) {
   fail('toolbar buttons must assign stable category data-pos-type values, including select and erase');
 }
+if (!/"mooring": "mooring"/.test(html) || !/TOOL_GLYPH_SVG[\s\S]*"mooring": "<svg viewBox/.test(html) || /t\.eraser \|\| t\.select \|\| t\.mooring/.test(html)) {
+  fail('Connect tool must render a real flyout glyph instead of the old icon-only fallback');
+}
 if (!/Unified block buttons/.test(cssRaw) || !/\.toolbar \.tool-group-btn\[data-pos-type\]/.test(cssRaw) || !/\.flyout \.tool\.flyout-tool\[data-pos-type\]/.test(cssRaw) || !/body\.ui-theme-dark \.toolbar \.tool\[data-pos-type\]:not\(\.active\):not\(\[aria-pressed="true"\]\)/.test(cssRaw)) {
   fail('bottom toolbar and flyout buttons must share the category block-button border treatment');
 }
 const chromeBlockButtonIds = [
-  'github-link', 'tips-toggle', 'render-settings', 'import', 'export', 'reset', 'dev-mode', 'account-btn',
+  'github-link', 'tips-toggle', 'render-settings', 'import', 'export', 'reset', 'dev-mode', 'account-btn', 'sound-icon', 'layers-toggle',
   'home', 'persp', 'view-modes', 'time-weather', 'showcase-mode', 'stamp-builder', 'generate', 'clear',
 ];
 for (const id of chromeBlockButtonIds) {
   const idThenPos = new RegExp('id="' + id + '"[^>]*data-pos-type="(?:primary|tertiary|shield|neutral)"');
   const posThenId = new RegExp('data-pos-type="(?:primary|tertiary|shield|neutral)"[^>]*id="' + id + '"');
   if (!idThenPos.test(htmlRaw) && !posThenId.test(htmlRaw)) {
-    fail('appbar and side-rail icon buttons must carry stable data-pos-type: ' + id);
+    fail('global chrome icon buttons must carry stable data-pos-type: ' + id);
   }
 }
-if (!/Unified chrome icon buttons/.test(cssRaw) || !/\.appbar \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.controls \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.lang-flag\[data-pos-type\]/.test(cssRaw)) {
-  fail('appbar, language flags, and side-rail controls must use the same category block-button chrome');
+const controlsMarkup = (htmlRaw.match(/<div class="controls">([\s\S]*?)<\/div>\s*<div class="xr-panel"/) || [])[1] || '';
+for (const id of ['tips-toggle', 'render-settings', 'import', 'export', 'reset', 'dev-mode', 'account-btn']) {
+  if (!new RegExp('id="' + id + '"').test(controlsMarkup)) {
+    fail('utility chrome icon must live in the left side rail: ' + id);
+  }
 }
-if (!/body\.ui-theme-dark \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw) || !/body\.ui-theme-dark \.appbar \.btn\.icon\[data-pos-type\]\.active/.test(cssRaw) || !/body\.tod-night \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw)) {
+if (!/<div class="token-pill"[^>]*data-pos-type="neutral"[\s\S]*id="github-link"[\s\S]*class="ticker"/.test(htmlRaw)) {
+  fail('GitHub icon must sit beside the $TINYWORLD token title');
+}
+if (!/<div class="appbar">\s*<div class="lang-flags"/.test(htmlRaw)) {
+  fail('bottom-left appbar must be reserved for language flags only');
+}
+if (!/id="crowd-panel-handle"[^>]*data-feature-hidden="crowd-handle"/.test(htmlRaw) || !/\.crowd-panel-handle\s*\{[\s\S]*display:\s*none !important/.test(cssRaw)) {
+  fail('crowd/crown handle must stay hidden');
+}
+if (!/Unified chrome icon buttons/.test(cssRaw) || !/\.token-pill \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.controls \.btn\.icon\[data-pos-type\]/.test(cssRaw) || !/\.lang-flag\[data-pos-type\]/.test(cssRaw) || !/\.sound-icon\[data-pos-type\]/.test(cssRaw) || !/\.layers-handle\[data-pos-type\]/.test(cssRaw) || !/\.world-pill\[data-pos-type\]/.test(cssRaw) || !/\.multiplayer-status\[data-pos-type\]/.test(cssRaw) || !/\.multiplayer-roster\[data-pos-type\]/.test(cssRaw) || !/\.mp-chat-toggle\[data-pos-type\]/.test(cssRaw)) {
+  fail('language flags, side rail controls, sound/layers, chat, and top pills must use the same category block-button chrome');
+}
+if (!/body\.ui-theme-dark \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw) || !/body\.ui-theme-dark \.sound-icon\[data-pos-type\]\.open/.test(cssRaw) || !/body\.tod-night \.controls \.btn\.icon\[data-pos-type\]\.on/.test(cssRaw)) {
   fail('dark and after-hours themes must preserve chrome icon active/on block-button states');
+}
+if (!/\.world-menu-foot\s*\{[\s\S]*overflow-x:\s*auto/.test(cssRaw) || !/\.world-menu-foot-btn\s*\{[\s\S]*white-space:\s*nowrap/.test(cssRaw) || !/\.world-menu-foot-btn span\s*\{[\s\S]*text-overflow:\s*ellipsis/.test(cssRaw)) {
+  fail('world menu footer buttons must stay single-line and use horizontal overflow instead of wrapping');
+}
+if (!/\.brand-banner\s*\{[\s\S]*top:\s*76px[\s\S]*bottom:\s*auto/.test(cssRaw)) {
+  fail('Autoinventive banner must be positioned under the shared-room pill');
+}
+const renderDefaults = {
+  'tinyworld:render:version': '24',
+  'tinyworld:render:resolution': '0.75',
+  'tinyworld:render:brightness': '0.80',
+  'tinyworld:render:lighting': '0.50',
+  'tinyworld:render:ambientFill': '1.00',
+  'tinyworld:render:frontFill': '0.10',
+  'tinyworld:render:sideFill': '0.10',
+  'tinyworld:render:backFill': '0.10',
+  'tinyworld:render:saturation': '1.09',
+  'tinyworld:render:contrast': '1.20',
+  'tinyworld:render:tiltBlur': '10.5',
+  'tinyworld:render:tiltFocus': '21',
+  'tinyworld:render:planesEnabled': '0',
+};
+for (const [key, value] of Object.entries(renderDefaults)) {
+  if (!shippedDefaults.settings || shippedDefaults.settings[key] !== value) {
+    fail('shipped render default mismatch for ' + key);
+  }
+}
+let shippedCamera;
+try {
+  shippedCamera = JSON.parse(shippedDefaults.settings['tinyworld:view.camera']);
+} catch (err) {
+  fail('shipped camera default is not valid JSON: ' + err.message);
+}
+if (!shippedCamera || !shippedCamera.target || shippedCamera.target.x !== 0 || shippedCamera.target.z !== 0 || !/const DEFAULT_TARGET = new THREE\.Vector3\(0, 0, 0\)/.test(html) || !/clampTargetToHomeBoard\(\);\s*updateCamera\(\);/.test(html)) {
+  fail('camera defaults must start centered and clamp stale off-board targets before first render');
+}
+if (!/const RENDER_SETTINGS_VERSION = '24'/.test(html) || !/resolution:\s*'0\.75'/.test(html) || !/brightness:\s*'0\.80'/.test(html) || !/tiltBlur:\s*'10\.5'/.test(html)) {
+  fail('hard-coded render defaults must match the shipped v24 defaults');
+}
+if (!/id="welcome-modal"[^>]*data-feature-hidden="welcome-start"/.test(htmlRaw) || !/function initWelcomeDialog\(\) \{[\s\S]*modal\.hidden = true;[\s\S]*aria-hidden/.test(html)) {
+  fail('welcome start modal must remain hidden at boot');
+}
+if (!/#account-modal \.modal-card/.test(cssRaw) || !/#profile-photo-file::file-selector-button/.test(cssRaw) || !/#account-modal \.tab-bar button\.active/.test(cssRaw)) {
+  fail('account modal must use scoped block-button styling, including the photo picker');
+}
+if (!/var CLOUD_OCCLUSION_RENDER_ORDER = 18/.test(html) || !/mesh\.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER/.test(html) || !/foreground clouds veil full-opacity terrain/.test(html)) {
+  fail('foreground clouds must render late enough to obscure terrain while keeping depth testing');
+}
+if (!/function queueActiveSnapshotUpdate/.test(html) || !/window\.addEventListener\('tinyworld:world-changed', queueActiveSnapshotUpdate\)/.test(html) || !/setInterval\(updateActiveSnapshot, 5000\)/.test(html)) {
+  fail('cloud-backed world slots must queue autosave snapshots on world changes');
 }
 if (!/btn\.dataset\.posType = posType/.test(html) || !/close\.dataset\.posType = 'neutral'/.test(html) || !/btn\.dataset\.posType = 'tertiary'/.test(html)) {
   fail('radial action buttons must carry toolbar-compatible data-pos-type values');
@@ -655,6 +723,9 @@ if (!/wasm-unsafe-eval/.test(JSON.stringify(headers)) || !/worker-src 'self' blo
 }
 if (!/function twCloudSyncLocalWorldsToCloud/.test(html) || !/function twCloudSyncAssetsBothWays/.test(html) || !/\/api\/assets/.test(html)) {
   fail('local worlds and asset libraries must sync to the authenticated DB APIs');
+}
+if (!/function queueActiveSnapshotUpdate/.test(html) || !/window\.addEventListener\('tinyworld:world-changed', queueActiveSnapshotUpdate\)/.test(html) || !/setInterval\(updateActiveSnapshot, 5000\)/.test(html)) {
+  fail('cloud-backed worlds must regularly and edit-trigger sync their active snapshot');
 }
 if (!/engine\/world\/38-multiplayer-partykit\.js/.test(htmlRaw) || !/function wirePartyKitMultiplayer/.test(html)) {
   fail('PartyKit multiplayer browser module must be loaded');

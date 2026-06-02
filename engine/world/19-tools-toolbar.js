@@ -1246,6 +1246,7 @@
     "wooden-fence": "<svg viewBox=\"0 0 512 512\"><path fill=\"currentColor\" d=\"M149.725 16.338L90.627 79.926v348.678l59.098 63.582l18.584-61.58h51.895l37.91 61.58l37.91-61.58h51.895l18.584 61.58l59.098-63.582V79.926l-59.098-63.588l-19.188 63.588v1.97h-50.058v-1.97l-39.143-63.588l-39.142 63.588v1.97h-50.06v-1.97zm19.187 84.244h50.06v142.486h-50.06zm128.346 0h50.058v142.486h-50.058zM168.912 261.756h50.06v150.162h-50.06zm128.346 0h50.058v150.162h-50.058z\"/></svg>",
     "lamp-post": "<svg viewBox=\"0 0 512 512\"><path d=\"M244 30h24v26h-24z\"/><path d=\"M256 52l66 104H190z\"/><path d=\"M186 156h140v34H186z\"/><path d=\"M240 190h32v266h-32z\"/><path d=\"M166 456h180v28H166z\"/></svg>",
     "spotlight": "<svg viewBox=\"0 0 512 512\"><path d=\"M104 122l152 70-36 78-152-70z\"/><path d=\"M230 178L470 270V152z\"/></svg>",
+    "mooring": "<svg viewBox=\"0 0 512 512\"><path fill=\"currentColor\" d=\"M128 96a64 64 0 1 0 0 128a64 64 0 0 0 0-128zm256 192a64 64 0 1 0 0 128a64 64 0 0 0 0-128zM166 238c44 70 106 116 191 138l10-36c-75-20-126-58-167-124zm162-112c-80 11-141 48-184 112l31 20c37-55 87-85 159-96zM318 54l128 54l-98 96l-17-74l-74-17z\"/></svg>",
   };
   // tool id (or kind) -> glyph name
   const TOOL_GLYPH_NAME = {
@@ -1275,7 +1276,8 @@
       "cow": "cow",
       "sheep": "sheep",
       "lamp-post": "lamp-post",
-      "spotlight": "spotlight"
+      "spotlight": "spotlight",
+      "mooring": "mooring"
   };
   // House variants get distinct building glyphs so they stay easy to tell apart.
   const HOUSE_VARIANT_GLYPH = { cottage: 'house', manor: 'family-house', tower: 'watchtower', turret: 'castle', skyscraper: 'modern-city' };
@@ -1317,7 +1319,7 @@
 
   function buildToolButton(t, opts) {
     const btn = document.createElement('button');
-    btn.className = 'tool' + ((opts && opts.flyout) ? ' flyout-tool' : '') + ((t.eraser || t.select || t.mooring) ? ' icon-only' : '');
+    btn.className = 'tool' + ((opts && opts.flyout) ? ' flyout-tool' : '') + ((t.eraser || t.select) ? ' icon-only' : '');
     btn.dataset.id = t.id;
     btn.type = 'button';
     const toolTip = t.label + (t.shortcut ? ' (' + t.shortcut.toUpperCase() + ')' : '');
@@ -1326,10 +1328,10 @@
     const posType = buttonPosTypeForTool(t);
     if (posType) btn.dataset.posType = posType;
 
-    if (t.eraser || t.select || t.mooring) {
+    if (t.eraser || t.select) {
       const icon = document.createElement('span');
       icon.className = 'tool-icon';
-      icon.innerHTML = toolbarIconSvg(t.eraser ? 'erase' : (t.mooring ? 'mooring' : 'select'));
+      icon.innerHTML = toolbarIconSvg(t.eraser ? 'erase' : 'select');
       btn.appendChild(icon);
     } else if (t.auto) {
       const swatch = document.createElement('div');

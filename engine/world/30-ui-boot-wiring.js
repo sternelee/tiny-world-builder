@@ -16,41 +16,10 @@
 
   function initWelcomeDialog() {
     const modal = document.getElementById('welcome-modal');
-    const closeBtn = document.getElementById('welcome-close');
-    const farmBtn = document.getElementById('welcome-farm');
-    const vehicleBtn = document.getElementById('welcome-vehicle');
     if (!modal) return;
-
-    const isDirectVehicleDemo = !!getVehicleDemoUrlRequest();
-    const isDirectIslandStressDemo = !!getIslandStressDemoUrlRequest();
-
-    // Show welcome unless the user came with ?demo=vehicles (direct jump to cars)
-    if (!isDirectVehicleDemo && !isDirectIslandStressDemo) {
-      openTinyModal(modal, farmBtn || closeBtn);
-    } else {
-      // Direct demo URL → auto-dismiss welcome and run the demo
-      if (typeof dismissWelcomeForDemo === 'function') {
-        setTimeout(dismissWelcomeForDemo, 50);
-      }
-    }
-
-    function closeAndStart(startFn) {
-      closeTinyModal(modal);
-      if (typeof startFn === 'function') startFn();
-    }
-
-    modal.__closeModalHandler = () => closeTinyModal(modal);
-    closeBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
-
-    if (farmBtn) farmBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
-    if (vehicleBtn) vehicleBtn.addEventListener('click', () => closeAndStart(startVehicleDemo));
-
-    modal.addEventListener('click', e => {
-      if (e.target === modal) closeAndStart(startFarmWorld);
-    });
-    window.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && !modal.hidden) closeAndStart(startFarmWorld);
-    });
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    modal.dataset.featureHidden = modal.dataset.featureHidden || 'welcome-start';
   }
 
   // -------- cloud worlds / assets --------
@@ -2696,6 +2665,15 @@
       if (twCloudIdForSlot(list[idx])) twCloudQueueLocalWorldSync();
     }
 
+    let activeSnapshotTimer = null;
+    function queueActiveSnapshotUpdate() {
+      clearTimeout(activeSnapshotTimer);
+      activeSnapshotTimer = setTimeout(() => {
+        activeSnapshotTimer = null;
+        updateActiveSnapshot();
+      }, 800);
+    }
+
     function renameActive(name) {
       const id = getActiveWorldId();
       const list = readWorldsMeta();
@@ -2807,6 +2785,7 @@
 
     // Cheap live update — periodically refresh the active slot snapshot
     // (every 5s) so the popup list reflects the user's current world.
+    window.addEventListener('tinyworld:world-changed', queueActiveSnapshotUpdate);
     setInterval(updateActiveSnapshot, 5000);
 
     paintLabel();

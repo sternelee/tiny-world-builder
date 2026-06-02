@@ -3,7 +3,7 @@
   const DEFAULT_CAMERA_MODE = 'perspective';
   const DEFAULT_AZIMUTH = Math.PI * 0.32;
   const DEFAULT_POLAR = Math.PI * 0.30;
-  const DEFAULT_TARGET = new THREE.Vector3(0.35, 0, 0.15);
+  const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
   const MIN_VIEW_SIZE = 1.55;
   const MAX_VIEW_SIZE_BASE = 64;
 
@@ -140,6 +140,7 @@
     updateLandscapeClipBounds();
     if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
   }
+  clampTargetToHomeBoard();
   updateCamera();
 
   // -------- lighting --------
@@ -272,4 +273,3 @@
   // system (module 23) hasn't loaded yet; calling it here was a guarded no-op
   // in the original single-script build and now throws on the forward ref.
   applyTiltShiftSettings();
-

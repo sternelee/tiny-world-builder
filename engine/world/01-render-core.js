@@ -211,41 +211,32 @@
     crowdEnabled: 'tinyworld:crowd:enabled',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '23';
+  const RENDER_SETTINGS_VERSION = '24';
   const RENDER_DEFAULTS = {
-    // Defaults tuned to keep image quality crisp while still trimming
-    // a few cheap things off the per-frame budget.
-    //   - resolution kept at 1 (dropping it to 0.85 made silhouettes
-    //     pixelated under DPR>1 — the visible "smoothing fails" issue).
-    //   - shadow kept at 'balanced' (PCF filtering 1024 map).  'low'
-    //     swaps in BasicShadowMap with no filtering → jagged dropouts.
-    //   - preview/ghost boards are disabled by default; editable island
-    //     expansion should be explicit, not hidden render work.
-    //   - clouds + cloudShadow trimmed because those are pure CPU/GPU saves
-    //     with no aesthetic cost.
-    //   - post-processing settings were removed in v14; colour sliders are
-    //     direct CSS filters on the canvas.
-    resolution: '1',
-    saturation: '1',
-    contrast: '1',
-    brightness: '1',
+    // Defaults tuned from the light-mode render panel: lower internal
+    // resolution, softer direct light, full ambient fill, and stronger colour
+    // grade/tilt blur. Colour sliders are direct CSS filters on the canvas.
+    resolution: '0.75',
+    saturation: '1.09',
+    contrast: '1.20',
+    brightness: '0.80',
     uiTheme: 'auto',
     shadow: 'balanced',
-    lighting: '1.12',
-    ambientFill: '0.50',
-    frontFill: '0.46',
-    sideFill: '0.36',
-    backFill: '0.30',
+    lighting: '0.50',
+    ambientFill: '1.00',
+    frontFill: '0.10',
+    sideFill: '0.10',
+    backFill: '0.10',
     visibleDistance: '0',
     visibleSize: '0',
     clouds: '0.4',
     cloudSpeed: '0.35',
-    cloudHeight: '6',
+    cloudHeight: '9.5',
     cloudShadow: '0',
     planesEnabled: '0',
     distantWorlds: '1',
-    cloudSea: '0',
-    cloudStyle: 'voxel',
+    cloudSea: '1',
+    cloudStyle: 'soft',
     starVault: '1',
     starVaultStrength: '0.92',
     cloudRimLight: '0.78',
@@ -256,8 +247,8 @@
     distanceMist: '0.36',
     backdrop: '0.78',
     backdropVignette: '0.24',
-    tiltBlur: '1.0',
-    tiltFocus: '65',
+    tiltBlur: '10.5',
+    tiltFocus: '21',
     ghostOpacity: '0',
     floorOpacity: '0',
     objectOpacity: '0',
@@ -348,17 +339,17 @@
     return { w, h };
   }
   const BASE_DPR_CAP = window.matchMedia && window.matchMedia('(max-width: 800px)').matches ? 1.5 : 2.0;
-  let renderResolutionScale = storedNumber(RENDER_LS.resolution, 0.5, 0.25, 1.5);
-  let renderBrightness = storedNumber(RENDER_LS.brightness, 1.0, 0.75, 1.3);
+  let renderResolutionScale = storedNumber(RENDER_LS.resolution, parseFloat(RENDER_DEFAULTS.resolution), 0.25, 1.5);
+  let renderBrightness = storedNumber(RENDER_LS.brightness, parseFloat(RENDER_DEFAULTS.brightness), 0.75, 1.3);
   let uiThemeMode = ['auto', 'light', 'dark'].includes(localStorage.getItem(RENDER_LS.uiTheme)) ? localStorage.getItem(RENDER_LS.uiTheme) : 'auto';
-  let renderSaturation = storedNumber(RENDER_LS.saturation, 1.0, 0.8, 1.3);
-  let renderContrast = storedNumber(RENDER_LS.contrast, 1.0, 0.85, 1.25);
+  let renderSaturation = storedNumber(RENDER_LS.saturation, parseFloat(RENDER_DEFAULTS.saturation), 0.8, 1.3);
+  let renderContrast = storedNumber(RENDER_LS.contrast, parseFloat(RENDER_DEFAULTS.contrast), 0.85, 1.25);
   let renderShadowQuality = localStorage.getItem(RENDER_LS.shadow) || 'balanced';
-  let renderLighting = storedNumber(RENDER_LS.lighting, 1.0, 0.5, 1.45);
-  let renderAmbientFill = storedNumber(RENDER_LS.ambientFill, 0.58, 0, 1);
-  let renderFrontFill = storedNumber(RENDER_LS.frontFill, 0.55, 0, 1);
-  let renderSideFill = storedNumber(RENDER_LS.sideFill, 0.45, 0, 1);
-  let renderBackFill = storedNumber(RENDER_LS.backFill, 0.38, 0, 1);
+  let renderLighting = storedNumber(RENDER_LS.lighting, parseFloat(RENDER_DEFAULTS.lighting), 0.5, 1.45);
+  let renderAmbientFill = storedNumber(RENDER_LS.ambientFill, parseFloat(RENDER_DEFAULTS.ambientFill), 0, 1);
+  let renderFrontFill = storedNumber(RENDER_LS.frontFill, parseFloat(RENDER_DEFAULTS.frontFill), 0, 1);
+  let renderSideFill = storedNumber(RENDER_LS.sideFill, parseFloat(RENDER_DEFAULTS.sideFill), 0, 1);
+  let renderBackFill = storedNumber(RENDER_LS.backFill, parseFloat(RENDER_DEFAULTS.backFill), 0, 1);
   function renderBudgetForGrid(grid) {
     const g = coerceGridSize(grid, GRID);
     return { maxDistance: g <= 12 ? 4 : 2, ghostRadius: g <= 12 ? 4 : 2, visibleScale: 1.125, homeWindowMin: g, homeWindowMax: g, queueCap: 256 };

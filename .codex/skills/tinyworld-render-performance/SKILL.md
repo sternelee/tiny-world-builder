@@ -131,7 +131,9 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   adjacency-sensitive path/water/shore details before the final settle pass.
 - Stats overlay (`?stats=1` or backtick key) reads `renderer.info` and reports FPS, draws, tris, geoms, mats, programs, textures, ghost-board count + queue depth. It also shows the repaint profiler when visible: render submit buckets, frame tick buckets, `setCell` refresh/plan/save time, tile/object/extras rebuild time, queue drains, and dispose traversal. Use `?repaint=1` or `window.__tinyworldRepaintProfile.setEnabled(true)` for a focused repaint breakdown, and `window.__tinyworldRepaintProfile.snapshot()` to inspect the current top buckets.
 - Camera culling runs immediately before `renderer.render()` in `updateSceneVisibilityForCamera()`. Keep this scene-level pass in addition to mesh `frustumCulled`: it hides off-frustum home/ghost/editable-island roots before the camera and shadow passes. When the camera moves below an island, terrain tile roots must stay visible so the side walls remain behind underside greebles; fade only top-side object/extras with `renderCullOpacity`, and mask that transition with a short event-driven 2D `under-occlusion-cloud-wipe` sweep. The cloud wipe must not stay as a persistent full-screen fog layer while the camera rests in the transition band. The stats overlay `culled` row is the quick sanity check that draw/tris totals are responding to what is actually visible.
-- Default color grade should stay neutral: brightness 1, saturation 1, contrast 1.
+- Current default color grade is intentionally stylized: resolution 75%,
+  brightness 80%, saturation 109%, contrast 120%, lighting 50%, ambient fill
+  100%, front/side/back fill 10%, tilt blur 10.5px, and tilt focus 21%.
 - Render settings are user-adjustable and persisted in `localStorage` under `tinyworld:render:*`.
 - Tilt-shift blur stays active while the camera is moving, panning, zooming,
   home-tweening, or first-person walking/look-moving. Keep `markCameraMoving()`
