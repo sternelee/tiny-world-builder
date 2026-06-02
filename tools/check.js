@@ -635,6 +635,12 @@ if (!/data-action="share"/.test(htmlRaw) || !/\/api\/share/.test(html)) {
 if (!/data-action="collaborate"/.test(htmlRaw) || !/worldMenuCollaborateUrl/.test(html) || !/searchParams\.set\('party'/.test(html)) {
   fail('world menu must expose collaborate URL creation through share id + PartyKit room id');
 }
+if (!/<div[^>]+id="wallet-payment-section"[^>]+hidden[^>]+data-feature-hidden="wallet-payment"/.test(htmlRaw)) {
+  fail('wallet payment UI must remain hidden until payments are re-enabled');
+}
+if (!/<div[^>]+id="voice-section"[^>]+hidden[^>]+data-feature-hidden="livekit-voice"/.test(htmlRaw)) {
+  fail('LiveKit voice UI must remain hidden until voice is re-enabled');
+}
 if (!/params\.get\('share'\)/.test(html) || !/\/api\/share\?id=/.test(html)) {
   fail('shared worlds must load from ?share= ids through the same-origin API');
 }
