@@ -2038,7 +2038,19 @@
         }
         if (window.__tinyworldFlags && window.__tinyworldFlags.inspectorV2) {
           const ap = cell => normalizeAppearance(cell.appearance) || {};
-          if (objectCells.length === 1 && objectCells[0].kind === 'voxel-build') {
+          // Sub-object part editing only works for home-board voxel-builds whose
+          // stamp is voxel-based (customParts stamps have no per-part key path, and
+          // island objects render outside the home cellMeshes path). Only offer the
+          // affordance where it actually does something.
+          const subT = selectedTargets[0] || null;
+          const subStamp = (subT && typeof getVoxelBuildStamp === 'function')
+            ? getVoxelBuildStamp(subT.cell && subT.cell.appearance && subT.cell.appearance.voxelBuildId)
+            : null;
+          const subSupported = !!(subT && subStamp
+            && Array.isArray(subStamp.voxels) && subStamp.voxels.length
+            && !(Array.isArray(subStamp.customParts) && subStamp.customParts.length)
+            && (typeof isOutsideHomeGrid !== 'function' || !isOutsideHomeGrid(subT.x, subT.z)));
+          if (objectCells.length === 1 && objectCells[0].kind === 'voxel-build' && subSupported) {
             const editing = !!(window.__tinyworldSubEdit && window.__tinyworldSubEdit.isActive && window.__tinyworldSubEdit.isActive());
             addRow('Edit', { key: 'subEdit', label: 'Parts', control: 'actions', options: [
               { label: editing ? 'Exit part edit' : 'Edit parts', value: 'toggle' },
