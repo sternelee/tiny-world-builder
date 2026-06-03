@@ -254,23 +254,35 @@
   const EXPLODE_LIFT = 0.9;     // extra upward lift at full explode
   let explodeTarget = 0;        // 0 = collapsed, 1 = exploded
   let explodeProgress = 0;
-  let explodeParts = [];        // [{ mesh, baseX, baseY, baseZ }]
+  let explodeParts = [];        // [{ node, basePos:Vec3, baseCenter:Vec3 }]
 
+  // A part may be a single voxel mesh OR a group (house window/door/roof = boxes
+  // at origin). Pushing on group.position alone is a no-op for origin groups, so
+  // we explode by each part's CENTROID (in its parent-local frame): direction
+  // from the object centre, scaled by the centroid distance.
   function captureExplodeParts() {
     explodeParts = [];
     const obj = subEditObject();
     if (!obj) return;
+    obj.updateMatrixWorld(true);
     obj.traverse(o => {
-      if (o.isMesh && o.userData && o.userData.partKey) {
-        explodeParts.push({ mesh: o, baseX: o.position.x, baseY: o.position.y, baseZ: o.position.z });
-      }
+      if (!(o.userData && o.userData.partKey)) return;
+      const box = new THREE.Box3().setFromObject(o);
+      if (box.isEmpty()) return;
+      const worldCenter = box.getCenter(new THREE.Vector3());
+      const parent = o.parent || obj;
+      const baseCenter = parent.worldToLocal(worldCenter.clone());
+      explodeParts.push({ node: o, basePos: o.position.clone(), baseCenter });
     });
   }
   function applyExplode(amount) {
     for (const p of explodeParts) {
-      if (!p.mesh.parent) continue;
-      const k = 1 + EXPLODE_OUT * amount;
-      p.mesh.position.set(p.baseX * k, p.baseY * k + EXPLODE_LIFT * amount, p.baseZ * k);
+      if (!p.node.parent) continue;
+      p.node.position.set(
+        p.basePos.x + p.baseCenter.x * EXPLODE_OUT * amount,
+        p.basePos.y + p.baseCenter.y * EXPLODE_OUT * amount + EXPLODE_LIFT * amount,
+        p.basePos.z + p.baseCenter.z * EXPLODE_OUT * amount
+      );
     }
     reHighlightSelection();
   }
