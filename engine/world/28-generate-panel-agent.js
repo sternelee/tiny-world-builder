@@ -1683,6 +1683,23 @@
         renderSelection();
         return;
       }
+      if (rowKey === 'partMove') {
+        const s = 0.25; const se = window.__tinyworldSubEdit;
+        if (se && se.movePart) {
+          if (value === 'x-') se.movePart(-s, 0, 0);
+          else if (value === 'x+') se.movePart(s, 0, 0);
+          else if (value === 'y-') se.movePart(0, -s, 0);
+          else if (value === 'y+') se.movePart(0, s, 0);
+          else if (value === 'z-') se.movePart(0, 0, -s);
+          else if (value === 'z+') se.movePart(0, 0, s);
+        }
+        return;
+      }
+      if (rowKey === 'partScale') {
+        const se = window.__tinyworldSubEdit;
+        if (se && se.scalePart) se.scalePart(value === 'down' ? 0.85 : 1.18);
+        return;
+      }
       if (rowKey === 'lightType' || rowKey === 'lightColor' || rowKey === 'lightIntensity' || rowKey === 'lightRange') {
         updateSelectedBoardObjects(target => {
           const appearance = Object.assign({}, normalizeAppearance(target.cell.appearance) || {});
@@ -2001,6 +2018,17 @@
             addRow('Edit', { key: 'subEdit', label: 'Parts', control: 'actions', options: [
               { label: editing ? 'Exit part edit' : 'Edit parts', value: 'toggle' },
             ] });
+            const se = window.__tinyworldSubEdit;
+            if (editing && se && se.selectedInfo && se.selectedInfo()) {
+              addRow('Transform', { key: 'partMove', label: 'Part move', control: 'move', options: [
+                { label: 'X-', value: 'x-' }, { label: 'X+', value: 'x+' },
+                { label: 'Y-', value: 'y-' }, { label: 'Y+', value: 'y+' },
+                { label: 'Z-', value: 'z-' }, { label: 'Z+', value: 'z+' },
+              ] });
+              addRow('Transform', { key: 'partScale', label: 'Part size', control: 'stepper', options: [
+                { label: 'Down', value: 'down' }, { label: 'Up', value: 'up' },
+              ] });
+            }
           }
           addRows('Transform', [
             { key: 'posX', label: 'Pos X', control: 'numeric', min: -0.5, max: 0.5, step: 0.01, currentValue: uniformValue(objectCells, c => +(c.offsetX || 0).toFixed(2)) },

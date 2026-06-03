@@ -18,8 +18,19 @@
   });
   const SUBEDIT_HOVER_SCALE = 1.14;
 
+  const subEditSelGroup = new THREE.Group();
+  subEditSelGroup.name = 'sub-edit-selection';
+  if (typeof xrWorldRoot !== 'undefined' && xrWorldRoot) xrWorldRoot.add(subEditSelGroup);
+  else if (typeof scene !== 'undefined' && scene) scene.add(subEditSelGroup);
+  const subEditSelMat = new THREE.MeshBasicMaterial({
+    color: 0xff8a3c, side: THREE.BackSide, transparent: true, opacity: 0.95,
+    depthWrite: false, depthTest: true,
+  });
+  const SUBEDIT_SEL_SCALE = 1.18;
+
   let subEditCellX = null, subEditCellZ = null;     // cell currently in edit mode
   let currentHoverPart = null;                       // { mesh, partKey, voxelCoord }
+  let selectedPartKey = null;                        // locked-in selected part key
   const _subEditNdc = new THREE.Vector2();
 
   function subEditActive() {
@@ -87,11 +98,74 @@
     highlightPart(hit.mesh);
   }
 
+  // --- part selection + transform (req 9) ---
+  function clearSelMeshes() {
+    while (subEditSelGroup.children.length) subEditSelGroup.children.pop();
+  }
+  function highlightSelectedMesh(partMesh) {
+    clearSelMeshes();
+    if (!partMesh || !partMesh.geometry) return;
+    partMesh.updateMatrixWorld(true);
+    const hull = new THREE.Mesh(partMesh.geometry, subEditSelMat);
+    hull.matrixAutoUpdate = false;
+    hull.matrix.copy(partMesh.matrixWorld);
+    hull.matrix.multiply(new THREE.Matrix4().makeScale(SUBEDIT_SEL_SCALE, SUBEDIT_SEL_SCALE, SUBEDIT_SEL_SCALE));
+    hull.renderOrder = 1001;
+    subEditSelGroup.add(hull);
+  }
+  function findPartMesh(partKey) {
+    const obj = subEditObject();
+    if (!obj) return null;
+    let found = null;
+    obj.traverse(o => { if (!found && o.userData && o.userData.partKey === partKey) found = o; });
+    return found;
+  }
+  function reHighlightSelection() {
+    if (!selectedPartKey) { clearSelMeshes(); return; }
+    highlightSelectedMesh(findPartMesh(selectedPartKey));
+  }
+  function selectPart(partKey) {
+    selectedPartKey = partKey || null;
+    reHighlightSelection();
+    // refresh inspector so per-part transform rows appear
+    if (typeof renderSelection === 'function') { try { renderSelection(); } catch (_) {} }
+  }
+  function onSubEditPointerDown(e) {
+    if (!subEditActive() || e.button !== 0) return;
+    const hit = pickSubPart(e.clientX, e.clientY);
+    if (hit) selectPart(hit.partKey);
+  }
+
+  // Mutate the selected part's override on the real cell appearance and re-render
+  // (which reapplies overrides), then re-acquire + re-highlight the part.
+  function mutateSelectedPart(fn) {
+    if (selectedPartKey === null || subEditCellX === null) return false;
+    if (typeof getWorldCell !== 'function' || typeof setCell !== 'function') return false;
+    const cell = getWorldCell(subEditCellX, subEditCellZ);
+    if (!cell) return false;
+    const appearance = Object.assign({}, (typeof normalizeAppearance === 'function' ? normalizeAppearance(cell.appearance) : cell.appearance) || {});
+    const parts = Object.assign({}, appearance.parts || {});
+    const cur = Object.assign({ ox: 0, oy: 0, oz: 0, sx: 1, sy: 1, sz: 1 }, parts[selectedPartKey] || {});
+    fn(cur);
+    parts[selectedPartKey] = cur;
+    appearance.parts = parts;
+    setCell(subEditCellX, subEditCellZ, Object.assign({}, cell, { appearance, animate: false, impactDust: false }));
+    reHighlightSelection();
+    return true;
+  }
+  function movePart(dx, dy, dz) {
+    return mutateSelectedPart(c => { c.ox += dx || 0; c.oy += dy || 0; c.oz += dz || 0; });
+  }
+  function scalePart(factor) {
+    const f = Number(factor) || 1;
+    return mutateSelectedPart(c => { c.sx *= f; c.sy *= f; c.sz *= f; });
+  }
+
   function enterSubEdit(x, z) {
     if (typeof setVoxelSubEditCell !== 'function') return false;
     subEditCellX = x; subEditCellZ = z;
     setVoxelSubEditCell(x, z);
-    clearHoverPart();
+    clearHoverPart(); selectedPartKey = null; clearSelMeshes();
     if (typeof renderCellObject === 'function') renderCellObject(x, z, { animate: false });
     return true;
   }
@@ -99,6 +173,7 @@
   function exitSubEdit() {
     const hadX = subEditCellX, hadZ = subEditCellZ;
     subEditCellX = null; subEditCellZ = null;
+    selectedPartKey = null; clearSelMeshes();
     if (typeof setVoxelSubEditCell === 'function') setVoxelSubEditCell(null, null);
     clearHoverPart();
     if (hadX !== null && typeof renderCellObject === 'function') renderCellObject(hadX, hadZ, { animate: false });
@@ -106,6 +181,7 @@
 
   if (typeof renderer !== 'undefined' && renderer && renderer.domElement) {
     renderer.domElement.addEventListener('pointermove', onSubEditPointerMove);
+    renderer.domElement.addEventListener('pointerdown', onSubEditPointerDown);
   }
 
   window.__tinyworldSubEdit = {
@@ -113,6 +189,10 @@
     exit: exitSubEdit,
     isActive: subEditActive,
     hoverInfo: () => currentHoverPart ? { partKey: currentHoverPart.partKey, voxelCoord: currentHoverPart.voxelCoord } : null,
+    selectPart,
+    selectedInfo: () => selectedPartKey ? { partKey: selectedPartKey } : null,
+    movePart,
+    scalePart,
     _pick: pickSubPart,
     _object: subEditObject,
   };

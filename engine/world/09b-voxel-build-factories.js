@@ -371,17 +371,22 @@
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
     let trimBase = null;
+    const partOverrides = (typeof normalizeAppearance === 'function' ? (normalizeAppearance(opts.appearance) || {}) : (opts.appearance || {})).parts || {};
     for (const v of stamp.voxels) {
-      const x = (v.x - centerX) * unit;
-      const y = (v.y - minY) * unit + unit / 2;
-      const z = (v.z - centerZ) * unit;
+      const partKey = 'v:' + v.x + ',' + v.y + ',' + v.z;
+      const ov = partOverrides[partKey] || null;
+      // Per-part override: offset in voxel units, scale multiplies the cube.
+      const sx = ov ? ov.sx : 1, sy = ov ? ov.sy : 1, sz = ov ? ov.sz : 1;
+      const x = (v.x - centerX) * unit + (ov ? ov.ox * unit : 0);
+      const y = (v.y - minY) * unit + unit / 2 + (ov ? ov.oy * unit : 0);
+      const z = (v.z - centerZ) * unit + (ov ? ov.oz * unit : 0);
       const mat = voxelAppearanceMaterial(voxelBuildMaterial(v.color), voxelAppearanceRoleForColor(v.color), opts.appearance);
       trimBase = trimBase || mat;
-      const vm = vbox(g, unit, unit, unit, x, y, z, mat);
+      const vm = vbox(g, unit * sx, unit * sy, unit * sz, x, y, z, mat);
       if (opts.editable && vm) {
         // Stable per-voxel identity for sub-object hover/select/sculpt. Keyed on
         // grid coord (NOT array index) so overrides survive add/remove + reload.
-        vm.userData.partKey = 'v:' + v.x + ',' + v.y + ',' + v.z;
+        vm.userData.partKey = partKey;
         vm.userData.voxelCoord = { x: v.x, y: v.y, z: v.z };
         vm.userData.noBatch = true;
       }

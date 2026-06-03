@@ -51,3 +51,14 @@ test('light defaults fill when omitted, invalid type drops whole spec', () => {
 test('unknown keys still dropped (allowlist intact)', () => {
   assert.equal(normalizeAppearance({ metalness: 0.5, roughness: 0.2 }), null);
 });
+
+test('parts: valid voxel-key override is kept + clamped', () => {
+  const a = normalizeAppearance({ parts: { 'v:1,2,3': { ox: 0.5, oy: 99, sx: 0.05, sz: 2 } } });
+  assert.deepEqual(a.parts['v:1,2,3'], { ox: 0.5, oy: 8, oz: 0, sx: 0.1, sy: 1, sz: 2 });
+});
+
+test('parts: identity override is dropped, invalid keys rejected', () => {
+  assert.equal(normalizeAppearance({ parts: { 'v:0,0,0': { ox: 0, sx: 1 } } }), null);
+  assert.equal(normalizeAppearance({ parts: { 'bad key': { ox: 1 } } }), null);
+  assert.equal(normalizeAppearance({ parts: { 'p:cable-1': { sx: 2 } } }).parts['p:cable-1'].sx, 2);
+});
