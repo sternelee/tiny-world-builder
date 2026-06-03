@@ -166,6 +166,7 @@
     subEditCellX = x; subEditCellZ = z;
     setVoxelSubEditCell(x, z);
     clearHoverPart(); selectedPartKey = null; clearSelMeshes();
+    explodeTarget = 0; explodeProgress = 0; explodeParts = [];
     if (typeof renderCellObject === 'function') renderCellObject(x, z, { animate: false });
     return true;
   }
@@ -174,9 +175,56 @@
     const hadX = subEditCellX, hadZ = subEditCellZ;
     subEditCellX = null; subEditCellZ = null;
     selectedPartKey = null; clearSelMeshes();
+    explodeTarget = 0; explodeProgress = 0; explodeParts = [];
     if (typeof setVoxelSubEditCell === 'function') setVoxelSubEditCell(null, null);
     clearHoverPart();
     if (hadX !== null && typeof renderCellObject === 'function') renderCellObject(hadX, hadZ, { animate: false });
+  }
+
+  // --- explode view (req 7): push parts radially outward + up into a sphere
+  // so every sub-part is visible/editable. Animated each frame; parts stay the
+  // same meshes (hover/select/transform still work while exploded). ---
+  const EXPLODE_OUT = 1.6;      // radial multiplier at full explode
+  const EXPLODE_LIFT = 0.9;     // extra upward lift at full explode
+  let explodeTarget = 0;        // 0 = collapsed, 1 = exploded
+  let explodeProgress = 0;
+  let explodeParts = [];        // [{ mesh, baseX, baseY, baseZ }]
+
+  function captureExplodeParts() {
+    explodeParts = [];
+    const obj = subEditObject();
+    if (!obj) return;
+    obj.traverse(o => {
+      if (o.isMesh && o.userData && o.userData.partKey) {
+        explodeParts.push({ mesh: o, baseX: o.position.x, baseY: o.position.y, baseZ: o.position.z });
+      }
+    });
+  }
+  function applyExplode(amount) {
+    for (const p of explodeParts) {
+      if (!p.mesh.parent) continue;
+      const k = 1 + EXPLODE_OUT * amount;
+      p.mesh.position.set(p.baseX * k, p.baseY * k + EXPLODE_LIFT * amount, p.baseZ * k);
+    }
+    reHighlightSelection();
+  }
+  function setExplode(on) {
+    explodeTarget = on ? 1 : 0;
+    if (on) captureExplodeParts();
+  }
+  function isExploded() { return explodeTarget > 0.5; }
+  function tickSubEditExplode(dt) {
+    if (!subEditActive()) { if (explodeProgress > 0) { explodeProgress = 0; } return; }
+    if (Math.abs(explodeProgress - explodeTarget) < 0.001) {
+      if (explodeTarget === 0 && explodeParts.length) { applyExplode(0); explodeParts = []; }
+      return;
+    }
+    const step = Math.min(1, (dt || 0.016) * 6);
+    explodeProgress += (explodeTarget - explodeProgress) * step;
+    if (Math.abs(explodeProgress - explodeTarget) < 0.002) explodeProgress = explodeTarget;
+    if (!explodeParts.length && explodeTarget > 0) captureExplodeParts();
+    const eased = explodeProgress * explodeProgress * (3 - 2 * explodeProgress); // smoothstep
+    applyExplode(eased);
   }
 
   if (typeof renderer !== 'undefined' && renderer && renderer.domElement) {
@@ -193,6 +241,9 @@
     selectedInfo: () => selectedPartKey ? { partKey: selectedPartKey } : null,
     movePart,
     scalePart,
+    setExplode,
+    isExploded,
+    _tickExplode: tickSubEditExplode,
     _pick: pickSubPart,
     _object: subEditObject,
   };

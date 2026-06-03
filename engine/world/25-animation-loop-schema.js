@@ -35,6 +35,7 @@
     if (rippleAnims.length) tickRippleAnims(dt);
     if (fp.active) tickFP(dt);
     if (typeof window.__showcaseTick === 'function') window.__showcaseTick(dt);
+    if (window.__tinyworldSubEdit && typeof window.__tinyworldSubEdit._tickExplode === 'function') window.__tinyworldSubEdit._tickExplode(dt);
     repaintProfileEnd('tick.anim', tickStart);
 
     tickStart = repaintProfileBegin();

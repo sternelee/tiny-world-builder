@@ -1683,6 +1683,12 @@
         renderSelection();
         return;
       }
+      if (rowKey === 'subExplode') {
+        const se = window.__tinyworldSubEdit;
+        if (se && se.setExplode) se.setExplode(!(se.isExploded && se.isExploded()));
+        renderSelection();
+        return;
+      }
       if (rowKey === 'partMove') {
         const s = 0.25; const se = window.__tinyworldSubEdit;
         if (se && se.movePart) {
@@ -2019,6 +2025,12 @@
               { label: editing ? 'Exit part edit' : 'Edit parts', value: 'toggle' },
             ] });
             const se = window.__tinyworldSubEdit;
+            if (editing && se && se.setExplode) {
+              const exploded = se.isExploded && se.isExploded();
+              addRow('Edit', { key: 'subExplode', label: 'Explode', control: 'actions', options: [
+                { label: exploded ? 'Collapse' : 'Explode', value: 'toggle' },
+              ] });
+            }
             if (editing && se && se.selectedInfo && se.selectedInfo()) {
               addRow('Transform', { key: 'partMove', label: 'Part move', control: 'move', options: [
                 { label: 'X-', value: 'x-' }, { label: 'X+', value: 'x+' },
