@@ -1848,7 +1848,7 @@
     return g;
   }
 
-  function makeVoxelTree(level = 1, seedX = 0, seedZ = 0) {
+  function makeVoxelTree(level = 1, seedX = 0, seedZ = 0, opts = {}) {
     const g = new THREE.Group();
     const L = Math.max(1, Math.min(MAX_FLOORS, level || 1));
     const trunkH = 0.46 + (L - 1) * 0.08;
@@ -1884,8 +1884,25 @@
     }
     g.userData = { kind: 'tree', swayPhase: Math.random() * Math.PI * 2 };
     castReceive(g);
+    applyEditableObjectParts(g, opts);
     optimizeVoxelObjectGroup(g, { reason: 'voxel-tree' });
     return g;
+  }
+
+  // Generic sub-object support for batched objects (trees, rocks): key each
+  // sub-mesh part:N (stable build order) and apply persisted appearance.parts
+  // overrides BEFORE batching, so recolour/move bake into the batch and show in
+  // normal play; skip batching only while the cell is the active edit target so
+  // parts stay individually pickable. Keys are only stamped when editing or when
+  // overrides exist (no per-mesh string cost in the common case).
+  function applyEditableObjectParts(g, opts) {
+    const normApp = (typeof normalizeAppearance === 'function') ? (normalizeAppearance(opts && opts.appearance) || {}) : ((opts && opts.appearance) || {});
+    const hasParts = !!(normApp.parts && Object.keys(normApp.parts).length);
+    if (!(opts && opts.editable) && !hasParts) return;
+    let pi = 0;
+    g.traverse(o => { if (o.isMesh && !(o.userData && o.userData.partKey)) o.userData.partKey = 'part:' + (pi++); });
+    keyAndApplyHouseParts(g, opts && opts.appearance);
+    if (opts && opts.editable) g.userData.noVoxelBatch = true;
   }
 
   function makeVoxelRock(neighbors, level = 1, seedX = 0, seedZ = 0, inWater = false) {
@@ -2286,7 +2303,7 @@
 
     if (kind === 'voxel-build') mesh = makeVoxelBuildStamp(cell.appearance && cell.appearance.voxelBuildId, { appearance: cell.appearance, editable: subEditable });
     else if (kind === 'model-stamp') mesh = makeModelStamp(cell.appearance && cell.appearance.modelStampId, { appearance: cell.appearance });
-    else if (kind === 'tree') mesh = makeVoxelTree(level, x, z);
+    else if (kind === 'tree') mesh = makeVoxelTree(level, x, z, { editable: subEditable, appearance: cell.appearance });
     else if (kind === 'rock') mesh = makeVoxelRock(getRockNeighbors(x, z), level, x, z, cell.terrain === 'water');
     else if (kind === 'bridge') mesh = makeVoxelBridge(getBridgeOrientation(x, z), level);
     else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level);
