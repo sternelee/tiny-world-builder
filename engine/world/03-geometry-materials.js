@@ -509,7 +509,7 @@
   //   brightness  interior light scale (how visible the fake room is).
   //   reflect     sky reflection strength at grazing angles, 0..1.
   // tint/darkness/brightness/reflect are shader-only, so they update live.
-  const WINDOW = { glassRatio: 0.86, tint: 0xd6e6ff, darkness: 0.04, brightness: 1.0, reflect: 0.5 };
+  const WINDOW = { glassRatio: 0.86, tint: 0xc4d6ea, darkness: 0.12, brightness: 1.0, reflect: 0.5 };
   if (typeof window !== 'undefined') window.__tinyworldWindow = WINDOW;
 
   // Build-scoped per-object override (an appearance.window spec). renderCellObject
@@ -526,9 +526,7 @@
     const r = o && o.glassRatio;
     return (typeof r === 'number') ? r : WINDOW.glassRatio;
   }
-  const _wiInvMat  = new THREE.Matrix4();
-  const _wiCamLoc  = new THREE.Vector3();
-  const _wiPos     = new THREE.Vector3();
+  const _wiPos = new THREE.Vector3();
 
   M.windowInterior = new THREE.ShaderMaterial({
     // Opaque pane (no transparency sorting); only the outward face is drawn.
@@ -537,15 +535,14 @@
     uniforms: THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
       {
-        uCamLocal: { value: new THREE.Vector3() },    // camera in pane-local space
         uDepth:    { value: 1.7 },                     // room depth, in opening-widths
-        uWall:     { value: new THREE.Color(0x6e6456) },
-        uFloor:    { value: new THREE.Color(0x8a6a44) },
-        uCeil:     { value: new THREE.Color(0x514e57) },
-        uBack:     { value: new THREE.Color(0x615b54) },
-        uLightCol: { value: new THREE.Color(0xffd9a0) },
+        uWall:     { value: new THREE.Color(0x44505f) },// cool, glassy interior (not warm wood)
+        uFloor:    { value: new THREE.Color(0x39434f) },
+        uCeil:     { value: new THREE.Color(0x2f3742) },
+        uBack:     { value: new THREE.Color(0x515f70) },
+        uLightCol: { value: new THREE.Color(0xffcf94) },// warm lamp accent (mostly on "lit" windows)
         uReflect:  { value: new THREE.Color(0x9fc2dd) },// sky tint for glass fresnel
-        uGlass:    { value: new THREE.Color(0.80, 0.86, 0.96) }, // tint*(1-darkness), set per-mesh
+        uGlass:    { value: new THREE.Color(0.78, 0.84, 0.92) }, // tint*(1-darkness), set per-mesh
         uReflectAmt:    { value: 0.5 },                // sky reflection strength, set per-mesh
         uInteriorBright:{ value: 1.0 },                // interior light scale, set per-mesh
         uLit:      { value: 0.0 },                     // EXTRA interior light strength (per-mesh)
@@ -554,8 +551,20 @@
     vertexShader: [
       '#include <fog_pars_vertex>',
       'varying vec3 vLocalPos;',
+      'varying vec3 vCamLocal;',
       'void main() {',
       '  vLocalPos = position;',                     // unit pane: xy in [-0.5,0.5], z = 0
+      // Camera in the pane's own (geometry) space, computed from the model
+      // matrix columns + the built-in cameraPosition. The columns are the
+      // world-space local axes (orthogonal: rotation*scale), so dividing the
+      // projection by each axis' squared length inverts the transform without
+      // needing inverse() (WebGL1) OR a per-draw onBeforeRender CPU update — so
+      // it stays correct through cloning, instancing skips, etc.
+      '  vec3 ax = modelMatrix[0].xyz, ay = modelMatrix[1].xyz, az = modelMatrix[2].xyz;',
+      '  vec3 rel = cameraPosition - modelMatrix[3].xyz;',
+      '  vCamLocal = vec3(dot(rel, ax) / max(dot(ax, ax), 1e-6),',
+      '                   dot(rel, ay) / max(dot(ay, ay), 1e-6),',
+      '                   dot(rel, az) / max(dot(az, az), 1e-6));',
       '  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);',
       '  gl_Position = projectionMatrix * mvPosition;',
       '  #include <fog_vertex>',
@@ -565,13 +574,13 @@
       'precision highp float;',
       '#include <fog_pars_fragment>',
       'varying vec3 vLocalPos;',
-      'uniform vec3 uCamLocal;',
+      'varying vec3 vCamLocal;',
       'uniform float uDepth;',
       'uniform vec3 uWall, uFloor, uCeil, uBack, uLightCol, uReflect, uGlass;',
       'uniform float uLit, uReflectAmt, uInteriorBright;',
       'void main() {',
       '  vec3 ro = vLocalPos;',                       // ray origin on the glass plane (z = 0)
-      '  vec3 rd = normalize(vLocalPos - uCamLocal);',// view ray, heading into the room (rd.z < 0)
+      '  vec3 rd = normalize(vLocalPos - vCamLocal);',// view ray, heading into the room (rd.z < 0)
       '  float rz = min(rd.z, -1e-3);',               // never look "outward"
       '  float tBack = (-uDepth - ro.z) / rz;',       // back wall at z = -uDepth
       '  float dx = abs(rd.x) < 1e-4 ? (rd.x < 0.0 ? -1e-4 : 1e-4) : rd.x;',
@@ -589,9 +598,9 @@
       '  else                 { col = (hit.y < 0.0) ? uFloor : uCeil; }',
       '  col *= mix(0.7, 1.05, depthN);',             // gentle depth shading (keep the room readable)
       '  float ld = length(hit.xy - vec2(0.0, 0.05));',           // warm interior light near back-centre
-      '  float glow = (0.22 + uLit) * smoothstep(0.75, 0.0, ld) * smoothstep(0.0, 0.4, depthN);',
+      '  float glow = (0.18 + uLit) * smoothstep(0.75, 0.0, ld) * smoothstep(0.0, 0.4, depthN);',
       '  col = (col + uLightCol * glow) * uInteriorBright;',      // fill light (+extra when "lit"), scaled by brightness
-      '  vec3 V = normalize(uCamLocal - vLocalPos);', // toward camera (V.z = 1 head-on)
+      '  vec3 V = normalize(vCamLocal - vLocalPos);', // toward camera (V.z = 1 head-on)
       '  float fres = pow(1.0 - clamp(V.z, 0.0, 1.0), 3.0);',
       '  col = mix(col, uReflect, fres * uReflectAmt);', // glassy sky reflection at grazing angles
       '  col *= uGlass;',                             // overall dark glass tint
@@ -631,16 +640,14 @@
     return mesh;
   }
 
-  // Per-draw uniform feed: put the camera into this pane's local space so the
-  // shader's room raycast is correct for however the house was placed/rotated/
-  // scaled, and seed a stable per-window "lit" flag from its world position so a
-  // fraction of windows glow warmly.
+  // Per-draw feed for the SHADER APPEARANCE (the camera/parallax is handled in
+  // the vertex shader). Sets the per-mesh "lit" glow and resolves this pane's
+  // appearance (per-object override over the global WINDOW) into the shared
+  // material uniforms right before it draws — fine because panes are noBatch, so
+  // each is its own mesh drawn sequentially.
   function attachWindowInterior(mesh) {
     mesh.onBeforeRender = function (renderer, scene, camera) {
       const u = M.windowInterior.uniforms;
-      _wiInvMat.copy(this.matrixWorld).invert();
-      _wiCamLoc.setFromMatrixPosition(camera.matrixWorld).applyMatrix4(_wiInvMat);
-      u.uCamLocal.value.copy(_wiCamLoc);
       let lit = this.userData.__wiLit;
       if (lit === undefined) {
         _wiPos.setFromMatrixPosition(this.matrixWorld);
@@ -651,7 +658,7 @@
       u.uLit.value = lit;
 
       // Resolve shader appearance: per-object override (if any) over global WINDOW.
-      // tint may be a number (global default, e.g. 0xd6e6ff) or a '#rrggbb' string
+      // tint may be a number (global default, e.g. 0xc4d6ea) or a '#rrggbb' string
       // (per-object, from the inspector colour picker).
       const o = this.userData.winOverride;
       const tint     = (o && o.tint != null)                   ? o.tint       : WINDOW.tint;

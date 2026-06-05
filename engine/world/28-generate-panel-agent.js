@@ -2134,7 +2134,7 @@
           // Window glass — only meaningful for buildings (they have window panes).
           if (objectCells.some(c => c.kind === 'house' || c.kind === 'voxel-build')) {
             const WG = (typeof window !== 'undefined' && window.__tinyworldWindow) || {};
-            const defTint = '#' + ((WG.tint != null ? WG.tint : 0xd6e6ff) & 0xffffff).toString(16).padStart(6, '0');
+            const defTint = '#' + ((WG.tint != null ? WG.tint : 0xc4d6ea) & 0xffffff).toString(16).padStart(6, '0');
             const winOf = c => ap(c).window || null;
             const winVal = (c, k, dflt) => { const w = winOf(c); return (w && w[k] != null) ? w[k] : dflt; };
             addRows('Windows', [

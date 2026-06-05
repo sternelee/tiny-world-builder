@@ -3345,7 +3345,7 @@
     if (bright) bright.addEventListener('input', () => { W.brightness = clamp(bright.value / 100, 0, 2, 1); commit(false); });
     if (refl)   refl.addEventListener('input',   () => { W.reflect = clamp(refl.value / 100, 0, 1, 0.5); commit(false); });
     if (reset)  reset.addEventListener('click',  () => {
-      W.glassRatio = 0.86; W.tint = 0xd6e6ff; W.darkness = 0.04; W.brightness = 1.0; W.reflect = 0.5;
+      W.glassRatio = 0.86; W.tint = 0xc4d6ea; W.darkness = 0.12; W.brightness = 1.0; W.reflect = 0.5;
       syncInputs(); commit(true);
     });
 
