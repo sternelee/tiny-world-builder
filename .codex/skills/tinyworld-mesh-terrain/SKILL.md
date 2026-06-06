@@ -28,9 +28,10 @@ terrain instead of baking into per-tile `setCell`.
 - Materials use the app's REAL terrain shaders. The geometry is laid out grouped
   by terrain (all tops, then all sides) and `surfaceMesh.material` is a parallel
   array: tops get `terrainVoxelMaterials(t).base`, sides get
-  `terrainRiserMaterial(t)` (the soil/stone risers). Exception: `stone` uses the
-  natural grainy rock material (`M.rock` tops / `M.rockDk` sides, `texStone` @4×)
-  instead of the cottage/masonry brick finish, so it reads as rock, not walls. Those materials compute UVs
+  `terrainRiserMaterial(t)` (the soil/stone risers). Exception: `stone` reads as
+  grainy NOISE rock via `rockNoiseMat` — a grey-tinted clone of the sand material
+  (`M.sand`/`texSand`) — because both the masonry finish (`M.stone`) and the
+  blocky stone pattern (`M.rock`/`texStone`) look like built walls, not rock. Those materials compute UVs
   from world position in-shader (`applyWorldUVs` `onBeforeCompile`), so the blocks
   pick up the same textures/shading as the rest of the world — **do not** hand-roll
   UVs. Materials are used via double-sided clones (`dsClone`) that copy

@@ -70,6 +70,7 @@
     const termSideOrig = new Map();  // terrainIndex -> app riser material (or null)
     const matClones = new Map();     // orig.uuid -> double-sided clone
     const solidFallback = new Map(); // key -> plain MeshLambertMaterial
+    const rockMats = new Map();      // key -> grey-tinted sand-noise rock material
 
     // ---- DOM ----
     let toggleBtn = null, panel = null, builtUI = false;
@@ -143,25 +144,39 @@
     function topOrig(t) {
       if (termTopOrig.has(t)) return termTopOrig.get(t);
       let m = null;
-      try {
-        // Stone uses the natural grainy rock material (texStone @4x), not the
-        // cottage/masonry brick finish, so it reads as rock rather than walls.
-        if (MATERIALS[t].id === 'stone' && typeof M !== 'undefined' && M.rock) m = M.rock;
-        else { const tv = terrainVoxelMaterials(MATERIALS[t].id); m = (tv && tv.base) || null; }
-      } catch (_) { m = null; }
+      try { const tv = terrainVoxelMaterials(MATERIALS[t].id); m = (tv && tv.base) || null; } catch (_) { m = null; }
       termTopOrig.set(t, m); return m;
     }
     function sideOrig(t) {
       if (termSideOrig.has(t)) return termSideOrig.get(t);
       let m = null;
       try {
-        if (MATERIALS[t].id === 'stone' && typeof M !== 'undefined' && (M.rockDk || M.rock)) m = M.rockDk || M.rock;
-        else {
-          m = terrainRiserMaterial(MATERIALS[t].id) || null;
-          if (!m) { const tv = terrainVoxelMaterials(MATERIALS[t].id); m = (tv && tv.low) || null; }
-        }
+        m = terrainRiserMaterial(MATERIALS[t].id) || null;
+        if (!m) { const tv = terrainVoxelMaterials(MATERIALS[t].id); m = (tv && tv.low) || null; }
       } catch (_) { m = null; }
       termSideOrig.set(t, m); return m;
+    }
+    // Rock should read as grainy NOISE, not the blocky cottage/castle masonry
+    // (M.stone) or the blocky stone pattern (M.rock). Reuse the sand material's
+    // fine-grain noise texture (texSand) tinted grey so it looks like gravelly
+    // rock while keeping the world-UV shader.
+    function rockNoiseMat(key, hex) {
+      let m = rockMats.get(key);
+      if (m) return m;
+      const base = (typeof M !== 'undefined') ? M.sand : null;
+      if (base) {
+        m = base.clone();
+        m.onBeforeCompile = base.onBeforeCompile;
+        if (typeof base.customProgramCacheKey === 'function') m.customProgramCacheKey = base.customProgramCacheKey;
+        m.userData = Object.assign({}, base.userData);
+        m.color = new THREE.Color(hex);
+        m.side = THREE.DoubleSide;
+        m.needsUpdate = true;
+      } else {
+        m = new THREE.MeshLambertMaterial({ color: hex, side: THREE.DoubleSide });
+      }
+      rockMats.set(key, m);
+      return m;
     }
     // Double-sided clone that preserves the world-UV shader (onBeforeCompile is
     // NOT copied by Material.clone in r128, so copy it across explicitly).
@@ -186,10 +201,12 @@
       return m;
     }
     function topMatReady(t) {
+      if (MATERIALS[t].id === 'stone') return rockNoiseMat('rockTop', 0x9c9b92);
       if (useRealMats) { const c = dsClone(topOrig(t)); if (c) return c; }
       return solidMat('t' + t, MATERIALS[t].color);
     }
     function sideMatReady(t) {
+      if (MATERIALS[t].id === 'stone') return rockNoiseMat('rockSide', 0x6f6e66);
       if (useRealMats) { const c = dsClone(sideOrig(t)); if (c) return c; }
       const c = new THREE.Color(MATERIALS[t].color); c.multiplyScalar(0.7);
       return solidMat('s' + t, c.getHex());
@@ -197,7 +214,8 @@
     function disposeMatCaches() {
       for (const c of matClones.values()) { try { c.dispose(); } catch (_) {} }
       for (const c of solidFallback.values()) { try { c.dispose(); } catch (_) {} }
-      matClones.clear(); solidFallback.clear(); termTopOrig.clear(); termSideOrig.clear();
+      for (const c of rockMats.values()) { try { c.dispose(); } catch (_) {} }
+      matClones.clear(); solidFallback.clear(); rockMats.clear(); termTopOrig.clear(); termSideOrig.clear();
     }
 
     // ---- low-level vertex/quad writers (scalars only -> no per-call alloc) ----
