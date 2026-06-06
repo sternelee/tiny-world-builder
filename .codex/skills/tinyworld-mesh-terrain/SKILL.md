@@ -23,8 +23,12 @@ terrain instead of baking into per-tile `setCell`.
 - Render (`rebuildGeometry`): each voxel writes a flat **top quad** at its height
   plus **vertical step-walls** only on edges where a neighbour (or the board
   boundary) is lower. Boundary walls drop to a base skirt below the lowest block.
-  Geometry is non-indexed; the rebuild runs on every edit, so it writes from
-  **scalars** via `quad()`/`wv()` (no per-quad array allocation).
+  Geometry is non-indexed and writes from **scalars** via `quad()`/`wv()` (no
+  per-quad array allocation). Sculpt/paint edits don't rebuild inline — they call
+  `scheduleRebuild()`, which coalesces to **one rebuild per animation frame**
+  (rAF); `flushRebuild()` forces the final frame on pointer-up and
+  `cancelScheduledRebuild()` runs on teardown. This keeps a fast drag from
+  forcing multiple full-board rewrites per frame (engine perf budget).
 - Materials use the app's REAL terrain shaders. The geometry is laid out grouped
   by terrain (all tops, then all sides) and `surfaceMesh.material` is a parallel
   array: tops get `terrainVoxelMaterials(t).base`, sides get
@@ -59,7 +63,7 @@ terrain instead of baking into per-tile `setCell`.
 - `applyDesign()` sets `applied = true`, snapshots + persists, hides the flat home
   **tiles** (`setHomeMeshesVisible(false)` toggles only `m.tile`, never `m.object`,
   so placed objects stay visible), and leaves the block mesh in the scene. There
-  is **no** `setCell` bake, so there are no full GRID tiles afterwards.
+  is **no** `setCell` bake, so there are no full GRID tiles afterward.
 - `cancelEdit()` reverts from the in-memory `appliedSnap` (recovering correctly
   even if the resolution changed mid-edit); if nothing was ever applied it
   disposes the mesh, restores the flat tiles, and `clearDesign()`s any draft.

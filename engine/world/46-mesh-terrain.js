@@ -63,7 +63,7 @@
     let positions = null, colors = null, normals = null;
 
     let surfaceMesh = null, brushRing = null, grabHandle = null, geom = null;
-    let ray = null, drag = null, tmpColor = null, ndc = null;
+    let ray = null, drag = null, tmpColor = null, ndc = null, rebuildRAF = 0;
 
     // ---- real-material wiring ----
     let useRealMats = false;
@@ -364,6 +364,7 @@
       grabHandle.renderOrder = 31; grabHandle.visible = false; scene.add(grabHandle);
     }
     function disposeMeshes() {
+      cancelScheduledRebuild();
       for (const m of [surfaceMesh, brushRing, grabHandle]) {
         if (!m) continue;
         scene.remove(m);
@@ -396,7 +397,8 @@
     function showBrushAt(point) {
       if (!brushRing) return;
       brushRing.scale.set(brushRadius, 1, brushRadius);
-      brushRing.position.set(point.x, surfaceY + 0.02, point.z);
+      // ride the actual surface (point.y is the raycast hit on the block top)
+      brushRing.position.set(point.x, point.y + 0.02, point.z);
       brushRing.visible = true;
       const v = voxelAt(point), ctr = voxelCenter(v.i, v.j);
       const hs = clamp(spacing * 0.45, 0.05, 0.45);
@@ -407,6 +409,20 @@
     function hideBrush() { if (brushRing) brushRing.visible = false; if (grabHandle) grabHandle.visible = false; }
 
     // ---- edits ----
+    // Coalesce geometry rebuilds to at most one per animation frame, so a fast
+    // sculpt/paint drag never forces multiple full-board rewrites per frame
+    // (the engine perf budget warns against broad synchronous rebuilds).
+    function scheduleRebuild() {
+      if (rebuildRAF) return;
+      rebuildRAF = requestAnimationFrame(() => { rebuildRAF = 0; if (geom) rebuildGeometry(); });
+    }
+    function flushRebuild() {
+      if (rebuildRAF) { cancelAnimationFrame(rebuildRAF); rebuildRAF = 0; }
+      if (geom) rebuildGeometry();
+    }
+    function cancelScheduledRebuild() {
+      if (rebuildRAF) { cancelAnimationFrame(rebuildRAF); rebuildRAF = 0; }
+    }
     function applySculpt(worldDy) {
       const gc = voxelCenter(drag.i0, drag.j0);
       const reach = Math.ceil(brushRadius / spacing) + 1;
@@ -421,7 +437,7 @@
           cellH[j * N + i] = clamp(drag.startH[j * N + i] + worldDy * w, 0, MAX_HEIGHT);
         }
       }
-      rebuildGeometry();
+      scheduleRebuild();
       grabHandle.position.y = surfaceY + cellH[drag.j0 * N + drag.i0] + grabHandle.scale.y;
     }
     function applyPaint(point) {
@@ -437,7 +453,7 @@
           if (mats[j * N + i] !== paintMatIndex) { mats[j * N + i] = paintMatIndex; changed = true; }
         }
       }
-      if (changed) rebuildGeometry();
+      if (changed) scheduleRebuild();
     }
     function perPixelWorldY(atPoint) {
       const h = renderer.domElement.clientHeight || window.innerHeight || 800;
@@ -473,7 +489,7 @@
         if (drag.kind === 'sculpt') {
           applySculpt((drag.startClientY - e.clientY) * drag.perPixel);
           const ctr = voxelCenter(drag.i0, drag.j0);
-          brushRing.position.set(ctr.x, surfaceY + 0.02, ctr.z);
+          brushRing.position.set(ctr.x, surfaceY + cellH[drag.j0 * N + drag.i0] + 0.02, ctr.z);
         } else {
           const p = raycastSurface(e.clientX, e.clientY);
           if (p) { applyPaint(p); showBrushAt(p); }
@@ -490,6 +506,7 @@
         e.stopPropagation();
         try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
         drag = null;
+        flushRebuild(); // make sure the final edit is rendered this frame
         // No persistence here: edits stay in memory so Cancel can truly discard.
         // The design is only written to storage on Apply.
       }
@@ -528,7 +545,10 @@
         recomputeDims();
         allocBuffers();
         const d = readDesign();
-        if (d) { applied = !!d.applied; if (!loadDesignInto(d)) applied = false; }
+        // Only ever reopen a committed (applied) design; discard stale drafts
+        // (e.g. left by an older persist-on-edit build) so Cancel stays durable.
+        if (d && d.applied) { applied = true; if (!loadDesignInto(d)) applied = false; }
+        else if (d) { clearDesign(); applied = false; }
         buildSceneMeshes();
         if (applied) captureApplied();
       }
