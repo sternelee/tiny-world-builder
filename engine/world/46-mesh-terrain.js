@@ -111,6 +111,10 @@
       if (!d || d.gridSize !== gridAtEnter || d.vpt !== vpt) return false;
       if (!Array.isArray(d.cellH) || d.cellH.length !== cellH.length) return false;
       if (!Array.isArray(d.mats) || d.mats.length !== mats.length) return false;
+      // Reject corrupt payloads element-by-element: a bad mats index would throw
+      // at rebuild (MATERIALS[t].id) and a non-finite height would poison the buffers.
+      for (let i = 0; i < d.cellH.length; i++) if (!Number.isFinite(d.cellH[i])) return false;
+      for (let i = 0; i < d.mats.length; i++) if (!Number.isInteger(d.mats[i]) || !MATERIALS[d.mats[i]]) return false;
       cellH.set(d.cellH); mats.set(d.mats); return true;
     }
     // Snapshot the current design in memory as the last-applied state, so Cancel
@@ -636,6 +640,7 @@
       gridAtEnter = GRID;
       if (d.gridSize !== gridAtEnter) return;
       if (VPT_OPTIONS.includes(d.vpt)) vpt = d.vpt;
+      if (resSeg) syncSeg(resSeg, () => vpt); // keep the resolution control in sync
       recomputeDims(); allocBuffers();
       if (!loadDesignInto(d)) return;
       applied = true;
