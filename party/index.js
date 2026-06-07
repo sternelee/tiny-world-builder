@@ -920,7 +920,7 @@ export default class TinyWorldParty {
       you: { x: p.x, z: p.z, hearts: p.hearts, role: p.role },
       nodes,
       animals: this.animals,
-      peers: Array.from(this.presence.values()),
+      peers: Array.from(this.presence.values()).filter(pr => pr.id !== id),
     };
   }
 
