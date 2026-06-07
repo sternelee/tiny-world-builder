@@ -1363,8 +1363,7 @@
       wrapper = buildQuickLookExportRoot();
       if (!wrapper) { setXRStatus('Nothing to place in AR yet — build some world first.'); return; }
       const exporter = new THREE.USDZExporter();
-      // Bake a slow looping turntable spin so the AR model isn't dead-static.
-      const usdz = await exporter.parse(wrapper, { turntable: { seconds: 16 } });
+      const usdz = await exporter.parse(wrapper);
       const blob = new Blob([usdz], { type: 'model/vnd.usdz+zip' });
       const url = URL.createObjectURL(blob);
       openARQuickLookAnchor(url);
