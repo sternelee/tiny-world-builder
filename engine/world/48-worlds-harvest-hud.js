@@ -1,7 +1,9 @@
-  // Worlds MMO — in-world HUD: hearts/energy, resource tallies, the four harvest
-  // actions (fish/mine/gather/hunt) with cooldowns, world chat, and a leave button.
-  // Pure view layer: it subscribes to the room client's events (47) and calls its
-  // harvest/sendChat/leaveRoom API. IIFE-wrapped; no globals leak.
+  // Worlds MMO — in-world HUD: hearts/energy, resource tallies, and the four harvest
+  // actions (fish/mine/gather/hunt) with cooldowns. Chat REUSES the existing chat
+  // panel component (the mp-chat-* markup/styles from 38-multiplayer-partykit.js)
+  // rather than a second chat UI — it's just driven by the world room socket.
+  // Subscribes to the room client's events (47) and calls its harvest/sendChat/
+  // leaveRoom API. IIFE-wrapped; no globals leak.
   (function wireWorldsHud() {
     'use strict';
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -36,23 +38,15 @@
   .tw-hud .act:disabled{opacity:.4;cursor:not-allowed}
   .tw-hud .leave{background:rgba(255,255,255,.12)}
   .tw-hud .role{font:600 11px system-ui;text-transform:uppercase;letter-spacing:.05em;opacity:.7}
-  .tw-chat{position:fixed;right:12px;bottom:calc(14px + var(--tw-worlds-bottom-inset,0px));z-index:66;display:none;flex-direction:column;width:260px;
-    background:#0c1424e6;border:1px solid rgba(255,255,255,.18);border-radius:12px;overflow:hidden;font-family:system-ui}
-  .tw-chat.open{display:flex}
-  .tw-chat .log{height:140px;overflow:auto;padding:8px;font-size:12px;display:flex;flex-direction:column;gap:3px}
-  .tw-chat .log b{color:#9cc0ff}
-  .tw-chat .row{display:flex;border-top:1px solid rgba(255,255,255,.12)}
-  .tw-chat input{flex:1;border:0;background:transparent;color:#fff;padding:8px;font-size:13px;outline:none}
-  .tw-chat button{border:0;background:#2b59d6;color:#fff;padding:0 12px;cursor:pointer;font:600 12px system-ui}
   `;
       document.head.appendChild(el('style', { id: 'tw-worlds-hud-style', text: css }));
     }
   
-    let hud = null, chat = null, heartsEl = null, resEl = null, roleEl = null, chatLog = null, chatInput = null;
+    let hud = null, heartsEl = null, resEl = null, roleEl = null;
     const actBtns = {};
     const cooldowns = {};   // action -> timestamp until enabled
   
-    function build() {
+    function buildHud() {
       if (hud) return;
       injectStyles();
       heartsEl = el('span', { class: 'hearts' });
@@ -72,17 +66,51 @@
         el('button', { class: 'act leave', text: T('worlds.leave'), onclick: () => { if (typeof WS.leaveRoom === 'function') WS.leaveRoom(); } }),
       ]);
       document.body.appendChild(hud);
-  
-      chatLog = el('div', { class: 'log' });
-      chatInput = el('input', { placeholder: T('worlds.chat'), maxlength: '280',
-        onkeydown: (e) => { if (e.key === 'Enter') sendChat(); } });
-      chat = el('div', { class: 'tw-chat' }, [chatLog, el('div', { class: 'row' }, [chatInput, el('button', { text: T('worlds.send'), onclick: sendChat })])]);
-      document.body.appendChild(chat);
     }
   
-    function sendChat() {
-      const v = chatInput.value.trim();
-      if (v && typeof WS.sendChat === 'function') { WS.sendChat(v); chatInput.value = ''; }
+    // ---- chat: reuse the existing mp-chat panel component ----
+    let chatToggle = null, chatPanel = null, chatLog = null, chatInput = null, chatOpen = false, chatUnread = 0, chatBadge = null;
+  
+    function buildChat() {
+      if (chatPanel) return;
+      chatBadge = el('span', { class: 'mp-chat-badge', style: 'position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:#e6483d;color:#fff;font:700 10px system-ui;display:none;align-items:center;justify-content:center;padding:0 4px' });
+      chatToggle = el('button', { class: 'mp-chat-toggle', type: 'button', title: T('worlds.chat'), style: 'position:fixed', onclick: () => setChatOpen(!chatOpen) }, ['💬', chatBadge]);
+      const head = el('div', { class: 'mp-chat-head' }, [
+        el('button', { class: 'mp-chat-close', type: 'button', 'aria-label': T('worlds.close'), onclick: () => setChatOpen(false) }, ['×']),
+      ]);
+      chatLog = el('div', { class: 'mp-chat-log', 'aria-live': 'polite' });
+      chatInput = el('input', { type: 'text', class: 'mp-chat-input', maxlength: '280', placeholder: T('worlds.chat') + '…', autocomplete: 'off' });
+      const form = el('form', { class: 'mp-chat-form' }, [chatInput, el('button', { type: 'submit', class: 'mp-chat-send', 'aria-label': T('worlds.send') }, ['➤'])]);
+      form.addEventListener('submit', (e) => { e.preventDefault(); sendChat(); });
+      chatPanel = el('div', { class: 'mp-chat-panel' }, [head, chatLog, form]);
+      document.body.appendChild(chatToggle);
+      document.body.appendChild(chatPanel);
+    }
+  
+    function setChatOpen(open) {
+      if (!chatPanel) return;
+      chatOpen = !!open;
+      chatPanel.classList.toggle('visible', chatOpen);
+      if (chatToggle) chatToggle.classList.toggle('is-open', chatOpen);
+      if (chatOpen) { chatUnread = 0; updateBadge(); if (chatInput) chatInput.focus(); chatLog.scrollTop = chatLog.scrollHeight; }
+    }
+    function updateBadge() { if (chatBadge) { chatBadge.textContent = chatUnread > 0 ? String(chatUnread) : ''; chatBadge.style.display = chatUnread > 0 ? 'flex' : 'none'; } }
+    function sendChat() { const v = chatInput.value.trim(); if (v && typeof WS.sendChat === 'function') { WS.sendChat(v); chatInput.value = ''; } }
+    function fmtTime(ts) { try { return new Date(ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } }
+  
+    function appendChat(d) {
+      buildChat();
+      const row = el('div', { class: 'mp-chat-msg' }, [
+        el('div', { class: 'mp-chat-meta' }, [
+          el('span', { class: 'mp-chat-name', text: String(d.name || 'Player') }),
+          el('span', { class: 'mp-chat-time', text: fmtTime(d.ts) }),
+        ]),
+        el('div', { class: 'mp-chat-text', text: String(d.text || '') }),
+      ]);
+      chatLog.appendChild(row);
+      while (chatLog.children.length > 250) chatLog.removeChild(chatLog.firstChild);
+      chatLog.scrollTop = chatLog.scrollHeight;
+      if (!chatOpen) { chatUnread++; updateBadge(); }
     }
   
     function renderHearts(n) {
@@ -118,25 +146,21 @@
       }
     }
   
-    function show() { build(); hud.classList.add('open'); chat.classList.add('open'); renderResources(); }
-    function hide() { if (hud) hud.classList.remove('open'); if (chat) chat.classList.remove('open'); }
+    function show() { buildHud(); buildChat(); hud.classList.add('open'); if (chatToggle) chatToggle.style.display = ''; renderResources(); }
+    function hide() { if (hud) hud.classList.remove('open'); setChatOpen(false); if (chatToggle) chatToggle.style.display = 'none'; }
   
     on('enter', () => { show(); });
     on('leave', () => { hide(); });
     on('status', (d) => { if (d && d.role) setRole(d.role); });
-    on('state', (s) => { build(); if (s) { renderHearts(s.you && s.you.hearts); setRole(s.role); } renderResources(); });
+    on('state', (s) => { buildHud(); if (s) { renderHearts(s.you && s.you.hearts); setRole(s.role); } renderResources(); });
     on('you', (y) => { if (y) renderHearts(y.hearts); });
     on('resources', (r) => renderResources(r));
-    on('progress', (d) => { build(); disableDuring(d && d.durationMs ? d.durationMs : 3000); });
+    on('progress', (d) => { buildHud(); disableDuring(d && d.durationMs ? d.durationMs : 3000); });
     on('result', (d) => { renderResources(); if (d && d.action) disableDuring(d.cooldownMs || 5000, d.action); });
     on('deny', (d) => {
       const reason = d && d.reason;
       if (reason === 'no-hearts') { if (typeof twToast === 'function') twToast(T('worlds.noHearts')); }
       else if (reason === 'cooldown') { if (typeof twToast === 'function') twToast(T('worlds.cooldown')); }
     });
-    on('chat', (d) => {
-      if (!chatLog || !d) return;
-      chatLog.appendChild(el('div', {}, [el('b', { text: (d.name || 'Player') + ': ' }), document.createTextNode(String(d.text || ''))]));
-      chatLog.scrollTop = chatLog.scrollHeight;
-    });
+    on('chat', (d) => { if (d) appendChat(d); });
   })();

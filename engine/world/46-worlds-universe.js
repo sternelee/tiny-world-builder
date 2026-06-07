@@ -78,6 +78,8 @@
   .tw-draftbar span{font:600 12px system-ui;color:#ffd690;padding:0 6px}
   body.tw-worlds-embed .toolbar{bottom:calc(28px + var(--tw-worlds-bottom-inset,0px)) !important}
   body.tw-worlds-embed .tool-palette{bottom:calc(28px + var(--tw-worlds-bottom-inset,0px)) !important}
+  body.tw-worlds-embed .mp-chat-toggle{bottom:calc(24px + var(--tw-worlds-bottom-inset,0px)) !important}
+  body.tw-worlds-embed .mp-chat-panel{bottom:calc(78px + var(--tw-worlds-bottom-inset,0px)) !important}
   `;
       document.head.appendChild(el('style', { id: 'tw-worlds-style', text: css }));
     }
