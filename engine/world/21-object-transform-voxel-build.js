@@ -1623,8 +1623,15 @@
     return selectedBuildingRenderFootprint(seed && seed.stamp);
   }
 
+  // Latest-wins controllers for object AI generation flows.
+  let aiCustomPartsCtrl = null;
+  let aiVoxelBuildCtrl = null;
+
   async function enhanceSelectedCustomPartsObject(target, userInstruction, seed, opts = {}) {
     if (!seed || !Array.isArray(seed.customParts) || !seed.customParts.length) return null;
+    if (aiCustomPartsCtrl) aiCustomPartsCtrl.abort();
+    const _cpCtrl = new AbortController();
+    aiCustomPartsCtrl = _cpCtrl;
     const ai = getAIProviderState();
     const provider = ai.provider || 'openai';
     const def = AI_DEFAULTS[provider] || AI_DEFAULTS.openai;
@@ -1730,14 +1737,17 @@
         JSON.stringify(schema),
       ].join('\n');
       const user = JSON.stringify(payload);
+      const _cpCallOpts = { imageDataUrl: payload.imageDataUrl, signal: _cpCtrl.signal };
       const raw = provider === 'anthropic'
-        ? await callAnthropic(def.endpoint, ai.key, model, system, user, { name: 'emit_custom_parts', schema }, { imageDataUrl: payload.imageDataUrl })
+        ? await callAnthropic(def.endpoint, ai.key, model, system, user, { name: 'emit_custom_parts', schema }, _cpCallOpts)
         : provider === 'gemini'
-          ? await callGemini(def.endpoint, ai.key, model, system, user, { imageDataUrl: payload.imageDataUrl })
-          : await callOpenAI(def.endpoint, ai.key, model, system, user, { imageDataUrl: payload.imageDataUrl });
+          ? await callGemini(def.endpoint, ai.key, model, system, user, _cpCallOpts)
+          : await callOpenAI(def.endpoint, ai.key, model, system, user, _cpCallOpts);
+      if (_cpCtrl.signal.aborted) return null;
       result = extractJSON(raw);
       if (!result) throw new Error('AI returned non-JSON');
     }
+    if (_cpCtrl.signal.aborted) return null;
     const customParts = fitCustomPartsToBounds(result.customParts || result.parts || result.response?.customParts, payload.allowedBounds);
     if (!customParts.length) throw new Error('AI returned no customParts');
     const stampKey = seed.stamp || seed.id || 'custom-parts';
@@ -1763,6 +1773,7 @@
     const beforeCell = cloneCellIntent(target.cell);
     if (target.cell && target.cell.kind === 'house') {
       const stamp = await enhanceSelectedBuildingPartsObject(target, userInstruction, opts);
+      if (!stamp && aiCustomPartsCtrl && aiCustomPartsCtrl.signal.aborted) return null;
       if (!stamp) throw new Error('No enhanced building returned');
       VOXEL_BUILD_STAMPS.push(stamp);
       saveCustomVoxelBuildStamps();
@@ -1804,6 +1815,7 @@
         isCustomPartsSource: true,
       });
       const stamp = await enhanceSelectedCustomPartsObject(target, userInstruction || '', partsSeed, opts);
+      if (!stamp && aiCustomPartsCtrl && aiCustomPartsCtrl.signal.aborted) return null;
       if (!stamp) throw new Error('No enhanced custom object returned');
       VOXEL_BUILD_STAMPS.push(stamp);
       saveCustomVoxelBuildStamps();
@@ -1845,6 +1857,7 @@
     }
     const highResolutionSeed = upscaleVoxelBuildStampResolution(seed, 2, false) || seed;
     const stamp = await enhanceVoxelBuildStamp(highResolutionSeed, userInstruction || '', opts);
+    if (!stamp && aiVoxelBuildCtrl && aiVoxelBuildCtrl.signal.aborted) return null;
     if (!stamp) throw new Error('No enhanced build returned');
     VOXEL_BUILD_STAMPS.push(stamp);
     saveCustomVoxelBuildStamps();
@@ -1951,6 +1964,9 @@
   }
 
   async function enhanceVoxelBuildStamp(stamp, userInstruction, opts = {}) {
+    if (aiVoxelBuildCtrl) aiVoxelBuildCtrl.abort();
+    const _vbCtrl = new AbortController();
+    aiVoxelBuildCtrl = _vbCtrl;
     const ai = getAIProviderState();
     const def = AI_DEFAULTS[ai.provider] || AI_DEFAULTS.openai;
     const isLocalHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
@@ -2027,11 +2043,13 @@
       JSON.stringify(schema),
     ].join('\n');
     const user = JSON.stringify(userPayload);
+    const _vbCallOpts = { imageDataUrl: userPayload.imageDataUrl, signal: _vbCtrl.signal };
     const raw = ai.provider === 'anthropic'
-      ? await callAnthropic(def.endpoint, ai.key, model, system, user, { name: 'emit_voxel_build', schema }, { imageDataUrl: userPayload.imageDataUrl })
+      ? await callAnthropic(def.endpoint, ai.key, model, system, user, { name: 'emit_voxel_build', schema }, _vbCallOpts)
       : ai.provider === 'gemini'
-        ? await callGemini(def.endpoint, ai.key, model, system, user, { imageDataUrl: userPayload.imageDataUrl })
-        : await callOpenAI(def.endpoint, ai.key, model, system, user, { imageDataUrl: userPayload.imageDataUrl });
+        ? await callGemini(def.endpoint, ai.key, model, system, user, _vbCallOpts)
+        : await callOpenAI(def.endpoint, ai.key, model, system, user, _vbCallOpts);
+    if (_vbCtrl.signal.aborted) return null;
     const parsed = extractJSON(raw);
     if (!parsed) throw new Error('AI returned non-JSON');
     const filtered = filterVoxelsToBounds(parsed.voxels, allowedBounds);

@@ -66,6 +66,7 @@
     let activeLayerId = null;
     let refreshTimer = null;
     let panelDrag = null;
+    let layersDirty = false;
     // Tracks per-cell expand/collapse state so it survives full innerHTML rebuilds.
     const cellOpen = new Map();
 
@@ -336,7 +337,21 @@
       panel.style.right = 'auto';
     }
 
+    // Single captured 'toggle' listener — 'toggle' does not bubble, so capture
+    // is required. Attached once; survives innerHTML rebuilds because it lives
+    // on treeEl itself rather than on the replaced child nodes.
+    treeEl.addEventListener('toggle', function (e) {
+      const d = e.target;
+      if (!(d instanceof Element)) return;
+      if (d.classList.contains('layers-island')) {
+        cellOpen.set('island:' + d.getAttribute('data-island-id'), d.open);
+      } else if (d.classList.contains('layers-cell')) {
+        cellOpen.set(d.getAttribute('data-cell-id'), d.open);
+      }
+    }, true);
+
     function renderLayersPanel() {
+      layersDirty = false;
       const query = searchEl ? searchEl.value.trim() : '';
       const selectedCoords = selectedWorldCoordSet();
       syncActiveLayerIdWithSelection(selectedCoords);
@@ -361,19 +376,12 @@
           + '</details>';
       }).join('');
       treeEl.innerHTML = html || '<p class="layers-empty">No islands yet.</p>';
-      // Re-bind toggle tracking on island + cell nodes.
-      treeEl.querySelectorAll('details.layers-island').forEach(d => {
-        d.addEventListener('toggle', () => cellOpen.set('island:' + d.getAttribute('data-island-id'), d.open));
-      });
-      treeEl.querySelectorAll('details.layers-cell').forEach(d => {
-        d.addEventListener('toggle', () => cellOpen.set(d.getAttribute('data-cell-id'), d.open));
-      });
       treeEl.scrollTop = prevScroll;
       if (selectedCoords.size) scrollSelectedLayerIntoView();
     }
 
     function scheduleLayersRefresh() {
-      if (panel.hidden) return;
+      if (panel.hidden) { layersDirty = true; return; }
       if (refreshTimer) return;
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
@@ -388,6 +396,8 @@
       try { localStorage.setItem(OPEN_KEY, open ? '1' : '0'); } catch (_) {}
       if (open) {
         applySavedLayersPanelPosition();
+        // Always render on open: either the world changed while hidden (dirty),
+        // or the panel is being shown for the first time this session.
         renderLayersPanel();
         setLayersTab(layersActiveTab);
       } else {

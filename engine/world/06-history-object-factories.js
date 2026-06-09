@@ -176,6 +176,7 @@
     g.userData.weatherSurfaceY = topY + WEATHER_SURFACE_PAD;
 
     const skipTerrain = !!(opts && opts.skipTerrain);
+    const skipSurfaceDetails = !!(opts && opts.skipSurfaceDetails);
     const useVoxelTerrainForTile = renderVoxelTerrain && !(opts && opts.simpleTerrain);
 
     // Dirt / riser block (sides + bottom of tile).
@@ -253,7 +254,7 @@
           w: skipW,
           s: skipS,
           n: skipN,
-        });
+        }, skipSurfaceDetails);
       } else {
         const topGeo = getOpenBoxGeometry(topSize, topHeight, topSize, false, true, skipE, skipW, skipS, skipN);
         const top = new THREE.Mesh(topGeo, topMat);

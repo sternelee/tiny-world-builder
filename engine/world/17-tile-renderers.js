@@ -76,11 +76,15 @@
     const cell = getWorldCell(x, z);
     const makeStart = repaintProfileBegin();
     const simpleTerrain = shouldUseSimpleFlatGrassTile(x, z, cell);
+    // Ghost-board cells are faded/grayscale distant context. Skip the 5-9
+    // surface-detail InstancedMeshes (grass blades, pebbles, pavers, etc.)
+    // — they are invisible at that opacity and waste draw calls on a fill-bound app.
+    const skipSurfaceDetails = isOutsideHomeGrid(x, z) && !isEditableIslandCell(x, z);
     const tile = makeTile(cell.terrain, {
       path: getPathNeighbors(x, z),
       terrain: getTerrainNeighbors(x, z),
       levels: getLevelNeighbors(x, z),
-    }, x, z, tileLevelForCell(cell), { simpleTerrain });
+    }, x, z, tileLevelForCell(cell), { simpleTerrain, skipSurfaceDetails });
     repaintProfileEnd('tile.make', makeStart);
 
     const p = cellRenderPositionForCell(x, z);

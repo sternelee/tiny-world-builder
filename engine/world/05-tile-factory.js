@@ -181,7 +181,7 @@
   const waterfallEffectMeshes = new Set();
   const waterfallTimeUniform = { value: 0 };
 
-  function addVoxelTerrainTop(g, terrain, x, z, rise, topSize, topHeight, pathN, terrainN, hiddenSides) {
+  function addVoxelTerrainTop(g, terrain, x, z, rise, topSize, topHeight, pathN, terrainN, hiddenSides, skipSurfaceDetails) {
     const mats = terrainVoxelMaterials(terrain, x, z, terrainN);
     const cells = terrainVoxelCellCount(terrain);
     const cellSize = topSize / cells;
@@ -259,7 +259,12 @@
       mesh.instanceMatrix.needsUpdate = true;
       g.add(mesh);
     }
-    addVoxelTerrainSurfaceDetails(g, terrain, x, z, topSize, rise + topHeight + 0.012, pathN, terrainN);
+    // Ghost-board tiles are faded/grayscale context; skipping surface details
+    // (grass blades, dots, pebbles, pavers, ruts, grime) saves 5-9 InstancedMesh
+    // draw calls per tile without any visible quality loss on a fill-bound app.
+    if (!skipSurfaceDetails) {
+      addVoxelTerrainSurfaceDetails(g, terrain, x, z, topSize, rise + topHeight + 0.012, pathN, terrainN);
+    }
   }
 
   function addVoxelTerrainSurfaceDetails(g, terrain, x, z, topSize, y, pathN = null, terrainN = null) {

@@ -1139,20 +1139,28 @@
 
   window.__generateLandscapeWorld = generateLandscapeWorld;
 
+  // Latest-wins controller for world generation (modal + floating agent share one flow).
+  let aiWorldGenCtrl = null;
+
   async function generateWorld(provider, model, key, userPrompt, gridSize, opts = {}) {
+    if (aiWorldGenCtrl) aiWorldGenCtrl.abort();
+    const ctrl = new AbortController();
+    aiWorldGenCtrl = ctrl;
+    const callOpts = Object.assign({}, opts, { signal: ctrl.signal });
     const requestedGridSize = coerceGridSize(gridSize, GRID);
     const system = buildSystemPrompt(requestedGridSize);
     const def = AI_DEFAULTS[provider];
     if (!def) throw new Error('unknown provider: ' + provider);
     let raw;
     if (provider === 'anthropic') {
-      raw = await callAnthropic(def.endpoint, key, model || def.model, system, userPrompt, null, opts);
+      raw = await callAnthropic(def.endpoint, key, model || def.model, system, userPrompt, null, callOpts);
     } else if (provider === 'gemini') {
-      raw = await callGemini(def.endpoint, key, model || def.model, system, userPrompt, opts);
+      raw = await callGemini(def.endpoint, key, model || def.model, system, userPrompt, callOpts);
     } else {
       // OpenAI + xAI share the chat-completions shape.
-      raw = await callOpenAI(def.endpoint, key, model || def.model, system, userPrompt, opts);
+      raw = await callOpenAI(def.endpoint, key, model || def.model, system, userPrompt, callOpts);
     }
+    if (ctrl.signal.aborted) return null;
     const parsed = extractJSON(raw);
     if (!parsed) {
       console.warn('[generate] raw model output:', raw);

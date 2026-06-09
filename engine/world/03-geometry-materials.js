@@ -720,12 +720,19 @@
   // dressing cubes) read as occluded instead of brightly lit, without touching
   // the shared material used on the sunlit top surfaces. Keyed by source material
   // uuid + factor so darkened meshes still batch/merge by material. 1 = unchanged.
+  // Capped at 64 entries (delete-oldest on overflow); no dispose on evict because
+  // live meshes may still reference evicted clones.
   const shadedMaterialCache = new Map();
+  const SHADED_MATERIAL_CACHE_CAP = 64;
   function shadeLambertMaterial(mat, factor) {
     if (!mat || !mat.color || !(factor >= 0) || factor === 1) return mat;
     const key = mat.uuid + ':' + factor;
     let out = shadedMaterialCache.get(key);
     if (!out) {
+      if (shadedMaterialCache.size >= SHADED_MATERIAL_CACHE_CAP) {
+        const oldest = shadedMaterialCache.keys().next().value;
+        if (oldest !== undefined) shadedMaterialCache.delete(oldest);
+      }
       out = mat.clone();
       if (mat.onBeforeCompile) out.onBeforeCompile = mat.onBeforeCompile;
       if (typeof mat.customProgramCacheKey === 'function') out.customProgramCacheKey = mat.customProgramCacheKey;
@@ -737,7 +744,10 @@
     return out;
   }
 
+  // Capped at 64 entries (delete-oldest on overflow); no dispose on evict because
+  // live meshes may still reference evicted clones.
   const islandShellMaterialCache = new Map();
+  const ISLAND_SHELL_MATERIAL_CACHE_CAP = 64;
   function syncIslandShellMaterial(baseMat, shellMat) {
     if (baseMat.isShaderMaterial && shellMat.isShaderMaterial) {
       shellMat.uniforms = baseMat.uniforms;
@@ -767,6 +777,10 @@
     if (hit) {
       syncIslandShellMaterial(baseMat, hit);
       return hit;
+    }
+    if (islandShellMaterialCache.size >= ISLAND_SHELL_MATERIAL_CACHE_CAP) {
+      const oldest = islandShellMaterialCache.keys().next().value;
+      if (oldest !== undefined) islandShellMaterialCache.delete(oldest);
     }
     const mat = baseMat.clone();
     mat.side = THREE.DoubleSide;

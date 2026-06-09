@@ -704,6 +704,7 @@
         hidePlanOverlay();
         progress.say('Generating validated world JSON with ' + model + '…');
         const data = await generateWorld(provider, model, key, decoratedPrompt, gridSize);
+        if (!data) { setStatus('', ''); return; } // superseded by a newer generation
         if (wantsPlanetLandscape) {
           data.planetLandscape = planetLandscapeStateFromSelection(effectiveSeed, planetBiome, planetStyleMode, planetDrop);
           progress.say('Adding ' + planetBiome + ' LandscapeEngine planet underlay ' + planetDrop + 'm below the floating board…');
@@ -739,6 +740,7 @@
         setStatus('done · seed: ' + effectiveSeed + (wantsPlanetLandscape ? ' · planet ' + planetDrop + 'm below' : ''), '');
         progress.done(wantsPlanetLandscape ? 'Building completed with planet underlay.' : 'Building completed.');
       } catch (err) {
+        if (err && (err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError'))) return;
         console.error('generate failed:', err);
         hidePlanOverlay();
         progress.error(String(err.message || err).slice(0, 180));
@@ -2827,6 +2829,7 @@
         if (selectedObjectTarget && (shouldEnhanceSelectedObjectPrompt(userText) || (!cfg.key && localOpenAIEnhance))) {
           if (!cfg.key && !localOpenAIEnhance) throw new Error('Add an API key in Settings → AI first.');
           const stamp = await enhanceSelectedBoardObject(userText, { imageDataUrl, attachments: dropAttachments });
+          if (!stamp) return; // superseded by a newer generation
           const doneText = 'Enhanced selected object into ' + stamp.name + '.';
           thinking.textContent = doneText;
           window.__tinyworldAgent && window.__tinyworldAgent.done && window.__tinyworldAgent.done(doneText);
@@ -2837,6 +2840,7 @@
         if (intent.clearFirst) doClear();
         const requestPrompt = intent.mode === 'add' ? buildFloatingAdditionPrompt(prompt) : prompt;
         let data = await generateWorld(cfg.provider, cfg.model, cfg.key, requestPrompt, GRID, { imageDataUrl });
+        if (!data) return; // superseded by a newer generation
         data = coerceAttachedModelStampsForGeneratedWorld(data, dropAttachments);
 
         // If user had a selection active, mask the result to only affect that region (powerful "customize this area" feature)
@@ -2864,6 +2868,7 @@
         window.__tinyworldAgent && window.__tinyworldAgent.done && window.__tinyworldAgent.done(doneText);
         submitSucceeded = true;
       } catch (err) {
+        if (err && (err.name === 'AbortError' || (err instanceof DOMException && err.name === 'AbortError'))) return;
         const msg = String(err.message || err).slice(0, 180);
         thinking.className = 'agent-msg error';
         thinking.textContent = msg;

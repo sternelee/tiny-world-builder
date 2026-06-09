@@ -501,6 +501,13 @@
       body.temperature = 0.6;
       body.max_tokens = 8000;
     }
+    const _timeoutSig = aiFetchTimeoutSignal();
+    let _fetchSig;
+    if (opts && opts.signal && _timeoutSig) {
+      try { _fetchSig = AbortSignal.any([opts.signal, _timeoutSig]); } catch (_) { _fetchSig = opts.signal; }
+    } else {
+      _fetchSig = (opts && opts.signal) || _timeoutSig;
+    }
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -508,7 +515,7 @@
         'authorization': 'Bearer ' + key,
       },
       body: JSON.stringify(body),
-      signal: aiFetchTimeoutSignal(),
+      signal: _fetchSig,
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
     const j = await r.json();
@@ -540,6 +547,13 @@
           { type: 'text', text: user },
         ]
       : user;
+    const _anthropicTimeoutSig = aiFetchTimeoutSignal();
+    let _anthropicFetchSig;
+    if (opts && opts.signal && _anthropicTimeoutSig) {
+      try { _anthropicFetchSig = AbortSignal.any([opts.signal, _anthropicTimeoutSig]); } catch (_) { _anthropicFetchSig = opts.signal; }
+    } else {
+      _anthropicFetchSig = (opts && opts.signal) || _anthropicTimeoutSig;
+    }
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -560,7 +574,7 @@
         tool_choice: { type: 'tool', name: toolName },
         messages: [{ role: 'user', content }],
       }),
-      signal: aiFetchTimeoutSignal(),
+      signal: _anthropicFetchSig,
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
     const j = await r.json();
@@ -576,6 +590,13 @@
     const image = imageDataUrlParts(opts && opts.imageDataUrl);
     const parts = [{ text: user }];
     if (image) parts.push({ inlineData: { mimeType: image.mimeType, data: image.base64 } });
+    const _geminiTimeoutSig = aiFetchTimeoutSignal();
+    let _geminiFetchSig;
+    if (opts && opts.signal && _geminiTimeoutSig) {
+      try { _geminiFetchSig = AbortSignal.any([opts.signal, _geminiTimeoutSig]); } catch (_) { _geminiFetchSig = opts.signal; }
+    } else {
+      _geminiFetchSig = (opts && opts.signal) || _geminiTimeoutSig;
+    }
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -592,7 +613,7 @@
           maxOutputTokens: 8000,
         },
       }),
-      signal: aiFetchTimeoutSignal(),
+      signal: _geminiFetchSig,
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
     const j = await r.json();

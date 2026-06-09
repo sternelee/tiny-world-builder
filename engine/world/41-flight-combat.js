@@ -206,29 +206,51 @@
   const _fcSeenObjs = new Set();
   const cellHealth = new Map(); // 'x,z' -> remaining hp
 
-  function objectMeshCandidates(origin) {
-    const out = [];
-    _fcSeenObjs.clear();
-    const consider = (entry) => {
-      if (!entry || !entry.object || !entry.object.visible) return;
-      if (entry.object === jet) return; // never the player plane
-      if (_fcSeenObjs.has(entry.object)) return;
-      entry.object.getWorldPosition(_fcObjCenter);
-      if (_fcObjCenter.distanceToSquared(origin) > 60 * 60) return;
-      _fcSeenObjs.add(entry.object);
-      out.push(entry);
+  // Flat cache of all entries from cellMeshesGrid + cellMeshes. Rebuilt lazily
+  // on the next objectMeshCandidates call after a 'tinyworld:world-changed' event.
+  // The per-origin distance filter is still applied per-call (origin-dependent).
+  let _fcAllEntriesCache = null;
+  window.addEventListener('tinyworld:world-changed', function () {
+    _fcAllEntriesCache = null;
+  });
+
+  function _fcRebuildAllEntries() {
+    const entries = [];
+    const seen = new Set();
+    const add = (entry) => {
+      if (!entry || !entry.object) return;
+      if (seen.has(entry.object)) return;
+      seen.add(entry.object);
+      entries.push(entry);
     };
     // in-grid objects: 2D array cellMeshesGrid[x][z]
     if (typeof cellMeshesGrid !== 'undefined' && cellMeshesGrid) {
       for (let gx = 0; gx < cellMeshesGrid.length; gx++) {
         const col = cellMeshesGrid[gx];
         if (!col) continue;
-        for (let gz = 0; gz < col.length; gz++) consider(col[gz]);
+        for (let gz = 0; gz < col.length; gz++) add(col[gz]);
       }
     }
     // out-of-grid objects: string-keyed map cellMeshes
     if (typeof cellMeshes !== 'undefined' && cellMeshes) {
-      for (const key in cellMeshes) consider(cellMeshes[key]);
+      for (const key in cellMeshes) add(cellMeshes[key]);
+    }
+    return entries;
+  }
+
+  function objectMeshCandidates(origin) {
+    if (!_fcAllEntriesCache) _fcAllEntriesCache = _fcRebuildAllEntries();
+    const out = [];
+    _fcSeenObjs.clear();
+    for (let i = 0; i < _fcAllEntriesCache.length; i++) {
+      const entry = _fcAllEntriesCache[i];
+      if (!entry || !entry.object || !entry.object.visible) continue;
+      if (entry.object === jet) continue; // never the player plane
+      if (_fcSeenObjs.has(entry.object)) continue;
+      entry.object.getWorldPosition(_fcObjCenter);
+      if (_fcObjCenter.distanceToSquared(origin) > 60 * 60) continue;
+      _fcSeenObjs.add(entry.object);
+      out.push(entry);
     }
     return out;
   }
