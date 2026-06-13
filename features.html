@@ -368,18 +368,26 @@
       { id: -5, title: 'Player housing', description: 'Let visiting players claim a small plot inside a world and build a personal dwelling.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
     ];
 
+    // Admin mode is LOCAL-DEV ONLY. On production it is fully disabled and never
+    // shown, regardless of any stored secret or server env.
+    const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
     let wallet = null;
     let coinBalance = 0;
-    let adminSecret = sessionStorage.getItem('twAdminSecret') || '';
+    let adminSecret = IS_LOCAL ? (sessionStorage.getItem('twAdminSecret') || '') : '';
     let adminMode = !!adminSecret;
+    if (!IS_LOCAL) {
+      try { sessionStorage.removeItem('twAdminSecret'); } catch (_) {}
+      try { localStorage.removeItem('twAdminSecret'); } catch (_) {}
+    }
     let currentFilter = 'open';
     let suggestions = [];
     let myVotes = {};
 
-    // ---- admin toggle — Ctrl+Shift+A ----
+    // ---- admin toggle — Ctrl+Shift+A (local dev only) ----
     document.addEventListener('keydown', async e => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
         e.preventDefault();
+        if (!IS_LOCAL) return; // no admin on production
         if (adminMode) { exitAdmin(); return; }
         const s = prompt('Admin secret:');
         if (!s) return;

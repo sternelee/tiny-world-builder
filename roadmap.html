@@ -447,15 +447,25 @@
     const STATUS_CLASS = { done: 'done', active: 'active', planned: 'planned' };
 
     // ---- State ----
+    // Admin mode is LOCAL-DEV ONLY. On any non-local host (e.g. production)
+    // the admin toolbar/editing is fully disabled and never shown, regardless
+    // of any stored secret or server env. Edit the roadmap locally, then deploy.
+    const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
     let milestones = [];
-    let adminSecret = sessionStorage.getItem('twAdminSecret') || '';
+    let adminSecret = IS_LOCAL ? (sessionStorage.getItem('twAdminSecret') || '') : '';
     let adminMode = !!adminSecret;
+    if (!IS_LOCAL) {
+      // Purge any stored secret so the banner can never resurface on prod.
+      try { sessionStorage.removeItem('twAdminSecret'); } catch (_) {}
+      try { localStorage.removeItem('twAdminSecret'); } catch (_) {}
+    }
     let dragId = null;
 
-    // ---- Admin toggle — Ctrl+Shift+A ----
+    // ---- Admin toggle — Ctrl+Shift+A (local dev only) ----
     document.addEventListener('keydown', async e => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
         e.preventDefault();
+        if (!IS_LOCAL) return; // no admin on production
         if (adminMode) { exitAdmin(); return; }
         const s = prompt('Admin secret:');
         if (!s) return;
@@ -784,7 +794,7 @@
         try { sessionStorage.removeItem('twAdminSecret'); } catch (_) {}
         try { localStorage.removeItem('twAdminSecret'); } catch (_) {}
       }
-      adminMode = serverSaysAdmin;
+      adminMode = IS_LOCAL && serverSaysAdmin;
       render();
     })();
   })();
