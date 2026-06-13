@@ -480,7 +480,7 @@
       } catch (_) { return false; }
     }
 
-    document.getElementById('admin-exit-btn').addEventListener('click', exitAdmin);
+    document.getElementById('admin-exit-btn')?.addEventListener('click', exitAdmin);
 
     function exitAdmin() {
       adminMode = false;
@@ -542,7 +542,7 @@
     }
 
     function renderAdminBar() {
-      document.getElementById('kanban-admin-bar').hidden = !adminMode;
+      const _ab = document.getElementById('kanban-admin-bar'); if (_ab) _ab.hidden = !adminMode;
     }
 
     function renderBoard() {
