@@ -306,6 +306,7 @@
       /^tinyworld:v\d+$/,                // serialised home world
       /^tinyworld:worlds\.v\d+/,         // multi-world saves
       /^tinyworld:ai:key:/,              // API credentials
+      /^tinyworld:auth:/,                // account/session credentials
       /^tinyworld:ai:prompt$/,           // user prompt text
       /^tinyworld:vehicle-demo:/,        // session-only demo state
       /^tinyworld:audio:music-track$/,   // per-user manual music choice

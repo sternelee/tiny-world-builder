@@ -1,8 +1,15 @@
 import { createPublicKey, randomBytes, verify } from 'node:crypto';
-import { requireAuthUser } from './lib/auth.mjs';
+import {
+  createWalletLoginChallengeToken,
+  createWalletSessionToken,
+  requireAuthUser,
+  verifyWalletLoginChallengeToken,
+  walletSessionAuthConfigured,
+  walletUserFromPublicKey,
+} from './lib/auth.mjs';
 import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
-import { ensureProfile } from './lib/profiles.mjs';
+import { ensureProfile, profileDto } from './lib/profiles.mjs';
 import {
   activityForWallet,
   base58ToBytes,
@@ -68,6 +75,37 @@ function challengeMessage(publicKey, nonce, issuedAt) {
   ].join('\n');
 }
 
+function walletLoginNotConfiguredResponse(origin) {
+  return errorResponse('Wallet login is not configured. Set TINYWORLD_WALLET_SESSION_SECRET.', 503, origin);
+}
+
+function walletLoginUserDto(user, publicKey) {
+  return {
+    id: user.id,
+    name: user.name || '',
+    walletPublicKey: publicKey,
+    provider: 'phantom',
+  };
+}
+
+async function linkWalletToProfile(sql, profile, publicKey) {
+  await sql`
+    DELETE FROM wallet_accounts
+    WHERE profile_id = ${profile.id}
+      AND provider = 'phantom'
+      AND public_key <> ${publicKey}
+  `;
+  await sql`
+    INSERT INTO wallet_accounts (profile_id, provider, public_key, verified_at)
+    VALUES (${profile.id}, 'phantom', ${publicKey}, NOW())
+    ON CONFLICT (public_key) DO UPDATE
+      SET profile_id = EXCLUDED.profile_id,
+          provider = EXCLUDED.provider,
+          verified_at = NOW(),
+          updated_at = NOW()
+  `;
+}
+
 async function walletPayload(sql, profile, options = {}) {
   const rows = await sql`
     SELECT *
@@ -126,14 +164,12 @@ export default async function walletFunction(request) {
   const origin = request.headers.get('origin');
   if (request.method === 'OPTIONS') return corsResponse(origin);
 
-  const auth = await requireAuthUser(request, origin);
-  if (auth.response) return auth.response;
-
   try {
-    const sql = getSql();
-    const profile = await ensureProfile(auth.user);
-
     if (request.method === 'GET') {
+      const auth = await requireAuthUser(request, origin);
+      if (auth.response) return auth.response;
+      const sql = getSql();
+      const profile = await ensureProfile(auth.user);
       return jsonResponse(await walletPayload(sql, profile), origin);
     }
 
@@ -142,6 +178,55 @@ export default async function walletFunction(request) {
 
     const body = await readJson(request);
     const action = String((body && body.action) || '').trim();
+
+    if (action === 'loginChallenge') {
+      if (!walletSessionAuthConfigured()) return walletLoginNotConfiguredResponse(origin);
+      const publicKey = String((body && body.publicKey) || '').trim();
+      if (!isSolanaPublicKey(publicKey)) return errorResponse('Invalid Solana public key', 400, origin);
+      const nonce = randomBytes(18).toString('base64url');
+      const issuedAt = new Date().toISOString();
+      const message = challengeMessage(publicKey, nonce, issuedAt);
+      const challengeToken = createWalletLoginChallengeToken(publicKey, message, nonce, issuedAt);
+      return jsonResponse({
+        publicKey,
+        nonce,
+        message,
+        challengeToken,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      }, origin, 201);
+    }
+
+    if (action === 'login') {
+      if (!walletSessionAuthConfigured()) return walletLoginNotConfiguredResponse(origin);
+      const publicKey = String((body && body.publicKey) || '').trim();
+      const message = String((body && body.message) || '');
+      const challengeToken = String((body && body.challengeToken) || '');
+      if (!isSolanaPublicKey(publicKey) || !message || !challengeToken) {
+        return errorResponse('Invalid wallet login payload', 400, origin);
+      }
+      const challenge = verifyWalletLoginChallengeToken(challengeToken, publicKey, message);
+      if (!challenge) return errorResponse('Wallet challenge expired', 401, origin);
+      if (!verifyWalletSignature(publicKey, message, body.signature)) {
+        return errorResponse('Wallet signature verification failed', 401, origin);
+      }
+      const user = walletUserFromPublicKey(publicKey);
+      if (!user) return errorResponse('Invalid Solana public key', 400, origin);
+      const sql = getSql();
+      const profile = await ensureProfile(user);
+      await linkWalletToProfile(sql, profile, publicKey);
+      const sessionToken = createWalletSessionToken(publicKey);
+      const payload = await walletPayload(sql, profile);
+      return jsonResponse(Object.assign(payload, {
+        sessionToken,
+        user: walletLoginUserDto(user, publicKey),
+        profile: profileDto(profile),
+      }), origin, 201);
+    }
+
+    const auth = await requireAuthUser(request, origin);
+    if (auth.response) return auth.response;
+    const sql = getSql();
+    const profile = await ensureProfile(auth.user);
 
     if (action === 'challenge') {
       const publicKey = String((body && body.publicKey) || '').trim();
@@ -180,14 +265,7 @@ export default async function walletFunction(request) {
         SET consumed_at = NOW()
         WHERE id = ${challenges[0].id}
       `;
-      await sql`
-        INSERT INTO wallet_accounts (profile_id, provider, public_key, verified_at)
-        VALUES (${profile.id}, 'phantom', ${publicKey}, NOW())
-        ON CONFLICT (profile_id, provider) DO UPDATE
-          SET public_key = EXCLUDED.public_key,
-              verified_at = NOW(),
-              updated_at = NOW()
-      `;
+      await linkWalletToProfile(sql, profile, publicKey);
       return jsonResponse(await walletPayload(sql, profile), origin, 201);
     }
 

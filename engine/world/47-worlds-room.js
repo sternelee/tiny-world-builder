@@ -1,4 +1,4 @@
-  // Worlds MMO — published-world room client. Connects to the authoritative
+  // Tinyverse — published-world room client. Connects to the authoritative
   // PartyKit room ('world-<slug>'), keeps the local mirror of you / peers / nodes /
   // animals, renders a 2D minimap, and turns input into server-validated move /
   // harvest requests. The 3D scene shows the world's tiles via applyState().
@@ -52,6 +52,17 @@
     function playerName() {
       try { return (localStorage.getItem('tinyworld:multiplayer:name') || '').slice(0, 48) || 'Player'; } catch (_) { return 'Player'; }
     }
+    const PLAYER_COLORS = ['#e05c5c','#e08c3c','#d4c040','#5ac44e','#40b8d0','#5a78e0','#b060e0','#e060a0'];
+    function playerColor() {
+      try {
+        let c = localStorage.getItem('tinyworld:multiplayer:color');
+        if (!c || !/^#[0-9a-f]{6}$/i.test(c)) {
+          c = PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)];
+          localStorage.setItem('tinyworld:multiplayer:color', c);
+        }
+        return c;
+      } catch (_) { return '#5a78e0'; }
+    }
   
     function send(obj) { if (socket && socket.readyState === 1) socket.send(JSON.stringify(obj)); }
 
@@ -72,6 +83,7 @@
     }
 
     let stateTimer = null, sawWorldState = false;
+    let prevPlayMode = null;
     function enterRoom(w, joinToken) {
       leaveRoom();
       world = w; token = joinToken || ''; role = 'play';
@@ -83,6 +95,9 @@
       hideBaseMinimap(true);
       setAmbientCrowdVisibleForRoom(false);
       if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(true);
+      // Force play mode so all edit gates block building while in a tinyverse world.
+      const mode = window.__tinyworldMode;
+      if (mode) { prevPlayMode = mode.isPlay(); mode.setPlay(); }
       emit('enter', { world: w, role });
       const roomId = 'world-' + w.slug;
       const url = host() + '/party/' + encodeURIComponent(roomId) + '?_pk=' + encodeURIComponent(connToken());
@@ -91,7 +106,7 @@
       socket.addEventListener('open', () => {
         connected = true;
         send({
-          type: 'world.join', token, worldId: w.id, name: playerName(),
+          type: 'world.join', token, worldId: w.id, name: playerName(), color: playerColor(),
           role, profileId: (WS.myProfileId != null ? WS.myProfileId : null),
           gridSize, cells: compactCells(w.data), taxPercent: w.taxPercent, ownerProfileId: w.ownerProfileId,
         });
@@ -117,6 +132,9 @@
       setAmbientCrowdVisibleForRoom(true);
       hideBaseMinimap(false);
       if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(false);
+      // Restore whichever build/play mode the user had before entering the room.
+      const mode = window.__tinyworldMode;
+      if (mode && prevPlayMode !== null) { if (prevPlayMode) mode.setPlay(); else mode.setBuild(); prevPlayMode = null; }
       emit('leave', {});
     }
 
@@ -215,6 +233,9 @@
       return { world, role, gridSize, taxPercent, you, peers: Array.from(peers.values()), nodes, animals };
     }
     WS.getState = snapshot;
+    WS.getMyId = () => myId;
+    WS.playerName = () => playerName();
+    WS.playerColor = () => playerColor();
   
     // ---- movement + click-to-walk pathfinding ----
     const BLOCKED_KINDS = new Set(['house', 'tree', 'rock', 'fence', 'bush', 'voxel-build', 'model-stamp']);
@@ -302,6 +323,7 @@
     }
     WS.harvest = harvest;
     WS.sendChat = (text) => { const t2 = String(text || '').slice(0, 280).trim(); if (t2) send({ type: 'chat', text: t2 }); };
+    WS.sendTyping = (typing) => { send({ type: 'chat.typing', typing: !!typing }); };
   
     // ---- input ----
     function onKey(e) {
@@ -331,10 +353,10 @@
     function showMinimap() {
       if (mapWrap) { mapWrap.style.display = 'block'; drawMinimap(); return; }
       if (!document.getElementById('tw-worlds-map-style')) {
-        const css = '.tw-worlds-map{position:fixed;right:12px;top:72px;z-index:65;background:#0c1424dd;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px;box-shadow:0 10px 28px -10px rgba(0,0,0,.5)}'
-          + '.tw-worlds-map h4{margin:0 0 6px;font:600 11px system-ui;color:#cfe0ff;text-transform:uppercase;letter-spacing:.05em;cursor:grab;user-select:none;display:flex;align-items:center;gap:6px}'
+        const css = '.tw-worlds-map{position:fixed;right:12px;top:72px;z-index:65;background:rgba(8,11,28,.82);border:1px solid rgba(80,110,200,.22);border-radius:14px;padding:8px;backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);box-shadow:inset 0 1px 0 rgba(120,150,230,.12),0 16px 40px -12px rgba(0,0,20,.55)}'
+          + '.tw-worlds-map h4{margin:0 0 6px;font:600 11px \'Space Grotesk\',system-ui,sans-serif;color:#cfe0ff;text-transform:uppercase;letter-spacing:.05em;cursor:grab;user-select:none;display:flex;align-items:center;gap:6px}'
           + '.tw-worlds-map.dragging h4{cursor:grabbing}'
-          + '.tw-worlds-map canvas{display:block;border-radius:6px;cursor:pointer;background:#13243f}';
+          + '.tw-worlds-map canvas{display:block;border-radius:8px;cursor:pointer;background:#0a1428}';
         document.head.appendChild(Object.assign(document.createElement('style'), { id: 'tw-worlds-map-style', textContent: css }));
       }
       mapWrap = document.createElement('div'); mapWrap.className = 'tw-worlds-map';
@@ -610,7 +632,9 @@
     const peerEnts = new Map();
     let avatarRaf = null;
     let avatarErrored = false;
-    let avatarClassName = 'knight';
+    const AVATAR_CLASS_LS = 'tinyworld:multiplayer:avatar-class';
+    function savedAvatarClass() { try { const v = localStorage.getItem(AVATAR_CLASS_LS); return v || 'knight'; } catch (_) { return 'knight'; } }
+    let avatarClassName = savedAvatarClass();
     let avatarPetId = null; // non-null => pet mode (overrides class)
     let avatarStripId = null; // non-null => strip mode (overrides class). Mutually exclusive with avatarPetId.
     let _texLoader = null;
@@ -685,6 +709,7 @@
     function setAvatarClass(name) {
       const next = AVATAR_CLASSES.includes(name) ? name : 'knight';
       avatarClassName = next;
+      try { localStorage.setItem(AVATAR_CLASS_LS, next); } catch (_) {}
       avatarPetId = null; // class, pet and strip avatars are mutually exclusive
       avatarStripId = null;
       if (selfEnt) loadAvatarTextures(selfEnt, avatarClassName);

@@ -16,13 +16,17 @@ description: Use when changing Tiny World Builder's mode indicator, boot tool se
   build panels and edit radials are hidden, selection/sub-edit state is cleared,
   and mutation paths should be gated through the same edit checks that call
   `mpEditAllowed()`.
-- First load uses the same Build/Play contract through `#welcome-modal`: the
-  rounded `.launch-modal` shows `assets/twlogo.png` with BUILD and PLAY buttons,
+- First load goes through `#welcome-modal`: the rounded `.launch-modal` shows
+  `assets/twlogo.png` with Tinyverse, Battleworlds, Build, and Play buttons,
   includes the compact "Created by Jason Kneen" footer with `@jasonkneen` and
-  `@tinyworldsapp` links, hides app chrome via `body.welcome-launch-open`, and calls
-  `window.__tinyworldMode` when the user chooses. Do not bring back the old
-  farm/vehicle welcome picker for this path, and keep `publish.sh` copying the
-  `assets/` directory into `dist/assets/`.
+  `@tinyworldsapp` links, and hides app chrome via `body.welcome-launch-open`.
+  Build/Play call `window.__tinyworldMode`; Tinyverse waits for
+  `window.__tinyworldWorlds.open()` (or the `tinyworld:worlds-ready` signal)
+  and opens the Worlds frontend rather than silently falling back to Build.
+  Battleworlds calls `window.__tinyworldBattleworlds.open()` when present and
+  otherwise falls back to Play. Do not bring back the old farm/vehicle welcome
+  picker for this path, and keep `publish.sh` copying the `assets/` directory
+  into `dist/assets/`.
 - Showcase mode keeps only a simple top-right circular `#showcase-exit` X
   button visible. Do not turn it back into a wide "Exit Showcase Esc" text pill;
   keep `aria-keyshortcuts="Escape"` and the existing Escape handler that calls

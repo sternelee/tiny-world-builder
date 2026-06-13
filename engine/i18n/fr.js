@@ -8,6 +8,7 @@
     'worlds.subtitle': 'Posséder un terrain · bâtir · percevoir une taxe',
     'worlds.close': 'Fermer',
     'worlds.loading': 'Chargement des mondes…',
+    'worlds.unavailable': 'Tinyverse est encore en cours de chargement. Réessayez.',
     'worlds.empty': 'Aucun monde pour l’instant.',
     'worlds.statusUnclaimed': 'À vendre',
     'worlds.statusDraft': 'Brouillon',

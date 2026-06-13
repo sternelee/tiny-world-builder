@@ -44,7 +44,7 @@
       radial-gradient(circle at 70% 86%, rgba(255, 188, 126, min(1, calc(var(--backdrop-strength, 0.78) * 0.22))), transparent 36%),
       linear-gradient(135deg, rgb(var(--sky-blue-base-rgb, 106, 168, 235)) 0%, rgb(var(--sky-blue-low-rgb, 188, 220, 244)) 48%, #fff0d1 100%);
     color: var(--ink);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     user-select: none;
     -webkit-user-select: none;
@@ -590,7 +590,7 @@
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     box-shadow: 0 8px 22px rgba(20, 28, 45, 0.14);
-    font: 700 12px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 700 12px/1 'Space Grotesk', system-ui, -apple-system, sans-serif;
     color: #2b3242;
     pointer-events: none;
   }
@@ -670,7 +670,7 @@
     -webkit-backdrop-filter: blur(12px) saturate(160%);
     backdrop-filter: blur(12px) saturate(160%);
     color: #2b3242;
-    font: 800 12px/1.3 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 12px/1.3 'Space Grotesk', system-ui, -apple-system, sans-serif;
     text-align: center;
     opacity: 0;
     transition: opacity 0.28s ease, transform 0.28s ease;
@@ -703,8 +703,8 @@
     text-align: center;
     color: #2b3242;
   }
-  .mp-lobby-title { font: 800 16px/1.35 system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
-  .mp-lobby-sub { margin-top: 8px; font: 600 12.5px/1.45 system-ui, -apple-system, BlinkMacSystemFont, sans-serif; color: #5a6172; }
+  .mp-lobby-title { font: 800 16px/1.35 'Space Grotesk', system-ui, -apple-system, sans-serif; }
+  .mp-lobby-sub { margin-top: 8px; font: 600 12.5px/1.45 'Space Grotesk', system-ui, -apple-system, sans-serif; color: #5a6172; }
 
   /* Host admit panel — glassy panel with a drag-bar-style header + close. */
   .mp-admit-panel {
@@ -746,7 +746,7 @@
     border-radius: 999px;
     background: rgba(120, 130, 150, 0.35);
   }
-  .mp-admit-title { font: 800 13px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+  .mp-admit-title { font: 800 13px/1 'Space Grotesk', system-ui, -apple-system, sans-serif; }
   .mp-admit-close {
     position: absolute;
     right: -2px;
@@ -782,14 +782,14 @@
     align-items: center;
     justify-content: center;
     color: #fff;
-    font: 800 9.5px/1 system-ui, sans-serif;
+    font: 800 9.5px/1 'Space Grotesk', system-ui, sans-serif;
     text-transform: uppercase;
     border: 2px solid rgba(255, 255, 255, 0.92);
     box-shadow: 0 1px 3px rgba(20, 28, 45, 0.28);
     flex: 0 0 auto;
   }
   .mp-admit-name {
-    font: 800 12.5px/1.2 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 12.5px/1.2 'Space Grotesk', system-ui, -apple-system, sans-serif;
     color: #2b3242;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -813,7 +813,7 @@
     border-radius: 10px;
     background: rgba(120, 116, 108, 0.12);
     color: #3a3f4d;
-    font: 800 10.5px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 10.5px/1 'Space Grotesk', system-ui, -apple-system, sans-serif;
     padding: 6px 4px;
     cursor: pointer;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
@@ -840,7 +840,7 @@
     box-shadow:
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.9),
       0 1px 2px -1px rgba(20, 30, 50, 0.2);
-    font: 800 11.5px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 11.5px/1 'Space Grotesk', system-ui, -apple-system, sans-serif;
     padding: 7px 8px;
     cursor: pointer;
     transition: background 0.12s, box-shadow 0.12s, color 0.12s;
@@ -877,7 +877,7 @@
     color: #2b3242;
   }
   .mp-mod-title {
-    font: 800 12.5px/1.2 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 12.5px/1.2 'Space Grotesk', system-ui, -apple-system, sans-serif;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -928,7 +928,7 @@
     justify-content: center;
     background: #d9483b;
     color: #fff;
-    font: 800 10px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 10px/1 'Space Grotesk', system-ui, -apple-system, sans-serif;
     border: 2px solid rgba(255, 255, 255, 0.92);
     box-shadow: 0 1px 3px rgba(20, 28, 45, 0.3);
   }
@@ -1017,7 +1017,7 @@
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.9),
       0 1px 2px -1px rgba(20, 30, 50, 0.2);
     color: #2b3242;
-    font: 800 11.5px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 11.5px/1 'Space Grotesk', system-ui, -apple-system, sans-serif;
     padding: 6px 8px;
     cursor: default;
   }
@@ -1059,15 +1059,15 @@
   }
   .mp-chat-meta { display: flex; align-items: baseline; gap: 6px; }
   .mp-chat-name {
-    font: 800 11px/1.2 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 800 11px/1.2 'Space Grotesk', system-ui, -apple-system, sans-serif;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 150px;
   }
-  .mp-chat-time { font: 600 9.5px/1 system-ui, sans-serif; color: #8a91a0; }
+  .mp-chat-time { font: 600 9.5px/1 'Space Grotesk', system-ui, sans-serif; color: #8a91a0; }
   .mp-chat-text {
-    font: 600 12.5px/1.4 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 600 12.5px/1.4 'Space Grotesk', system-ui, -apple-system, sans-serif;
     color: #2b3242;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -1076,7 +1076,7 @@
     flex: 0 0 auto;
     min-height: 14px;
     padding: 0 4px;
-    font: 700 10.5px/1.2 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 700 10.5px/1.2 'Space Grotesk', system-ui, -apple-system, sans-serif;
     color: #5a6172;
     opacity: 0;
     transition: opacity 0.15s;
@@ -1092,7 +1092,7 @@
     padding: 9px 11px;
     background: rgba(255, 255, 255, 0.7);
     color: #2b3242;
-    font: 600 12.5px/1.2 system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 600 12.5px/1.2 'Space Grotesk', system-ui, -apple-system, sans-serif;
     outline: none;
   }
   .mp-chat-input:focus { border-color: #304878; background: rgba(255, 255, 255, 0.9); }
@@ -1168,6 +1168,31 @@
   body.tw-play-mode #reset,
   body.tw-play-mode #clear,
   body.tw-play-mode #dev-mode {
+    display: none !important;
+  }
+
+  /* TINYVERSE PLAY — visiting a multiplayer world. Same build-surface hiding
+     as tw-play-mode, plus the left pill is trimmed to Home / View modes /
+     My Account / keyboard help only. */
+  body.tw-worlds-play #toolbar,
+  body.tw-worlds-play #tool-palette,
+  body.tw-worlds-play .flyout,
+  body.tw-worlds-play #layers-toggle,
+  body.tw-worlds-play #layers-panel,
+  body.tw-worlds-play #agent-panel,
+  body.tw-worlds-play #agent-input,
+  body.tw-worlds-play #agent-panel-handle,
+  body.tw-worlds-play #stamp-builder-panel,
+  body.tw-worlds-play #crowd-panel,
+  body.tw-worlds-play #crowd-panel-handle,
+  body.tw-worlds-play .unsaved-banner,
+  body.tw-worlds-play .radial-menu {
+    display: none !important;
+  }
+  body.tw-worlds-play .controls > :not(#home):not(#view-modes):not(#tips-toggle):not(#account-btn) {
+    display: none !important;
+  }
+  body.tw-worlds-play #world-pill {
     display: none !important;
   }
 
@@ -2406,7 +2431,7 @@
   }
   .tool kbd {
     display: inline-block;
-    font-family: 'Inter', monospace;
+    font-family: 'Space Grotesk', monospace;
     font-size: 9px;
     color: #b9b1a3;
     margin-top: -2px;
@@ -7519,8 +7544,9 @@
     border-radius: 16px;
     background: var(--welcome-fill);
     color: var(--welcome-outline);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
     font-size: 17px;
-    font-weight: 900;
+    font-weight: 700;
     letter-spacing: 0;
     line-height: 1;
     white-space: nowrap;
@@ -7548,6 +7574,35 @@
       inset 0 -4px 0 var(--welcome-bevel),
       0 0 0 3px rgba(255, 255, 255, 0.86),
       0 0 0 6px rgba(23, 107, 235, 0.28);
+  }
+  .welcome-mode-btn.is-soon {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .welcome-mode-btn.is-soon:hover {
+    transform: none;
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.92),
+      inset 0 -4px 0 var(--welcome-bevel),
+      0 3px 5px -2px rgba(20, 30, 50, 0.25);
+  }
+  .welcome-mode-btn.is-soon:active { transform: none; }
+  .welcome-mode-btn.is-soon::after {
+    content: 'Coming soon';
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: rgba(47, 59, 87, 0.16);
+    color: var(--welcome-outline);
   }
   .welcome-tinyverse {
     --welcome-outline: #1e428a;
@@ -7741,7 +7796,47 @@
     color: #3d7a2a;
   }
   .auth-success[hidden] { display: none; }
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
   .auth-form[hidden] { display: none; }
+  .auth-wallet-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .auth-wallet-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #fffaf0;
+    color: var(--ink);
+    border: 1px solid rgba(160, 132, 84, 0.42);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: inset 0 -2px 0 rgba(160, 132, 84, 0.14);
+    transition: background 0.12s, border-color 0.15s, transform 0.08s;
+  }
+  .auth-wallet-btn:hover { background: #fff5df; border-color: rgba(160, 132, 84, 0.66); }
+  .auth-wallet-btn:active { transform: translateY(1px); }
+  .auth-wallet-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .auth-wallet-btn svg {
+    width: 19px;
+    height: 19px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: #7a5cff;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
   .auth-divider {
     display: flex; align-items: center; gap: 12px;
     font-size: 12px; color: var(--muted);
@@ -8034,14 +8129,14 @@
     background: #fdf7e2;
     border: 1px solid #e3cb86;
     border-radius: 8px;
-    font-family: 'Inter', monospace;
+    font-family: 'Space Grotesk', monospace;
     font-size: 12px;
     color: #5a4516;
     word-break: break-all;
     line-height: 1.4;
   }
   .api-key-reveal[hidden] { display: none; }
-  .api-key-reveal strong { display: block; font-family: 'Inter', sans-serif; font-size: 12px; margin-bottom: 4px; color: #7a5d18; }
+  .api-key-reveal strong { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 12px; margin-bottom: 4px; color: #7a5d18; }
   #api-status { font-size: 12px; color: var(--muted); flex: 1; }
   #api-status.error { color: #b84838; }
   #api-status.success { color: #3d7a2a; }
@@ -8325,7 +8420,7 @@ body.flight-active { cursor: none; }
   border-radius: 999px;
   background: rgba(14, 18, 24, 0.78);
   color: #eaf2ff;
-  font: 12px/1.2 system-ui, sans-serif;
+  font: 12px/1.2 'Space Grotesk', system-ui, sans-serif;
   letter-spacing: 0.04em;
   pointer-events: none;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
@@ -8358,7 +8453,7 @@ body.flight-active { cursor: none; }
   border-radius: 8px;
   background: #c8503a;
   color: #fff;
-  font: 600 13px/1 system-ui, sans-serif;
+  font: 600 13px/1 'Space Grotesk', system-ui, sans-serif;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }

@@ -1,4 +1,4 @@
-  // Worlds MMO — universe map, buying, and world management (playworlds-style).
+  // Tinyverse — universe map, buying, and world management (playworlds-style).
   //
   // A NEW mode layered beside the freeform builder: a "🌍 Worlds" launcher opens
   // the universe map (world cards), where players buy unclaimed worlds with USDC,
@@ -82,57 +82,67 @@
     function injectStyles() {
       if (document.getElementById('tw-worlds-style')) return;
       const css = `
-  /* Pixel/8-bit world browsing: hard edges, stepped 2px bevels, flat saturated colors, Pixelify Sans. */
   .tw-worlds-launch{position:fixed;left:12px;bottom:calc(12px + var(--tw-worlds-bottom-inset,0px));z-index:60;display:flex;gap:6px;align-items:center;
-    padding:9px 13px;border:0;cursor:pointer;border-radius:3px;
-    background:#2b59d6;color:#fff;font:700 12px/1 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;text-shadow:1px 1px 0 rgba(0,0,0,.45);
-    box-shadow:inset 2px 2px 0 rgba(255,255,255,.30),inset -2px -2px 0 rgba(0,0,0,.42),0 3px 0 0 rgba(0,0,0,.45)}
+    padding:9px 13px;border:0;cursor:pointer;border-radius:10px;
+    background:linear-gradient(180deg,#3a6fe0 0%,#2b59d6 100%);color:#fff;font:700 12px/1 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 16px -4px rgba(43,89,214,.55),0 2px 6px -2px rgba(0,0,0,.3);transition:filter .08s,transform .04s}
   .tw-worlds-launch:hover{filter:brightness(1.12)}
-  .tw-worlds-launch:active{transform:translateY(2px)}
-  .tw-worlds-overlay{position:fixed;inset:0;z-index:80;display:none;background:rgba(5,7,14,.93);
-    overflow:auto;color:#eef3ff;font-family:'Pixelify Sans',ui-monospace,monospace;image-rendering:pixelated}
+  .tw-worlds-launch:active{transform:translateY(1px)}
+  .tw-worlds-overlay{position:fixed;inset:0;z-index:80;display:none;
+    background:rgba(4,6,18,.82);backdrop-filter:blur(6px) saturate(140%);-webkit-backdrop-filter:blur(6px) saturate(140%);
+    overflow:auto;color:#eef3ff;font-family:'Pixelify Sans',ui-monospace,monospace}
   .tw-worlds-overlay.open{display:block}
   .tw-worlds-wrap{max-width:1320px;margin:0 auto;padding:24px 20px 60px}
   .tw-worlds-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
-  .tw-worlds-head h2{margin:0;font-size:30px;text-transform:uppercase;letter-spacing:.06em;text-shadow:2px 2px 0 #05070e}
-  .tw-worlds-head p{margin:6px 0 0;opacity:.72;font-size:13px}
-  .tw-worlds-x{background:#222a42;border:0;color:#dfe6ff;cursor:pointer;font:700 12px 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.04em;
-    border-radius:3px;padding:9px 13px;box-shadow:inset 2px 2px 0 rgba(255,255,255,.16),inset -2px -2px 0 rgba(0,0,0,.45),0 3px 0 0 rgba(0,0,0,.4)}
-  .tw-worlds-x:hover{filter:brightness(1.15)}
-  .tw-worlds-x:active{transform:translateY(2px)}
+  .tw-worlds-head h2{margin:0;font-size:30px;text-transform:uppercase;letter-spacing:.06em;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .tw-worlds-head p{margin:6px 0 0;opacity:.72;font-size:13px;font-family:'Space Grotesk',system-ui,sans-serif}
+  .tw-worlds-x{background:rgba(30,40,80,.55);border:1px solid rgba(100,130,220,.22);color:#dfe6ff;cursor:pointer;
+    font:700 12px 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.04em;
+    border-radius:10px;padding:9px 13px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 8px -2px rgba(0,0,0,.35);transition:filter .08s}
+  .tw-worlds-x:hover{filter:brightness(1.18)}
+  .tw-worlds-x:active{transform:translateY(1px)}
   .tw-worlds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-  .tw-worlds-card{background:#161a2b;border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px;
-    box-shadow:0 0 0 2px #05070e,inset 2px 2px 0 #38415f,inset -2px -2px 0 #0a0d18;transition:transform .06s}
-  .tw-worlds-card:hover{transform:translateY(-2px)}
-  .tw-worlds-prev{width:100%;aspect-ratio:16/10;border-radius:2px;background:#05070e;image-rendering:pixelated;display:block;
-    box-shadow:inset 1px 1px 0 #2b3350,inset -1px -1px 0 #05070e}
+  .tw-worlds-card{background:rgba(12,16,38,.72);border:1px solid rgba(80,110,200,.22);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;
+    backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
+    box-shadow:inset 0 1px 0 rgba(120,150,230,.14),0 20px 40px -16px rgba(0,0,20,.55),0 4px 8px -4px rgba(0,0,0,.28);transition:transform .06s,box-shadow .12s}
+  .tw-worlds-card:hover{transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(120,150,230,.22),0 24px 48px -14px rgba(0,0,25,.65),0 6px 12px -4px rgba(0,0,0,.32)}
+  .tw-worlds-prev{width:100%;aspect-ratio:16/10;border-radius:8px;background:#05070e;image-rendering:pixelated;display:block;
+    box-shadow:0 2px 8px -2px rgba(0,0,0,.5)}
   .tw-worlds-card h3{margin:2px 0;font-size:15px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .tw-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:2px}
-  .tw-badge.unclaimed{background:#13346b;color:#9cc0ff}
-  .tw-badge.draft{background:#5a4012;color:#ffd690}
-  .tw-badge.published{background:#14532a;color:#95e6b3}
-  .tw-worlds-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:11px;opacity:.85}
+  .tw-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 7px;border-radius:6px}
+  .tw-badge.unclaimed{background:rgba(19,52,107,.7);color:#9cc0ff;border:1px solid rgba(80,130,230,.25)}
+  .tw-badge.draft{background:rgba(90,64,18,.7);color:#ffd690;border:1px solid rgba(200,160,60,.2)}
+  .tw-badge.published{background:rgba(20,83,42,.7);color:#95e6b3;border:1px solid rgba(60,200,100,.2)}
+  .tw-worlds-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:11px;opacity:.85;font-family:'Space Grotesk',system-ui,sans-serif}
   .tw-worlds-meta b{opacity:.6;font-weight:400}
   .tw-worlds-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-  .tw-btn{flex:1;min-width:80px;border:0;border-radius:3px;padding:9px;cursor:pointer;color:#fff;
-    font:700 11px/1 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;text-shadow:1px 1px 0 rgba(0,0,0,.4);
-    background:#2b59d6;box-shadow:inset 2px 2px 0 rgba(255,255,255,.28),inset -2px -2px 0 rgba(0,0,0,.42),0 2px 0 0 rgba(0,0,0,.4);transition:filter .08s,transform .04s}
+  .tw-btn{flex:1;min-width:80px;border:0;border-radius:10px;padding:9px;cursor:pointer;color:#fff;
+    font:700 11px/1 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.05em;
+    background:linear-gradient(180deg,#3a6fe0 0%,#2b59d6 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 4px 12px -4px rgba(43,89,214,.4),0 2px 4px -2px rgba(0,0,0,.25);
+    transition:filter .08s,transform .04s}
   .tw-btn:hover{filter:brightness(1.12)}
   .tw-btn:active{transform:translateY(1px)}
-  .tw-btn.alt{background:#222a42}
-  .tw-btn.go{background:#54bd37}
+  .tw-btn.alt{background:rgba(30,40,80,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 2px 6px -2px rgba(0,0,0,.3)}
+  .tw-btn.go{background:linear-gradient(180deg,#62cc44 0%,#4aab2e 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 4px 12px -4px rgba(74,171,46,.4)}
   .tw-btn:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.5)}
-  .tw-modal-back{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(5,7,14,.7)}
-  .tw-modal{background:#161a2b;border-radius:4px;padding:20px;width:min(420px,92vw);color:#eef3ff;font-family:'Pixelify Sans',ui-monospace,monospace;
-    box-shadow:0 0 0 2px #05070e,inset 2px 2px 0 #38415f,inset -2px -2px 0 #0a0d18}
+  .tw-modal-back{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+    background:rgba(3,5,16,.65);backdrop-filter:blur(10px) saturate(130%);-webkit-backdrop-filter:blur(10px) saturate(130%)}
+  .tw-modal{background:rgba(8,11,28,.88);border:1px solid rgba(80,110,200,.26);border-radius:14px;padding:20px;width:min(420px,92vw);color:#eef3ff;
+    font-family:'Pixelify Sans',ui-monospace,monospace;
+    backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+    box-shadow:inset 0 1px 0 rgba(120,150,230,.18),0 32px 64px -20px rgba(0,0,20,.7),0 8px 16px -8px rgba(0,0,0,.4)}
   .tw-modal h3{margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em}
-  .tw-modal label{display:block;font-size:11px;opacity:.8;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
-  .tw-modal input{width:100%;box-sizing:border-box;padding:9px;border-radius:2px;border:0;background:#0e1120;color:#fff;font:600 14px 'Pixelify Sans',ui-monospace,monospace;
-    box-shadow:inset 1px 1px 0 #2b3350,inset -1px -1px 0 #05070e}
+  .tw-modal label{display:block;font-size:11px;opacity:.8;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;font-family:'Space Grotesk',system-ui,sans-serif}
+  .tw-modal input{width:100%;box-sizing:border-box;padding:9px;border-radius:8px;border:1px solid rgba(80,110,200,.25);background:rgba(4,6,20,.65);color:#fff;
+    font:600 14px 'Space Grotesk',system-ui,sans-serif;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .tw-modal input:focus{outline:none;border-color:rgba(80,130,240,.5);box-shadow:0 0 0 3px rgba(43,89,214,.18)}
   .tw-modal-row{display:flex;gap:8px;margin-top:16px}
   .tw-draftbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + var(--tw-worlds-bottom-inset,0px));z-index:70;display:flex;gap:8px;
-    background:#161a2b;border-radius:4px;padding:9px;align-items:center;
-    box-shadow:0 0 0 2px #05070e,inset 2px 2px 0 #38415f,inset -2px -2px 0 #0a0d18}
+    background:rgba(8,11,28,.82);border:1px solid rgba(80,110,200,.22);border-radius:12px;padding:9px;align-items:center;
+    backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
+    box-shadow:inset 0 1px 0 rgba(120,150,230,.14),0 16px 40px -12px rgba(0,0,20,.5)}
   .tw-draftbar span{font:700 11px 'Pixelify Sans',ui-monospace,monospace;color:#ffd690;text-transform:uppercase;letter-spacing:.04em;padding:0 6px}
   body.tw-worlds-embed .toolbar{bottom:calc(28px + var(--tw-worlds-bottom-inset,0px)) !important}
   body.tw-worlds-embed .tool-palette{bottom:calc(28px + var(--tw-worlds-bottom-inset,0px)) !important}
@@ -413,6 +423,13 @@
     WS.open = openOverlay;
     WS.close = closeOverlay;
     WS.refresh = loadWorlds;
+    WS.ready = true;
+    window.__tinyworldWorldsReady = Promise.resolve(WS);
+    try {
+      window.dispatchEvent(new CustomEvent('tinyworld:worlds-ready', { detail: WS }));
+    } catch (_) {
+      try { window.dispatchEvent(new Event('tinyworld:worlds-ready')); } catch (_) {}
+    }
   
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addLauncher);
     else addLauncher();

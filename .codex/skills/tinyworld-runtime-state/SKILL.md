@@ -79,6 +79,7 @@ inline `setupDevSaveDefaults()` IIFE (client filter):
 - `/^tinyworld:v\d+$/` — serialised home world
 - `/^tinyworld:worlds\.v\d+/` — multi-world saves
 - `/^tinyworld:ai:key:/` — API credentials (SECURITY)
+- `/^tinyworld:auth:/` — account/session credentials (SECURITY)
 - `/^tinyworld:ai:prompt$/` — user prompt text
 - `/^tinyworld:vehicle-demo:/` — session demo state
 - `/^tinyworld:audio:music-track$/` — per-user manual music choice
@@ -173,8 +174,9 @@ defaults — sets the welcome shot for new users.
 
 ## Feature flags
 
-- `tinyworld:features:cluso` — legacy Cluso flag. The in-page Cluso embed has
-  been removed, and no app runtime path reads this key.
+- `tinyworld:features:cluso` — legacy Cluso flag; no app runtime path reads this
+  key. The Cluso embed is now injected local-dev-only by `tools/dev-server.js`
+  (see tinyworld-single-file SKILL), not gated by this key.
 - `tinyworld:features:ai` — AI panel. AI surfaces (`[data-ai-interface]`) are
   hidden on prod via `html.ai-disabled`, enabled by local host / `?ai=1` / this
   flag. Additionally, signed-in accounts whose email is in `AI_ACCOUNT_ALLOWLIST`

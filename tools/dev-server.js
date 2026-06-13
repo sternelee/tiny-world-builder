@@ -11,6 +11,68 @@ const port = Number(process.env.PORT || process.argv[2] || 3000);
 const aiLogDir = path.resolve(root, '.tinyworld-ai-logs');
 const aiLogFile = path.resolve(aiLogDir, 'ai-debug.jsonl');
 
+// ---- Live reload ----
+const reloadClients = new Set();
+let reloadDebounce = null;
+
+function notifyReload(file) {
+  clearTimeout(reloadDebounce);
+  reloadDebounce = setTimeout(() => {
+    const rel = path.relative(root, file);
+    console.log('[reload]', rel);
+    const msg = `data: ${JSON.stringify({ file: rel })}\n\n`;
+    for (const res of reloadClients) {
+      try { res.write(msg); } catch (_) { reloadClients.delete(res); }
+    }
+  }, 80);
+}
+
+const WATCH_EXTS = new Set(['.html', '.js', '.mjs', '.css', '.json']);
+const WATCH_PATHS = [
+  path.resolve(root, 'engine'),
+  path.resolve(root, 'styles'),
+  path.resolve(root, 'netlify', 'functions'),
+];
+const WATCH_ROOT_FILES = [
+  'index.html', 'tiny-world-builder.html', 'roadmap.html',
+  'features.html', 'worlds.html', 'docs.html', 'harvest.html',
+];
+
+function watchDir(dir) {
+  if (!fs.existsSync(dir)) return;
+  try {
+    fs.watch(dir, { recursive: true }, (_, filename) => {
+      if (!filename) return;
+      if (!WATCH_EXTS.has(path.extname(filename).toLowerCase())) return;
+      notifyReload(path.join(dir, filename));
+    });
+  } catch (_) {}
+}
+
+WATCH_PATHS.forEach(watchDir);
+WATCH_ROOT_FILES.forEach(f => {
+  const fullPath = path.resolve(root, f);
+  if (fs.existsSync(fullPath)) {
+    try { fs.watch(fullPath, () => notifyReload(fullPath)); } catch (_) {}
+  }
+});
+
+const RELOAD_SNIPPET = `<script>
+(function(){var es=new EventSource('/__dev_reload');es.onmessage=function(){location.reload()};es.onerror=function(){setTimeout(function(){location.reload()},2000)};})();
+</script>`;
+
+// Cluso feedback widget — LOCAL DEV ONLY. Injected by this dev server so the
+// committed HTML/dist stays clean (tools/check.js forbids cluso-embed in the
+// app; publish.sh excludes cluso/ from dist). Served from cluso/cluso-embed.*.
+// Config object has an attribute (type=) so tinyworld's inline-script regex
+// checks skip it; only injected when cluso/cluso-embed.js exists locally.
+const CLUSO_WEBHOOK_URL = 'http://localhost:' + (process.env.CLUSO_WEBHOOK_PORT || 7878) + '/';
+const CLUSO_HEAD = `<link rel="stylesheet" href="/cluso/cluso-embed.css">
+<script type="text/javascript">window.__CLUSO_EMBEDDED_CONFIG__={defaultActive:false,showToolbar:true,hideCollapsedToolbar:false,webhookUrl:${JSON.stringify(CLUSO_WEBHOOK_URL)},visibleControls:{pause:true,markers:true,copy:true,send:true,clear:true,settings:true,inspector:true,exit:true}};</script>
+<script type="module" src="/cluso/cluso-embed.js"></script>`;
+const CLUSO_BODY = `<div id="root" style="position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;"></div>`;
+const clusoEmbedAvailable = fs.existsSync(path.resolve(root, 'cluso', 'cluso-embed.js'));
+
 function loadEnvFile() {
   const envPath = path.resolve(root, '.env');
   if (!fs.existsSync(envPath)) return;
@@ -170,6 +232,7 @@ const EXCLUDED_DEFAULT_KEY_PATTERNS = [
   /^tinyworld:v\d+$/,                  // serialised home world
   /^tinyworld:worlds\.v\d+/,           // multi-world saves
   /^tinyworld:ai:key:/,                // API credentials
+  /^tinyworld:auth:/,                  // account/session credentials
   /^tinyworld:ai:prompt$/,             // user prompt text
   /^tinyworld:vehicle-demo:/,          // session-only demo state
   /^tinyworld:audio:music-track$/,     // per-user manual music choice
@@ -671,9 +734,12 @@ function routeForRequest(reqUrl) {
   const parsed = new URL(reqUrl, 'http://localhost');
   const pathname = decodeURIComponent(parsed.pathname);
 
-  // Normal access: show the welcome menu (defaults to Farm)
-  if (pathname === '/') return { redirect: '/tiny-world-builder' };
-  if (pathname === '/tiny-world-builder') return { file: path.resolve(root, 'tiny-world-builder.html') };
+  // Normal access: show the temporary landing page. The editor remains at
+  // /tiny-world-builder for direct testing and production parity.
+  if (pathname === '/') return { file: path.resolve(root, 'index.html') };
+  if (pathname === '/tiny-world-builder' || pathname === '/tiny-world-builder/') {
+    return { file: path.resolve(root, 'tiny-world-builder.html') };
+  }
 
   const resolved = path.resolve(root, '.' + pathname);
   if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
@@ -684,6 +750,20 @@ const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, 'http://localhost');
   if (req.method === 'OPTIONS') {
     send(res, 204, '');
+    return;
+  }
+
+  // Live reload SSE endpoint
+  if (parsedUrl.pathname === '/__dev_reload') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.write(':connected\n\n');
+    reloadClients.add(res);
+    req.on('close', () => reloadClients.delete(res));
     return;
   }
   if (parsedUrl.pathname === '/api/model-stamps') {
@@ -806,6 +886,37 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(file).toLowerCase();
+    // Inject live-reload snippet (and local-only Cluso widget) into HTML responses.
+    if (ext === '.html') {
+      fs.readFile(file, 'utf8', (readErr, content) => {
+        if (readErr) { send(res, 500, 'Read error'); return; }
+        let injected = content;
+        // Cluso widget — local dev only, never in committed HTML or dist.
+        if (clusoEmbedAvailable) {
+          injected = injected.includes('</head>')
+            ? injected.replace('</head>', CLUSO_HEAD + '</head>')
+            : CLUSO_HEAD + injected;
+          // Only add a mount root if the page doesn't already have one.
+          const needsRoot = !/id=["']root["']/.test(injected);
+          const bodyAddition = (needsRoot ? CLUSO_BODY : '') + RELOAD_SNIPPET;
+          injected = injected.includes('</body>')
+            ? injected.replace('</body>', bodyAddition + '</body>')
+            : injected + bodyAddition;
+        } else {
+          injected = injected.includes('</body>')
+            ? injected.replace('</body>', RELOAD_SNIPPET + '</body>')
+            : injected + RELOAD_SNIPPET;
+        }
+        const buf = Buffer.from(injected, 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': buf.length,
+          'Cache-Control': 'no-store',
+        });
+        if (req.method !== 'HEAD') res.end(buf);
+      });
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': types[ext] || 'application/octet-stream',
       'Content-Length': stat.size,
@@ -828,10 +939,34 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
+// Local-dev only: auto-start the Cluso webhook receiver (port 7878) so
+// annotations land in tools/cluso-events.jsonl without a separate terminal.
+// Only spawned when the Cluso embed is present and the port is free.
+function startClusoWebhook() {
+  if (!clusoEmbedAvailable) return;
+  const webhookPort = Number(process.env.CLUSO_WEBHOOK_PORT || 7878);
+  const probe = http.request({ host: '127.0.0.1', port: webhookPort, method: 'GET', path: '/health', timeout: 800 }, () => {
+    console.log(`  Cluso webhook already running on http://localhost:${webhookPort}/`);
+  });
+  probe.on('error', () => {
+    const { spawn } = require('child_process');
+    const child = spawn(process.execPath, [path.resolve(__dirname, 'cluso-webhook.js'), String(webhookPort)], {
+      cwd: root, stdio: 'ignore', detached: false,
+    });
+    child.unref();
+    process.on('exit', () => { try { child.kill(); } catch (_) {} });
+    console.log(`  Cluso webhook started on http://localhost:${webhookPort}/  (plug this into Cluso → Webhooks)`);
+  });
+  probe.on('timeout', () => probe.destroy());
+  probe.end();
+}
+
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Tiny World dev server: http://localhost:${port}/tiny-world-builder`);
-  console.log(`  → Shows welcome menu (defaults to Farm preset)`);
+  console.log(`Tiny World dev server: http://localhost:${port}/`);
+  console.log(`  -> Landing page entry at /`);
+  console.log(`  -> Builder at /tiny-world-builder`);
   console.log(`  → Click "Vehicle Demo" button for cars/trucks`);
   console.log(`  Or append ?demo=vehicles to jump straight to vehicle demo`);
   console.log('Press Ctrl+C to stop.');
+  startClusoWebhook();
 });

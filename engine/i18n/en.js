@@ -20,6 +20,7 @@
     'worlds.subtitle': 'Own land · build · earn tax',
     'worlds.close': 'Close',
     'worlds.loading': 'Loading worlds…',
+    'worlds.unavailable': 'Tinyverse is still loading. Try again.',
     'worlds.empty': 'No worlds yet.',
     'worlds.statusUnclaimed': 'For sale',
     'worlds.statusDraft': 'Draft',

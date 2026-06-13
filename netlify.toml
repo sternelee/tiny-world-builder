@@ -5,6 +5,13 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[dev]
+  command = "npm run dev"
+  targetPort = 3000
+  port = 8888
+  framework = "#custom"
+  autoLaunch = false
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
@@ -17,6 +24,31 @@
 [[redirects]]
   from = "/tiny-world-builder/"
   to = "/tiny-world-builder.html"
+  status = 200
+
+[[redirects]]
+  from = "/roadmap"
+  to = "/roadmap.html"
+  status = 200
+
+[[redirects]]
+  from = "/docs"
+  to = "/docs.html"
+  status = 200
+
+[[redirects]]
+  from = "/features"
+  to = "/features.html"
+  status = 200
+
+[[redirects]]
+  from = "/worlds"
+  to = "/worlds.html"
+  status = 200
+
+[[redirects]]
+  from = "/harvest"
+  to = "/harvest.html"
   status = 200
 
 [[headers]]

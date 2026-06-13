@@ -24,7 +24,8 @@ backend:
   widget script.
 - Account API fetches must send `Authorization: Bearer <nf_jwt>` when possible
   and `credentials: 'same-origin'` so Netlify Functions can resolve the current
-  Identity user.
+  Identity user. Wallet login uses the same bearer path with signed
+  `tw-wallet-v1...` session tokens stored under `tinyworld:auth:*`.
 - For local account/function work, run `npx netlify dev` and use
   `http://localhost:8888/tiny-world-builder`; that port keeps the auth/account
   UI enabled while the plain static dev server remains anonymous.
@@ -52,12 +53,15 @@ backend:
   If those tables are missing in local Netlify dev, classify Postgres `42P01`
   with `isMissingRelations(...)` and return a setup-oriented 503 instead of
   logging raw missing-relation errors as generic 500s.
-- Phantom wallet linking must stay challenge/response based: the browser asks
-  Phantom to sign the server-issued message and the function verifies the
-  Ed25519 signature against the Solana public key before linking. Do not accept
-  a posted wallet address as proof of ownership. `$TINYWORLD` mint/payment
-  values come from env (`TINYWORLD_TOKEN_MINT`, `TINYWORLD_PAYMENT_WALLET`,
-  optional `SOLANA_RPC_URL`) rather than client constants.
+- Phantom wallet linking and wallet login must stay challenge/response based:
+  the browser asks Phantom to sign the server-issued message and the function
+  verifies the Ed25519 signature against the Solana public key before linking
+  or minting a wallet session. Do not accept a posted wallet address as proof
+  of ownership. Wallet login requires `TINYWORLD_WALLET_SESSION_SECRET` (or
+  `TINYWORLD_AUTH_SECRET`) for HMAC-signed challenge/session tokens.
+  `$TINYWORLD` mint/payment values come from env (`TINYWORLD_TOKEN_MINT`,
+  `TINYWORLD_PAYMENT_WALLET`, optional `SOLANA_RPC_URL`) rather than client
+  constants.
 - Database schema changes belong in `netlify/database/migrations/*.sql`. Deploy
   previews get their own database branch, so use a preview deploy for real
   Identity + DB verification; local `netlify dev` is useful for functions but is
@@ -68,7 +72,8 @@ Browser-local integration points:
 - Outbound webhooks live in `tiny-world-builder.html` under
   `// -------- API / webhooks / SSE bridge --------`.
 - Optional browser-local probes must be opt-in so the static app stays console-clean:
-  the Cluso in-page embed has been removed and must not be reintroduced;
+  the Cluso in-page embed is LOCAL-DEV-ONLY, injected at runtime by `tools/dev-server.js`
+  (assets in gitignored `cluso/`); it must never be referenced by committed/shipped HTML;
   model-stamp API endpoints load only with `?modelApi=1`, `?modelStampApi=1`,
   `window.__TWB_MODEL_STAMP_API_ENABLED__ = true`, or
   `localStorage['tinyworld:features:model-stamp-api']='1'`.

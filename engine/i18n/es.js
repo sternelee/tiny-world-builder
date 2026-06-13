@@ -8,6 +8,7 @@
     'worlds.subtitle': 'Posee tierra · construye · cobra impuestos',
     'worlds.close': 'Cerrar',
     'worlds.loading': 'Cargando mundos…',
+    'worlds.unavailable': 'Tinyverse aún se está cargando. Inténtalo de nuevo.',
     'worlds.empty': 'Aún no hay mundos.',
     'worlds.statusUnclaimed': 'En venta',
     'worlds.statusDraft': 'Borrador',

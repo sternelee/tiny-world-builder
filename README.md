@@ -2,21 +2,24 @@
 
 <img width="1324" height="1016" alt="Screenshot 2026-05-11 at 07 09 24" src="https://github.com/user-attachments/assets/1b19a5f7-def5-42bf-b85f-01714f502afa" />
 
-## Run
+## Running locally
 
 ```bash
 npm run dev
-# serves http://localhost:3000/tiny-world-builder
+# serves http://localhost:3000/
+# builder lives at http://localhost:3000/tiny-world-builder
 # use another port with: npm run dev -- 3001
 
-# or open directly
-open tiny-world-builder.html
+# or open the static file directly (no dev server)
+open index.html
 ```
 
 ## Deploy
 
 The app deploys as a static site on Vercel or Netlify. Both host configs run
-`./publish.sh` and serve the generated `dist/` directory. Three.js r128 and
+`./publish.sh` and serve the generated `dist/` directory. The root
+`index.html` is the landing page, and the builder stays available at
+`/tiny-world-builder.html` and `/tiny-world-builder`. Three.js r128 and
 GLTFLoader are self-hosted from `vendor/three/` so deploys do not depend on
 runtime CDNs.
 
@@ -31,6 +34,14 @@ vercel deploy
 netlify deploy --build
 # or connect the repo in Netlify; netlify.toml supplies build/publish settings
 ```
+
+## Account Auth
+
+Netlify Identity remains the email/OAuth account provider. Phantom wallet login
+uses the same account APIs after the wallet signs a server challenge, then the
+function returns a signed wallet session bearer token. Set
+`TINYWORLD_WALLET_SESSION_SECRET` in Netlify before enabling wallet login in a
+real deploy.
 
 ## Controls
 
@@ -51,14 +62,6 @@ netlify deploy --build
 ## Vehicle runtime (Road AI)
 
 Shareable seeded demo:
-
-```text
-http://localhost:3000/
-# redirects to /tiny-world-builder?demo=vehicles&seed=tide-ridge-428 in the local dev server
-# /tiny-world-builder with no query redirects there too
-```
-
-Direct seeded URL:
 
 ```text
 http://localhost:3000/tiny-world-builder?demo=vehicles&seed=tide-ridge-428

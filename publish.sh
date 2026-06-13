@@ -15,7 +15,7 @@ Usage: ./publish.sh [--zip]
 Creates a clean dist/ folder for publishing Tiny World Builder.
 
 Outputs:
-  dist/index.html                 Browser entry point
+  dist/index.html                 Landing page entry point
   dist/tiny-world-builder.html    Original app filename
   dist/world.schema.json
   dist/README.md
@@ -43,6 +43,10 @@ if [[ ! -f tiny-world-builder.html ]]; then
   echo "Missing tiny-world-builder.html" >&2
   exit 1
 fi
+if [[ ! -f index.html ]]; then
+  echo "Missing index.html" >&2
+  exit 1
+fi
 
 # Lightweight sanity checks before publishing.
 node tools/check.js
@@ -52,8 +56,14 @@ printf '✓ publish checks passed\n'
 rm -rf "$DIST"
 mkdir -p "$DIST/assets"
 
-cp tiny-world-builder.html "$DIST/index.html"
+cp index.html "$DIST/index.html"
 cp tiny-world-builder.html "$DIST/tiny-world-builder.html"
+cp roadmap.html "$DIST/roadmap.html"
+cp docs.html "$DIST/docs.html"
+cp doc.html "$DIST/doc.html"
+cp features.html "$DIST/features.html"
+cp worlds.html "$DIST/worlds.html"
+cp harvest.html "$DIST/harvest.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
 
@@ -107,6 +117,15 @@ fi
 
 cp README.md "$DIST/README.md"
 cp LICENSE "$DIST/LICENSE"
+
+# Markdown docs rendered by doc.html (the styled in-site viewer).
+if [[ -d docs ]]; then
+  mkdir -p "$DIST/docs"
+  for md in docs/*.md; do
+    [[ -e "$md" ]] || continue
+    cp "$md" "$DIST/$md"
+  done
+fi
 
 for img in tinyworld-*.png plane-*.jpg perf-after.jpg; do
   [[ -e "$img" ]] || continue

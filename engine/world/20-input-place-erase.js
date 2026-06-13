@@ -1722,6 +1722,7 @@
     else if (k === 'r') { adjustHoverTerrainHeight(+1); }
     else if (k === 'f') { adjustHoverTerrainHeight(-1); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (window.__tinyworldIsPlayMode && window.__tinyworldIsPlayMode()) return;
       e.preventDefault();
       // Hold Shift to keep the original pan behaviour. Otherwise
       // arrows steer the live ghost: left/right rotate, up/down

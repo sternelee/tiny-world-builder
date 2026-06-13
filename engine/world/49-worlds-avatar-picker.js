@@ -1,4 +1,4 @@
-  // Worlds MMO — avatar picker: a pixel/retro gallery for choosing your in-world
+  // Tinyverse — avatar picker: a pixel/retro gallery for choosing your in-world
   // avatar. It DRIVES the existing class system (WS.setAvatarClass / WS.avatarClasses
   // / WS.avatarClass, defined in 47-worlds-room.js) — it does NOT reimplement avatar
   // switching. Opened from the HUD's person button (48) via WS.openAvatarPicker().
@@ -150,20 +150,20 @@
   .tw-avp-close:hover{filter:brightness(1.18)}
   .tw-avp-close:active{transform:translateY(2px)}
   .tw-avp-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-  .tw-avp-tab{border:0;cursor:pointer;color:#cfd8f5;background:#222a42;padding:7px 12px;border-radius:3px;
+  .tw-avp-tab{border:0;cursor:pointer;color:#cfd8f5;background:#222a42;padding:7px 12px;border-radius:10px;
     font:700 11px 'Pixelify Sans',ui-monospace,'SF Mono',Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;
     box-shadow:inset 2px 2px 0 rgba(255,255,255,.12), inset -2px -2px 0 rgba(0,0,0,.45);transition:filter .08s}
   .tw-avp-tab:hover{filter:brightness(1.15)}
   .tw-avp-tab.active{color:#fff;background:#2b59d6;box-shadow:inset 2px 2px 0 rgba(255,255,255,.30), inset -2px -2px 0 rgba(0,0,0,.40)}
   .tw-avp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
-  .tw-avp-card{position:relative;cursor:pointer;background:#0e1120;padding:10px 10px 12px;border-radius:3px;
+  .tw-avp-card{position:relative;cursor:pointer;background:#0e1120;padding:10px 10px 12px;border-radius:10px;
     box-shadow:inset 2px 2px 0 #2b3350, inset -2px -2px 0 #05070e;transition:filter .1s,transform .05s}
   .tw-avp-card:hover{filter:brightness(1.16)}
   .tw-avp-card.sel{box-shadow:inset 0 0 0 2px #7bdc2e, inset 2px 2px 0 #2b3350, inset -2px -2px 0 #05070e}
   .tw-avp-thumb{width:84px;height:84px;margin:0 auto;background:#05070e;border-radius:2px;image-rendering:pixelated;
     box-shadow:inset 1px 1px 0 #2b3350, inset -1px -1px 0 #05070e}
   .tw-avp-name{margin-top:8px;text-align:center;text-transform:uppercase;letter-spacing:.05em;font-size:11px}
-  .tw-avp-pick{margin-top:8px;width:100%;border:0;cursor:pointer;color:#fff;background:#54bd37;padding:6px;border-radius:3px;
+  .tw-avp-pick{margin-top:8px;width:100%;border:0;cursor:pointer;color:#fff;background:#54bd37;padding:6px;border-radius:10px;
     font:700 10px 'Pixelify Sans',ui-monospace,'SF Mono',Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;
     box-shadow:inset 2px 2px 0 rgba(255,255,255,.30), inset -2px -2px 0 rgba(0,0,0,.40), 0 2px 0 0 rgba(0,0,0,.4);transition:filter .08s,transform .04s}
   .tw-avp-pick:hover{filter:brightness(1.12)}
@@ -204,6 +204,7 @@
       tabsEl.style.display = providers.length > 1 ? '' : 'none';
       if (!activeProvider()) activeProviderId = (providers[0] && providers[0].id) || 'classes';
       providers.forEach(p => {
+        if (p.id === 'classes') return;
         tabsEl.appendChild(el('button', {
           class: 'tw-avp-tab' + (p.id === activeProviderId ? ' active' : ''),
           onclick: () => { activeProviderId = p.id; renderTabs(); renderGrid(); },

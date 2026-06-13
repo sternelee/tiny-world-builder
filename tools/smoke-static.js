@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
+const indexRaw = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const htmlRaw = fs.readFileSync(path.join(root, 'tiny-world-builder.html'), 'utf8');
 const devServer = fs.readFileSync(path.join(root, 'tools/dev-server.js'), 'utf8');
 
@@ -79,13 +80,27 @@ for (const asset of [
   if (!fs.existsSync(path.join(root, asset))) fail('missing local asset ' + asset);
 }
 
-// Dev server should now default to normal welcome menu (Farm) on bare access.
-// Vehicle demo is available via the button in the welcome menu or by adding ?demo=vehicles manually.
-if (!devServer.includes("if (pathname === '/') return { redirect: '/tiny-world-builder' };")) {
-  fail('dev server bare root should redirect to /tiny-world-builder (welcome menu)');
+// Dev server should now default to the temporary landing page on bare access.
+// The builder stays available at /tiny-world-builder for direct testing.
+if (!devServer.includes("if (pathname === '/') return { file: path.resolve(root, 'index.html') };")) {
+  fail('dev server bare root should serve index.html landing page');
 }
-if (!devServer.includes("if (pathname === '/tiny-world-builder') return { file:")) {
+if (!devServer.includes("pathname === '/tiny-world-builder'")) {
   fail('dev server should serve tiny-world-builder.html for normal access');
+}
+for (const landingNeedle of [
+  'styles/landing.css',
+  'assets/twlogo-wordmark.png',
+  'assets/landing-hero.png',
+  'assets/landing-feature-build.png',
+  'assets/landing-feature-sculpt.png',
+  'assets/landing-feature-fly.png',
+  'assets/landing-feature-share.png',
+  'href="/tiny-world-builder"',
+]) {
+  if (!indexRaw.includes(landingNeedle)) {
+    fail('landing page missing required asset/link: ' + landingNeedle);
+  }
 }
 
 console.log('smoke ok');

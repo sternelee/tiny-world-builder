@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Suggest and vote on features for Tiny World Builder. Your coin balance determines your vote weight." />
+<title>Feature Suggestions - Tiny World Builder</title>
+<link rel="icon" href="assets/twlogo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" />
+<link rel="stylesheet" href="styles/landing.css" />
+<style>
+/* ---- features page ---- */
+.features-list-section { width: min(1200px, calc(100% - 48px)); margin: 0 auto; padding: 8px 0 64px; }
+
+.features-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.features-filter {
+  display: flex;
+  gap: 6px;
+}
+
+.filter-btn {
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.55);
+  background: rgba(255,255,255,.45);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.filter-btn.active {
+  background: rgba(23,107,235,.14);
+  border-color: #304878;
+  color: #1a4fcf;
+}
+.filter-btn:hover:not(.active) { background: rgba(255,255,255,.65); }
+
+.suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(180deg,#2d7ef5 0%,#3a72c8 100%);
+  color: #fff;
+  font: 600 14px/1 'Space Grotesk',system-ui,sans-serif;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -8px rgba(22,76,170,.5);
+  transition: filter .12s;
+}
+.suggest-btn:hover { filter: brightness(1.1); }
+.suggest-btn svg { width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round; }
+
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255,255,255,.54);
+  border: 1px solid rgba(255,255,255,.62);
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.88) inset, 0 24px 56px -18px rgba(40,50,80,.28);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  min-height: 80px;
+}
+
+.feature-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+.feature-item:hover { background: rgba(255,255,255,.5); }
+
+.vote-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.vote-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  border: 1.5px solid rgba(120,130,150,.28);
+  background: rgba(255,255,255,.6);
+  cursor: pointer;
+  color: var(--muted);
+  transition: background .1s, border-color .1s, color .1s;
+}
+.vote-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.vote-btn:hover { background: rgba(255,255,255,.9); border-color: #3a72c8; color: #1862d4; }
+.vote-btn.voted-up { background: rgba(23,107,235,.14); border-color: #304878; color: #1862d4; }
+.vote-btn.voted-down { background: rgba(200,80,60,.1); border-color: #9a3a30; color: #9a3020; }
+.vote-score {
+  font: 700 18px/1 'Space Grotesk',system-ui,sans-serif;
+  color: var(--ink);
+  min-width: 30px;
+  text-align: center;
+}
+
+.feature-body h3 { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #111b45; }
+.feature-body p { margin: 0; font-size: 15px; color: var(--muted); line-height: 1.5; }
+.feature-body .feature-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.feature-wallet { font-family: ui-monospace, monospace; opacity: .65; }
+
+.feature-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  align-self: center;
+}
+.badge-open    { background:#f0f4ff; color:#2040a0; border:1px solid #bdd0f8; }
+.badge-planned { background:#e8f0fe; color:#1a4fcf; border:1px solid #b3cafd; }
+.badge-done    { background:#e6f4ea; color:#1a6632; border:1px solid #b7dfbe; }
+.badge-rejected{ background:#f5f0f0; color:#8a2a20; border:1px solid #e0bab7; }
+
+.features-empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* ---- suggest modal ---- */
+.suggest-modal-back {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10,14,28,.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.suggest-modal-back.open { display: flex; }
+
+.suggest-modal {
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 20px;
+  padding: 28px;
+  width: min(480px, 100%);
+  box-shadow: 0 40px 80px -20px rgba(20,30,50,.4);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.suggest-modal h2 { margin: 0; font-size: 22px; color: #111b45; }
+.suggest-modal p  { margin: 0; font-size: 14px; color: var(--muted); }
+
+.modal-field { display: flex; flex-direction: column; gap: 6px; }
+.modal-field label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.modal-field input,
+.modal-field textarea {
+  padding: 10px 12px;
+  border: 1px solid rgba(120,130,150,.25);
+  border-radius: 10px;
+  background: rgba(255,255,255,.7);
+  font: 14px/1.5 'Space Grotesk',system-ui,sans-serif;
+  color: var(--ink);
+  outline: none;
+  resize: vertical;
+}
+.modal-field input:focus,
+.modal-field textarea:focus { border-color: #3a72c8; box-shadow: 0 0 0 3px rgba(58,114,200,.14); }
+
+.modal-wallet-status {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.55);
+  border: 1px solid rgba(120,130,150,.2);
+}
+.wallet-ok   { color: #1a6632; }
+.wallet-none { color: var(--muted); }
+.wallet-low  { color: #9a4a20; }
+
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-cancel {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(120,130,150,.3);
+  background: transparent;
+  font: 600 14px/1 'Space Grotesk',system-ui,sans-serif;
+  cursor: pointer;
+  color: var(--muted);
+}
+.modal-cancel:hover { background: rgba(255,255,255,.6); }
+.modal-submit {
+  padding: 9px 20px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(180deg,#2d7ef5 0%,#3a72c8 100%);
+  color: #fff;
+  font: 600 14px/1 'Space Grotesk',system-ui,sans-serif;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+  transition: filter .12s;
+}
+.modal-submit:hover { filter: brightness(1.1); }
+.modal-submit:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+
+.modal-error { font-size: 13px; color: #9a3020; padding: 8px 12px; background: rgba(200,80,60,.08); border-radius: 8px; }
+
+.features-admin-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: rgba(23,107,235,.08);
+  border: 1px solid rgba(23,107,235,.22);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #164a9d;
+}
+
+.admin-status-select {
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid transparent;
+  align-self: start;
+  margin-top: 2px;
+}
+.admin-status-select.badge-open    { background:#f0f4ff; color:#2040a0; border-color:#bdd0f8; }
+.admin-status-select.badge-planned { background:#e8f0fe; color:#1a4fcf; border-color:#b3cafd; }
+.admin-status-select.badge-done    { background:#e6f4ea; color:#1a6632; border-color:#b7dfbe; }
+.admin-status-select.badge-rejected{ background:#f5f0f0; color:#8a2a20; border-color:#e0bab7; }
+</style>
+</head>
+<body class="landing-page">
+  <header class="site-header" aria-label="Tiny World Builder">
+    <a class="site-logo" href="/" aria-label="Tiny World Builder home">
+      <img src="assets/twlogo-wordmark.png" alt="Tiny World Builder" width="1064" height="403" />
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="/">Home</a>
+      <a href="/#features">Features</a>
+      <a href="/#workflow">How it works</a>
+      <a href="/worlds">Worlds</a>
+      <a href="/docs">Docs</a>
+      <a href="/roadmap">Roadmap</a>
+      <a href="/features" aria-current="page">Suggest</a>
+      <a href="https://github.com/jasonkneen/tiny-world-builder" rel="noopener noreferrer">GitHub</a>
+      <a class="nav-cta" href="/tiny-world-builder">Start building</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="page-hero-section" style="padding-bottom:24px" aria-labelledby="page-title">
+      <div class="page-hero-copy">
+        <h1 id="page-title">Feature Suggestions</h1>
+        <p>Got an idea? Connect your Phantom wallet and submit. Your coin balance sets your vote weight.</p>
+      </div>
+    </section>
+
+    <section class="features-list-section" aria-labelledby="features-list-title">
+      <div id="features-admin-bar" class="features-admin-bar" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Admin mode — you can submit and vote without wallet, and change feature statuses
+        <button id="features-exit-btn" style="margin-left:auto;padding:4px 10px;border-radius:7px;border:1px solid rgba(23,107,235,.3);background:transparent;font:600 12px/1 'Space Grotesk',sans-serif;color:#164a9d;cursor:pointer">Exit admin</button>
+      </div>
+      <div class="features-toolbar">
+        <div class="features-filter" role="group" aria-label="Filter by status">
+          <button class="filter-btn active" data-status="open">Open</button>
+          <button class="filter-btn" data-status="planned">Planned</button>
+          <button class="filter-btn" data-status="done">Done</button>
+          <button class="filter-btn" data-status="all">All</button>
+        </div>
+        <button class="suggest-btn" id="suggest-open-btn">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Suggest a feature
+        </button>
+      </div>
+      <div class="features-list" id="features-list" aria-live="polite">
+        <div class="features-empty">Loading suggestions...</div>
+      </div>
+    </section>
+
+    <section class="cta-section" aria-labelledby="cta-title">
+      <div class="cta-copy">
+        <h2 id="cta-title">Ready to build your tinyverse?</h2>
+        <p>Open the editor and start shaping a world. No install step, no account required to try it.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="primary-action" href="/tiny-world-builder">
+          <span>Open builder</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Suggest modal -->
+  <div class="suggest-modal-back" id="suggest-modal-back" role="dialog" aria-modal="true" aria-labelledby="suggest-title">
+    <div class="suggest-modal">
+      <h2 id="suggest-title">Suggest a feature</h2>
+      <p>Requires a Phantom wallet holding at least 100 coins. Your coin balance becomes your initial vote weight.</p>
+      <div class="modal-wallet-status wallet-none" id="wallet-status">
+        Connect your Phantom wallet to submit.
+      </div>
+      <div class="modal-field">
+        <label for="suggest-title-input">Title</label>
+        <input type="text" id="suggest-title-input" maxlength="200" placeholder="Short, clear description" />
+      </div>
+      <div class="modal-field">
+        <label for="suggest-desc-input">Details (optional)</label>
+        <textarea id="suggest-desc-input" rows="4" maxlength="1000" placeholder="Explain the problem it solves or how it would work"></textarea>
+      </div>
+      <div id="suggest-error" class="modal-error" hidden></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="suggest-cancel-btn">Cancel</button>
+        <button class="modal-submit" id="suggest-submit-btn" disabled>Connect wallet first</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const MIN_BALANCE = 100;
+    const STATUS_OPTS = ['open','planned','done','rejected'];
+
+    const FALLBACK_SUGGESTIONS = [
+      { id: -1, title: 'NPC companions', description: 'Add AI-driven NPCs that wander your world and interact with players — merchants, wanderers, quest-givers.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
+      { id: -2, title: 'Weather system', description: 'Dynamic weather — rain, fog, storms, and sunshine — that affects crop growth and atmosphere.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
+      { id: -3, title: 'World portals', description: 'Place a portal in your world that links to another player\'s world. Teleport between tinyverses seamlessly.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
+      { id: -4, title: 'Custom biomes', description: 'Choose from desert, tundra, jungle, or ocean biomes as the base environment for your world.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
+      { id: -5, title: 'Player housing', description: 'Let visiting players claim a small plot inside a world and build a personal dwelling.', wallet: 'admin', vote_weight: 0, status: 'open', created_at: '' },
+    ];
+
+    let wallet = null;
+    let coinBalance = 0;
+    let adminSecret = sessionStorage.getItem('twAdminSecret') || '';
+    let adminMode = !!adminSecret;
+    let currentFilter = 'open';
+    let suggestions = [];
+    let myVotes = {};
+
+    // ---- admin toggle — Ctrl+Shift+A ----
+    document.addEventListener('keydown', async e => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
+        e.preventDefault();
+        if (adminMode) { exitAdmin(); return; }
+        const s = prompt('Admin secret:');
+        if (!s) return;
+        const ok = await validateSecret(s);
+        if (!ok) { alert('Admin secret rejected — admin actions stay locked.'); return; }
+        adminSecret = s;
+        sessionStorage.setItem('twAdminSecret', s);
+        adminMode = true;
+        renderAdminBar(); renderList();
+      }
+    });
+
+    // Returns true only if the server accepts this secret as admin.
+    async function validateSecret(secret) {
+      try {
+        const r = await fetch('/api/features?status=open', { headers: { 'x-admin-secret': secret } });
+        const d = await r.json();
+        return !!d.admin;
+      } catch (_) { return false; }
+    }
+
+    function exitAdmin() {
+      adminMode = false; adminSecret = '';
+      try { sessionStorage.removeItem('twAdminSecret'); } catch (_) {}
+      try { localStorage.removeItem('twAdminSecret'); } catch (_) {}
+      renderAdminBar(); renderList();
+    }
+    document.getElementById('features-exit-btn').addEventListener('click', exitAdmin);
+
+    function renderAdminBar() {
+      document.getElementById('features-admin-bar').hidden = !adminMode;
+    }
+
+    function adminHeaders() {
+      return { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret };
+    }
+
+    // ---- phantom wallet ----
+    function getPhantom() { return window.solana && window.solana.isPhantom ? window.solana : null; }
+
+    async function connectWallet() {
+      const ph = getPhantom();
+      if (!ph) { alert('Phantom wallet not found. Install it from phantom.app'); return null; }
+      try {
+        const resp = await ph.connect();
+        wallet = resp.publicKey.toString();
+        coinBalance = await fetchCoinBalance(wallet);
+        return wallet;
+      } catch (_) { return null; }
+    }
+
+    async function fetchCoinBalance(walletAddr) {
+      // Placeholder — replace with Solana RPC call when ready.
+      return 0;
+    }
+
+    // ---- API ----
+    async function loadSuggestions(status) {
+      const r = await fetch('/api/features?status=' + encodeURIComponent(status));
+      const d = await r.json();
+      return d.suggestions || [];
+    }
+
+    async function submitSuggestion(title, description) {
+      const headers = adminMode ? adminHeaders() : { 'Content-Type': 'application/json' };
+      const effectiveWallet = adminMode ? 'admin' : wallet;
+      const effectiveBalance = adminMode ? MIN_BALANCE : coinBalance;
+      const r = await fetch('/api/features', {
+        method: 'POST', headers,
+        body: JSON.stringify({ wallet: effectiveWallet, coinBalance: effectiveBalance, title, description }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Submission failed');
+      return d.suggestion;
+    }
+
+    async function castVote(suggestionId, vote) {
+      const headers = adminMode ? adminHeaders() : { 'Content-Type': 'application/json' };
+      const effectiveWallet = adminMode ? 'admin' : wallet;
+      const effectiveBalance = adminMode ? MIN_BALANCE : coinBalance;
+      const r = await fetch('/api/features?action=vote', {
+        method: 'POST', headers,
+        body: JSON.stringify({ wallet: effectiveWallet, coinBalance: effectiveBalance, suggestionId, vote }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Vote failed');
+      return d.suggestion;
+    }
+
+    async function patchStatus(id, status) {
+      const r = await fetch('/api/features?id=' + id, {
+        method: 'PATCH', headers: adminHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Update failed');
+      return d.suggestion;
+    }
+
+    // ---- render ----
+    function fmtScore(n) {
+      if (n >= 1000000) return (n/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+      if (n >= 1000)    return (n/1000).toFixed(1).replace(/\.0$/,'') + 'k';
+      return String(n);
+    }
+
+    function fmtWallet(w) {
+      if (!w) return '';
+      if (w === 'admin') return 'Team';
+      return w.length > 12 ? w.slice(0,4) + '…' + w.slice(-4) : w;
+    }
+
+    function badgeClass(s) {
+      return s === 'open' ? 'badge-open' : s === 'planned' ? 'badge-planned' : s === 'done' ? 'badge-done' : 'badge-rejected';
+    }
+
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function renderList() {
+      const el = document.getElementById('features-list');
+      if (!suggestions.length) {
+        el.innerHTML = '<div class="features-empty">No suggestions yet. Be the first!</div>';
+        return;
+      }
+
+      el.innerHTML = suggestions.map(s => {
+        const score = Number(s.vote_weight) || 0;
+        const myVote = myVotes[s.id] || 0;
+        const adminStatusPicker = adminMode
+          ? `<select class="admin-status-select ${badgeClass(s.status)}" data-patch-id="${s.id}" aria-label="Change status">
+              ${STATUS_OPTS.map(o => `<option value="${o}"${o===s.status?' selected':''}>${o}</option>`).join('')}
+            </select>`
+          : `<span class="feature-status-badge ${badgeClass(s.status)}">${esc(s.status)}</span>`;
+
+        return `<div class="feature-item" data-id="${s.id}">
+  <div class="vote-col">
+    <button class="vote-btn${myVote===1?' voted-up':''}" data-vote="1" aria-label="Upvote"><svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
+    <span class="vote-score">${esc(fmtScore(score))}</span>
+    <button class="vote-btn${myVote===-1?' voted-down':''}" data-vote="-1" aria-label="Downvote"><svg viewBox="0 0 24 24"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg></button>
+  </div>
+  <div class="feature-body">
+    <h3>${esc(s.title)}</h3>
+    ${s.description ? `<p>${esc(s.description)}</p>` : ''}
+    <div class="feature-meta">
+      <span class="feature-wallet">${esc(fmtWallet(s.wallet))}</span>
+    </div>
+  </div>
+  ${adminStatusPicker}
+</div>`;
+      }).join('');
+
+      // vote buttons
+      el.querySelectorAll('.vote-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!adminMode) {
+            if (!wallet) {
+              const w = await connectWallet();
+              if (!w) return;
+            }
+            if (coinBalance < MIN_BALANCE) {
+              alert('You need at least ' + MIN_BALANCE + ' coins to vote.');
+              return;
+            }
+          }
+          const item = btn.closest('.feature-item');
+          const id = Number(item && item.dataset.id);
+          const vote = Number(btn.dataset.vote);
+          try {
+            const updated = await castVote(id, vote);
+            if (updated) {
+              const idx = suggestions.findIndex(s => s.id === id);
+              if (idx >= 0) suggestions[idx] = updated;
+              myVotes[id] = vote;
+              renderList();
+            }
+          } catch (err) { alert(err.message); }
+        });
+      });
+
+      // admin status pickers
+      el.querySelectorAll('.admin-status-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const id = Number(sel.dataset.patchId);
+          try {
+            const updated = await patchStatus(id, sel.value);
+            if (updated) {
+              const idx = suggestions.findIndex(s => s.id === id);
+              if (idx >= 0) suggestions[idx] = updated;
+              renderList();
+            }
+          } catch (err) { alert(err.message); }
+        });
+      });
+    }
+
+    // ---- filter ----
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.status;
+        document.getElementById('features-list').innerHTML = '<div class="features-empty">Loading...</div>';
+        suggestions = await loadSuggestions(currentFilter).catch(() => []);
+        renderList();
+      });
+    });
+
+    // ---- suggest modal ----
+    const modalBack = document.getElementById('suggest-modal-back');
+    const cancelBtn = document.getElementById('suggest-cancel-btn');
+    const submitBtn = document.getElementById('suggest-submit-btn');
+    const titleInput = document.getElementById('suggest-title-input');
+    const descInput  = document.getElementById('suggest-desc-input');
+    const walletStatus = document.getElementById('wallet-status');
+    const errorEl    = document.getElementById('suggest-error');
+
+    function updateWalletStatus() {
+      if (adminMode) {
+        walletStatus.className = 'modal-wallet-status wallet-ok';
+        walletStatus.textContent = 'Admin mode — no wallet required.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit suggestion';
+        return;
+      }
+      if (!wallet) {
+        walletStatus.className = 'modal-wallet-status wallet-none';
+        walletStatus.textContent = 'Connect your Phantom wallet to submit.';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Connect wallet first';
+      } else if (coinBalance < MIN_BALANCE) {
+        walletStatus.className = 'modal-wallet-status wallet-low';
+        walletStatus.textContent = 'Connected: ' + fmtWallet(wallet) + ' — balance too low (' + coinBalance + ' coins, need ' + MIN_BALANCE + ')';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Insufficient balance';
+      } else {
+        walletStatus.className = 'modal-wallet-status wallet-ok';
+        walletStatus.textContent = 'Connected: ' + fmtWallet(wallet) + ' — ' + coinBalance.toLocaleString() + ' coins';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit suggestion';
+      }
+    }
+
+    document.getElementById('suggest-open-btn').addEventListener('click', async () => {
+      if (!adminMode && !wallet) {
+        await connectWallet();
+      }
+      updateWalletStatus();
+      modalBack.classList.add('open');
+    });
+    cancelBtn.addEventListener('click', () => modalBack.classList.remove('open'));
+    modalBack.addEventListener('click', e => { if (e.target === modalBack) modalBack.classList.remove('open'); });
+
+    submitBtn.addEventListener('click', async () => {
+      const title = (titleInput.value || '').trim();
+      if (!title) { errorEl.textContent = 'Title is required.'; errorEl.hidden = false; return; }
+      errorEl.hidden = true;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+      try {
+        const s = await submitSuggestion(title, (descInput.value || '').trim());
+        suggestions.unshift(s);
+        renderList();
+        modalBack.classList.remove('open');
+        titleInput.value = '';
+        descInput.value  = '';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        updateWalletStatus();
+      }
+    });
+
+    // ---- boot ----
+    (async () => {
+      // A stored secret only grants admin if the server actually accepts it.
+      if (adminSecret) {
+        const ok = await validateSecret(adminSecret);
+        if (!ok) {
+          adminSecret = '';
+          try { sessionStorage.removeItem('twAdminSecret'); } catch (_) {}
+          try { localStorage.removeItem('twAdminSecret'); } catch (_) {}
+          adminMode = false;
+        }
+      }
+      renderAdminBar();
+      try {
+        const s = await loadSuggestions('open');
+        suggestions = s.length ? s : FALLBACK_SUGGESTIONS;
+      } catch (_) {
+        suggestions = FALLBACK_SUGGESTIONS;
+      }
+      renderList();
+    })();
+  })();
+  </script>
+</body>
+</html>

@@ -11,6 +11,47 @@
       modal.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('welcome-launch-open');
     };
+    const setTinyverseLoading = (loading) => {
+      if (!tinyverseBtn) return;
+      tinyverseBtn.disabled = !!loading;
+      tinyverseBtn.setAttribute('aria-busy', loading ? 'true' : 'false');
+    };
+    const getWorldsFrontend = () => {
+      const worlds = window.__tinyworldWorlds;
+      return worlds && typeof worlds.open === 'function' ? worlds : null;
+    };
+    const waitForWorldsFrontend = () => new Promise(resolve => {
+      const ready = getWorldsFrontend();
+      if (ready) { resolve(ready); return; }
+      let done = false;
+      let timer = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener('tinyworld:worlds-ready', finish);
+        if (timer) clearTimeout(timer);
+        resolve(getWorldsFrontend());
+      };
+      window.addEventListener('tinyworld:worlds-ready', finish, { once: true });
+      const readyPromise = window.__tinyworldWorldsReady;
+      if (readyPromise && typeof readyPromise.then === 'function') readyPromise.then(finish, finish);
+      const startedAt = Date.now();
+      const poll = () => {
+        if (getWorldsFrontend() || Date.now() - startedAt >= 2000) {
+          finish();
+          return;
+        }
+        timer = setTimeout(poll, 50);
+      };
+      timer = setTimeout(poll, 50);
+    });
+    const showTinyverseUnavailable = () => {
+      const msg = typeof t === 'function'
+        ? t('worlds.unavailable')
+        : 'Tinyverse is still loading. Try again.';
+      if (typeof twToast === 'function') twToast(msg);
+      else console.warn('[welcome]', msg);
+    };
     const chooseWelcomeMode = (mode) => {
       const wantsPlay = mode === 'play';
       let handledByModeApi = false;
@@ -29,16 +70,20 @@
       }
       closeWelcome();
     };
-    const openTinyverse = () => {
-      const worlds = window.__tinyworldWorlds;
-      closeWelcome();
+    const openTinyverse = async () => {
+      setTinyverseLoading(true);
+      const worlds = await waitForWorldsFrontend();
       try {
-        if (worlds && typeof worlds.open === 'function') {
+        if (worlds) {
           worlds.open();
+          closeWelcome();
           return;
         }
-      } catch (_) {}
-      chooseWelcomeMode('build');
+      } catch (err) {
+        console.warn('[welcome] Tinyverse failed to open:', err);
+      }
+      setTinyverseLoading(false);
+      showTinyverseUnavailable();
     };
     const openBattleworlds = () => {
       const battleworlds = window.__tinyworldBattleworlds;
@@ -66,6 +111,7 @@
 
   // -------- cloud worlds / assets --------
   const TW_CLOUD_SLOT_PREFIX = 'cloud:';
+  const TW_WALLET_SESSION_KEY = 'tinyworld:auth:wallet-session.v1';
   let twCloudWorldCache = [];
   let twCloudWorldCacheAt = 0;
   let twCloudWorldSyncing = false;
@@ -79,8 +125,23 @@
   let twCloudApplyingPrefs = false;
   let twCloudDatabaseUnavailable = false;
 
+  function twCloudWalletSessionToken() {
+    try { return localStorage.getItem(TW_WALLET_SESSION_KEY) || ''; } catch (_) { return ''; }
+  }
+
+  function twCloudSetWalletSessionToken(token) {
+    try {
+      if (token) localStorage.setItem(TW_WALLET_SESSION_KEY, String(token));
+      else localStorage.removeItem(TW_WALLET_SESSION_KEY);
+    } catch (_) {}
+  }
+
+  function twCloudClearWalletSessionToken() {
+    twCloudSetWalletSessionToken('');
+  }
+
   function twCloudLoggedIn() {
-    return !!(window.__tinyworldAuthEnabled && window.TinyWorldAuth && window.__loggedIn);
+    return !!(window.__tinyworldAuthEnabled && window.__loggedIn && (window.TinyWorldAuth || twCloudWalletSessionToken()));
   }
 
   function twCloudSlotId(buildId) {
@@ -117,17 +178,35 @@
 
   async function twCloudAccessToken() {
     const Auth = window.TinyWorldAuth;
-    if (!Auth) return null;
+    if (Auth) {
+      try {
+        const user = await Auth.getUser();
+        if (user) {
+          if (typeof user.jwt === 'function') {
+            try { return await user.jwt(); } catch (_) {}
+          }
+          if (user.token && user.token.access_token) return user.token.access_token;
+        }
+      } catch (_) {}
+    }
+    const walletToken = twCloudWalletSessionToken();
+    if (walletToken) return walletToken;
     try {
-      const user = await Auth.getUser();
-      if (!user) return null;
-      if (typeof user.jwt === 'function') {
-        try { return await user.jwt(); } catch (_) {}
-      }
-      if (user.token && user.token.access_token) return user.token.access_token;
-    } catch (_) {}
-    const m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
-    return m ? decodeURIComponent(m[1]) : null;
+      const m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function twCloudRestoreWalletSession() {
+    const token = twCloudWalletSessionToken();
+    if (!token) return false;
+    const profile = await twCloudApiCall('/api/profile', 'GET');
+    if (profile && !profile.error) return true;
+    if (twCloudIsUnavailable(profile)) return true;
+    twCloudClearWalletSessionToken();
+    return false;
   }
 
   async function twCloudApiCall(path, method, body) {
@@ -512,7 +591,7 @@
   function twCloudIsSyncedPrefKey(key) {
     if (typeof key !== 'string') return false;
     // Hard exclusions first: secrets must never leave the device.
-    if (key.startsWith('tinyworld:ai:') || key === 'tinyworld:api:v1') return false;
+    if (key.startsWith('tinyworld:ai:') || key.startsWith('tinyworld:auth:') || key === 'tinyworld:api:v1') return false;
     if (PREF_SYNC_KEYS.has(key)) return true;
     return PREF_SYNC_PREFIXES.some(p => key.startsWith(p));
   }
@@ -960,6 +1039,7 @@
     const resetForm = document.getElementById('auth-reset');
     const logoutBtn = document.getElementById('auth-logout-btn');
     const accountBtn = document.getElementById('account-btn');
+    const walletLoginBtn = document.getElementById('auth-wallet-login');
 
     function showError(msg) {
       errorEl.textContent = msg;
@@ -996,10 +1076,91 @@
       btn.textContent = loading ? 'Please wait…' : btn.dataset.label;
     }
 
+    function setWalletLoginLoading(loading) {
+      if (!walletLoginBtn) return;
+      walletLoginBtn.disabled = !!loading;
+      const label = walletLoginBtn.querySelector('.auth-wallet-label');
+      if (label) label.textContent = loading ? 'Check your wallet...' : 'Sign in with Phantom';
+    }
+
+    function authPhantomProvider() {
+      const provider = window.phantom && window.phantom.solana ? window.phantom.solana : window.solana;
+      return provider && provider.isPhantom ? provider : null;
+    }
+
+    function authBytesToBase64(bytes) {
+      const arr = Array.from(bytes || []);
+      let bin = '';
+      arr.forEach(b => { bin += String.fromCharCode(Number(b) & 0xff); });
+      return btoa(bin);
+    }
+
+    async function walletLoginApiCall(body) {
+      const res = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body || {}),
+      });
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) {
+        data = { error: text || res.statusText || ('HTTP ' + res.status) };
+      }
+      if (!res.ok) {
+        const err = new Error((data && data.error) || res.statusText || ('HTTP ' + res.status));
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    async function signInWithWallet() {
+      const provider = authPhantomProvider();
+      if (!provider) {
+        showError('Phantom wallet was not found. Install Phantom or unlock it, then try again.');
+        return;
+      }
+      if (typeof provider.signMessage !== 'function') {
+        showError('This Phantom provider cannot sign messages.');
+        return;
+      }
+      setWalletLoginLoading(true);
+      try {
+        const connected = await provider.connect();
+        const publicKey = connected && connected.publicKey
+          ? connected.publicKey.toString()
+          : (provider.publicKey && provider.publicKey.toString());
+        if (!publicKey) throw new Error('Wallet did not return a public key.');
+        const challenge = await walletLoginApiCall({ action: 'loginChallenge', publicKey });
+        const signed = await provider.signMessage(new TextEncoder().encode(challenge.message), 'utf8');
+        const signature = authBytesToBase64(signed.signature || signed);
+        const result = await walletLoginApiCall({
+          action: 'login',
+          publicKey,
+          message: challenge.message,
+          challengeToken: challenge.challengeToken,
+          signature,
+        });
+        if (!result || !result.sessionToken) throw new Error('Wallet login did not return a session.');
+        twCloudSetWalletSessionToken(result.sessionToken);
+        if (typeof window.__renderWalletPanel === 'function') {
+          try { window.__renderWalletPanel(); } catch (_) {}
+        }
+        enterApp();
+      } catch (err) {
+        twCloudClearWalletSessionToken();
+        showError((err && err.message) || 'Wallet login failed. Please try again.');
+      } finally {
+        setWalletLoginLoading(false);
+      }
+    }
+
     document.getElementById('auth-login-btn').dataset.label = 'Sign in';
     document.getElementById('auth-signup-btn').dataset.label = 'Create account';
     document.getElementById('auth-forgot-btn').dataset.label = 'Send reset link';
     document.getElementById('auth-reset-btn').dataset.label = 'Set new password';
+    if (walletLoginBtn) walletLoginBtn.addEventListener('click', signInWithWallet);
 
     document.getElementById('auth-show-signup').addEventListener('click', () => showForm('signup'));
     document.getElementById('auth-show-forgot').addEventListener('click', () => showForm('forgot'));
@@ -1200,6 +1361,7 @@
 
     // Logout — drop back to anonymous mode, no forced re-login.
     if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+      twCloudClearWalletSessionToken();
       try {
         await Auth.logout();
       } catch (_) {}
@@ -1247,6 +1409,8 @@
       if (handled) return;
       const user = await Auth.getUser();
       if (user) {
+        enterApp();
+      } else if (await twCloudRestoreWalletSession()) {
         enterApp();
       } else {
         // Anonymous mode by default — boot the app, gate

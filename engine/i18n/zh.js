@@ -8,6 +8,7 @@
     'worlds.subtitle': '拥有土地 · 建造 · 收取税收',
     'worlds.close': '关闭',
     'worlds.loading': '正在加载世界…',
+    'worlds.unavailable': 'Tinyverse 仍在加载。请重试。',
     'worlds.empty': '暂无世界。',
     'worlds.statusUnclaimed': '出售中',
     'worlds.statusDraft': '草稿',

@@ -181,6 +181,9 @@
       const btn = document.querySelector('.tool[data-id="' + selectedTool.id + '"]');
       if (btn) positionFlyout(btn, fl);
     }
+    // renderer.setSize() resets the canvas drawing buffer (blanks it); re-render
+    // immediately so the scene is visible during a live resize drag.
+    renderScene();
   }
   window.addEventListener('resize', onResize);
 
