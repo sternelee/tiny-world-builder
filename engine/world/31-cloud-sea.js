@@ -166,7 +166,14 @@
   // the current opacity (so 54 can snapshot the start of an ease).
   function setCloudSeaVeilOpacity(value) {
     if (cloudSeaMesh && cloudSeaMesh.material && cloudSeaMesh.material.uniforms && cloudSeaMesh.material.uniforms.opacity) {
-      if (Number.isFinite(value)) cloudSeaMesh.material.uniforms.opacity.value = Math.max(0, value);
+      if (Number.isFinite(value)) {
+        cloudSeaMesh.material.uniforms.opacity.value = Math.max(0, value);
+        // Skip rendering the veil entirely when it's effectively invisible — it is
+        // a frustumCulled=false, transparent, view-spanning plane, so at opacity 0
+        // (fully descended) it would otherwise cost a full-screen overdraw every
+        // frame for nothing. Orthogonal to the pref gate (cloudSeaGroup.visible).
+        cloudSeaMesh.visible = value > 0.003;
+      }
       return cloudSeaMesh.material.uniforms.opacity.value;
     }
     return 0;
