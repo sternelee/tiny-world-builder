@@ -137,15 +137,20 @@ class LandscapeEngine {
       // Seabed below the raised waterline, a sandy beach band at the shore, then grass
       // and highland above — voxel-poser's calm sea + scattered sandy isles.
       const W = this.WATER_LEVEL;
+      // Bands chosen for the VOXEL-SNAPPED island heights: a low isle peaks near
+      // W+90 (snaps to ~W+100 at the near step, ~W+86 far), so the green meadow
+      // must span well past W+100 or the island tops fall into the tan highland
+      // band and read as sand. Sand is a thin shore ring (W+0..+18); everything
+      // above is green meadow — voxel-poser's calm sea + green-hearted sandy isles.
       this.STRATA = [
-        { h: W - 70, c: new THREE.Color(0x16323f) },   // deep seabed
-        { h: W - 10, c: new THREE.Color(0x2f6b6f) },   // shallow seabed
-        { h: W + 0.4, c: new THREE.Color(0xe9d9ad) },  // wet sand at the waterline
-        { h: W + 7, c: new THREE.Color(0xe0c794) },    // dry sand beach
-        { h: W + 16, c: new THREE.Color(0x6a9040) },   // grass
-        { h: W + 44, c: new THREE.Color(0x7e9448) },   // meadow
-        { h: W + 100, c: new THREE.Color(0x90886a) },  // highland
-        { h: W + 180, c: new THREE.Color(0xb4b0a0) },  // peaks
+        { h: W - 70,  c: new THREE.Color(0x163a45) },  // deep seabed (dark teal)
+        { h: W - 12,  c: new THREE.Color(0x2f7a72) },  // shallow seabed (teal)
+        { h: W + 0.5, c: new THREE.Color(0xe9dcae) },  // wet sand at the waterline
+        { h: W + 18,  c: new THREE.Color(0xdcc187) },  // dry sand beach
+        { h: W + 32,  c: new THREE.Color(0x6fa03f) },  // grass shore
+        { h: W + 90,  c: new THREE.Color(0x5c8a36) },  // meadow heart (green)
+        { h: W + 230, c: new THREE.Color(0x6b9a40) },  // high meadow (still green; covers island tops)
+        { h: W + 360, c: new THREE.Color(0x90886a) },  // highland (only very tall terrain)
       ].map(s => ({ h: s.h, c: s.c }));
     }
 
