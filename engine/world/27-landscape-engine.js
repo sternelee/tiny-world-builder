@@ -583,7 +583,7 @@
       initialBiome: next.biome,
       styleMode: next.styleMode,
       airfield: false,
-      flood: { waterLevel: 150, heightScale: 0.45, freqScale: 6.0 },   // mostly ocean (~13% land) + small scattered sandy islands
+      flood: { waterLevel: 150, heightScale: 0.45, freqScale: 6.0, voxel: true },   // mostly ocean + small scattered sandy islands, rendered as voxel blocks
     });
     configurePlanetLandscapeEngine(planetLandscapeEngine, next);
     resetPlanetLandscapeStreamState();
