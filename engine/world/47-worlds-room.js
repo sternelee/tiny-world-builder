@@ -663,7 +663,7 @@
       const wx = r.x * sxi + f.x * syi, wz = r.z * sxi + f.z * syi;
       return (Math.abs(wx) >= Math.abs(wz)) ? [Math.sign(wx), 0] : [0, Math.sign(wz)];
     }
-    function startAttack() { if (selfEnt && selfEnt.sprite && !selfEnt.attacking) { selfEnt.attacking = true; selfEnt.state = 'attack'; selfEnt.frame = 0; selfEnt.frameTime = 0; selfEnt.sprite.material.map = selfEnt.tex.attack; } }
+    function startAttack() { if (selfEnt && selfEnt.sprite && !selfEnt.attacking) { selfEnt.attacking = true; selfEnt.state = 'attack'; selfEnt.frame = 0; selfEnt.frameTime = 0; if (selfEnt.voxel) { selfEnt.voxel.setState('attack'); } else if (selfEnt.sprite.material) { selfEnt.sprite.material.map = selfEnt.tex.attack; } } }
     function startJump() { if (selfEnt && !selfEnt.jumpStart) selfEnt.jumpStart = Date.now(); }
     function avatarError(msg) {
       if (avatarErrored) return; avatarErrored = true;
@@ -789,10 +789,29 @@
     WS.setAvatarStrip = setAvatarStrip;
     WS.avatarStrip = () => avatarStripId;
     WS.strips = () => Object.keys(STRIPS);
+    // Voxel avatars (real 3D voxel people) replace the 2.5D sprite "stripes" when the
+    // builder module is loaded. Opt out with ?voxel=0 to fall back to sprites.
+    function voxelAvatarsOn() {
+      if (typeof window === 'undefined' || typeof window.makeVoxelAvatar !== 'function') return false;
+      try { return new URLSearchParams(location.search).get('voxel') !== '0'; } catch (_) { return true; }
+    }
     // A fresh texture per avatar+sheet so each can hold its own frame/row offset.
-    function createAvatar() {
-      const ent = { x: 0, z: 0, sector: 0, lastMove: 0, lastDx: 0, lastDz: 0, state: 'idle', frame: 0, frameTime: 0, tex: {}, sprite: null, disposed: false, avatarClassName };
+    // `seed` (peer id / self id) gives each person a DISTINCT voxel look pre-networked-identity.
+    function createAvatar(seed) {
+      const ent = { x: 0, z: 0, sector: 0, lastMove: 0, lastDx: 0, lastDz: 0, state: 'idle', frame: 0, frameTime: 0, tex: {}, sprite: null, voxel: null, disposed: false, avatarClassName };
       if (typeof THREE === 'undefined') { avatarError('THREE unavailable'); return ent; }
+      if (voxelAvatarsOn()) {
+        try {
+          ent.voxel = window.makeVoxelAvatar({ seed: (seed != null ? seed : ('a' + Math.floor(Math.random() * 1e9))) });
+          if (ent.voxel && ent.voxel.group) {
+            ent.sprite = ent.voxel.group;            // alias so placeEntity/moveEntity/bubble keep working
+            ent.sprite.renderOrder = 10;
+            const par0 = avatarParent(); if (par0) par0.add(ent.sprite);
+            return ent;
+          }
+          ent.voxel = null;
+        } catch (e) { try { console.warn('[worlds] voxel avatar failed, using sprite:', e); } catch (_) {} ent.voxel = null; }
+      }
       loadAvatarTextures(ent, avatarClassName);
       const mat = new THREE.SpriteMaterial({ map: ent.tex.idle, transparent: true, depthWrite: false, alphaTest: 0.2 });
       ent.sprite = new THREE.Sprite(mat);
@@ -802,10 +821,32 @@
       const par = avatarParent(); if (par) par.add(ent.sprite);
       return ent;
     }
+    // Surface height for a cell's tile top (world Y). Sprites are billboards anchored
+    // with center(0.5,0.12) so they used a flat 0.02; a solid voxel body must plant its
+    // feet on the ACTUAL tile top, which varies with terrain/floors.
+    const _wsGroundBox = (typeof THREE !== 'undefined') ? new THREE.Box3() : null;
+    function voxelGroundY(x, z) {
+      if (typeof cellMeshes === 'undefined' || !_wsGroundBox) return 0.02;
+      const cm = cellMeshes[x + ',' + z];
+      if (cm && cm.tile) {
+        _wsGroundBox.setFromObject(cm.tile);
+        if (isFinite(_wsGroundBox.max.y)) return _wsGroundBox.max.y;
+      }
+      return 0.02;
+    }
     function placeEntity(ent) {
       if (!ent || !ent.sprite || typeof tilePos !== 'function') return;
       const p = tilePos(ent.x, ent.z);
-      ent.sprite.position.set(p.x, 0.02, p.z);
+      const gy = ent.voxel ? voxelGroundY(ent.x, ent.z) : 0.02;
+      ent.groundY = gy;
+      if (ent.voxel) {
+        // Voxel avatars GLIDE to the new tile (animVoxel tweens toward this target);
+        // snap only on first spawn so they don't moon-walk in from the origin.
+        ent.tx = p.x; ent.tz = p.z; ent.ty = gy;
+        if (!ent._placed) { ent.sprite.position.set(p.x, gy, p.z); ent._yc = gy; ent._placed = true; }
+      } else {
+        ent.sprite.position.set(p.x, gy, p.z);
+      }
     }
     function moveEntity(ent, x, z) {
       if (!ent) return;
@@ -821,7 +862,10 @@
     function disposeEntity(ent) {
       if (!ent) return; ent.disposed = true;
       removeBubble(ent);
-      if (ent.sprite) {
+      if (ent.voxel) {
+        try { ent.voxel.dispose(); } catch (_) {}        // disposes own geometry + material, removes from parent
+        ent.voxel = null; ent.sprite = null;
+      } else if (ent.sprite) {
         if (ent.sprite.parent) ent.sprite.parent.remove(ent.sprite);
         if (ent.sprite.material) ent.sprite.material.dispose();  // SpriteMaterial is per-entity, not shared
       }
@@ -874,8 +918,43 @@
       if (ent.jumpStart) { const jt = (Date.now() - ent.jumpStart) / JUMP_MS; if (jt >= 1) ent.jumpStart = 0; else py += Math.sin(jt * Math.PI) * 0.8; }
       ent.sprite.position.y = py;
     }
+    // Voxel avatars: glide (tween) toward the target tile, driving the walk cycle while
+    // translating and idle on arrival. Heading faces the actual direction of travel.
+    // Attack is one-shot inside the rig — do not re-trigger it.
+    const VOXEL_WALK_SPEED = 1.8;   // world units/sec between tiles
+    function animVoxel(ent, dt) {
+      const pos = ent.sprite.position;
+      const tx = (ent.tx != null) ? ent.tx : pos.x;
+      const tz = (ent.tz != null) ? ent.tz : pos.z;
+      const ty = (ent.ty != null) ? ent.ty : (ent.groundY != null ? ent.groundY : 0.02);
+      const dxw = tx - pos.x, dzw = tz - pos.z;
+      const dist = Math.hypot(dxw, dzw);
+      let moving = false;
+      if (dist > 2.5) {                          // teleport / respawn — snap, don't slide across the map
+        pos.x = tx; pos.z = tz;
+      } else if (dist > 0.012) {
+        const step = Math.min(dist, VOXEL_WALK_SPEED * dt);
+        pos.x += (dxw / dist) * step; pos.z += (dzw / dist) * step;
+        moving = true;
+        ent.voxel.setHeadingFromDelta(dxw, dzw);
+      }
+      const rigState = ent.voxel.getState();
+      if (rigState !== 'attack') {
+        if (ent.attacking) ent.attacking = false;          // rig finished the swing
+        const want = moving ? 'walk' : 'idle';
+        ent.voxel.setState(want); ent.state = want;
+      }
+      ent.voxel.update(dt);
+      // vertical: ease toward the target tile's ground height, then add the jump arc
+      ent._yc = (ent._yc != null) ? ent._yc + (ty - ent._yc) * Math.min(1, dt * 10) : ty;
+      let y = ent._yc;
+      if (ent.jumpStart) { const jt = (Date.now() - ent.jumpStart) / JUMP_MS; if (jt >= 1) ent.jumpStart = 0; else y = ent._yc + Math.sin(jt * Math.PI) * 0.3; }
+      pos.y = y;
+      updateBubble(ent);
+    }
     function animEntity(ent, dt) {
       if (!ent.sprite) return;
+      if (ent.voxel) { animVoxel(ent, dt); return; }
       if (ent.strip) { animStrip(ent, dt); return; }
       if (ent.pet) { animPet(ent, dt); return; }
       const state = ent.attacking ? 'attack' : ((Date.now() - ent.lastMove) < 200 ? 'walk' : 'idle');
@@ -899,12 +978,12 @@
       return a + d * t;
     }
     function updateAvatarCameraOrbit(dt) {
-      if (!selfEnt || !selfEnt.sprite || typeof tilePos !== 'function' || typeof updateCamera !== 'function' || typeof target === 'undefined' || !target) return;
-      const p = tilePos(selfEnt.x, selfEnt.z);
-      // Smoothly follow the avatar's POSITION only. Do NOT auto-rotate the camera to
-      // face movement direction — the player controls the orbit (azimuth) themselves.
-      target.x += (p.x - target.x) * 0.15;
-      target.z += (p.z - target.z) * 0.15;
+      if (!selfEnt || !selfEnt.sprite || typeof updateCamera !== 'function' || typeof target === 'undefined' || !target) return;
+      // Follow the RENDERED position (tweened for voxel) so the camera glides with the
+      // avatar instead of snapping cell-to-cell. Position only — the player owns the orbit.
+      const px = selfEnt.sprite.position.x, pz = selfEnt.sprite.position.z;
+      target.x += (px - target.x) * 0.15;
+      target.z += (pz - target.z) * 0.15;
       updateCamera();
     }
 
@@ -1035,7 +1114,7 @@
     WS.showChatBubble = showChatBubble;
 
     function updateSelfAvatar() {
-      if (!selfEnt) selfEnt = createAvatar();
+      if (!selfEnt) selfEnt = createAvatar(myId || 'self');
       // Pet choice is SELF-ONLY and local (peers keep their class avatars; createAvatar
       // is shared with the peer path, so the pet must never be applied there).
       if (avatarPetId && PETS[avatarPetId] && (!selfEnt.pet || selfEnt.pet.id !== avatarPetId)) loadPetTextures(selfEnt, PETS[avatarPetId]);
@@ -1054,7 +1133,7 @@
         const pos = p.cursor || p; if (pos.x == null) return;
         seen.add(p.id);
         let ent = peerEnts.get(p.id);
-        if (!ent) { ent = createAvatar(); peerEnts.set(p.id, ent); }
+        if (!ent) { ent = createAvatar(p.id); peerEnts.set(p.id, ent); }
         moveEntity(ent, pos.x, pos.z);
       });
       peerEnts.forEach((ent, id) => { if (!seen.has(id)) { disposeEntity(ent); peerEnts.delete(id); } });

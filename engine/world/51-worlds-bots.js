@@ -99,9 +99,14 @@
           let d; try { d = JSON.parse(e.data); } catch (_) { return; }
           if (d.type === 'world.state') {
             if (d.gridSize) this.gridSize = d.gridSize;
-            // Read authoritative spawn position from the server's response.
-            const cursor = d.you && d.you.cursor;
-            if (cursor && cursor.x != null) { this.x = cursor.x; this.z = cursor.z; }
+            // Read authoritative spawn position. world.state sends you:{x,z,hearts,role}
+            // (NOT you.cursor); reading .cursor left bots at a random, server-rejected
+            // position so they never moved or appeared as peers. Read x/z, fall back to
+            // .cursor (presence shape), then random.
+            const you = d.you || {};
+            const sx = (you.x != null) ? you.x : (you.cursor && you.cursor.x);
+            const sz = (you.z != null) ? you.z : (you.cursor && you.cursor.z);
+            if (sx != null && sz != null) { this.x = sx; this.z = sz; }
             else { this.x = Math.floor(this.rng() * this.gridSize); this.z = Math.floor(this.rng() * this.gridSize); }
             this.scheduleMove();
             this.scheduleChat();
