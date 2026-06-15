@@ -97,6 +97,21 @@
       chooseWelcomeMode('play');
     };
 
+    const skipWelcomeForMultiplayer = (() => {
+      try {
+        const params = new URLSearchParams(location.search);
+        if (params.get('party') || params.get('room') || params.get('collab') || params.get('share')) return true;
+        if (typeof window.__tinyworldTinyverseSlugParam === 'function' && window.__tinyworldTinyverseSlugParam()) return true;
+      } catch (_) {}
+      return false;
+    })();
+    if (skipWelcomeForMultiplayer) {
+      const tinyverseSlug = typeof window.__tinyworldTinyverseSlugParam === 'function'
+        ? window.__tinyworldTinyverseSlugParam()
+        : null;
+      chooseWelcomeMode(tinyverseSlug ? 'play' : 'build');
+      return;
+    }
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('welcome-launch-open');

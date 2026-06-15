@@ -13,8 +13,12 @@
     "perf": "node tools/perf-probe.js",
     "db:local": "tools/db-local.sh",
     "party:dev": "partykit dev party/index.js --port 1999",
+    "party:dev:open": "partykit dev party/index.js --port 1999 --var WORLDS_JOIN_SECRET= --var WORLDS_SERVICE_TOKEN=",
+    "party:deploy": "partykit deploy",
     "dev:party": "partykit dev party/index.js --port 1999",
-    "bots:ai": "node tools/ai-bots.mjs",
+    "smoke:mp": "node tools/smoke-multiplayer.mjs",
+    "smoke:mp:ai": "node tools/smoke-multiplayer.mjs --with-ai-bots",
+    "bots:ai": "node tools/ai-bots.mjs --slug mixed-hollow",
     "demo:vehicles": "node plugins/examples/vehicle-road-demo.js",
     "test:unit": "node --test tests/*.test.mjs",
     "test": "npm run check && npm run smoke && npm run test:unit"

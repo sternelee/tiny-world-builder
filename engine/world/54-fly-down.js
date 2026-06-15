@@ -284,7 +284,11 @@
       return down;
     }
 
-    window.__tinyworldFlyDown = { descend, ascend, toggle, isDown };
+    function state() {
+      return { down, transitioning, phase };
+    }
+
+    window.__tinyworldFlyDown = { descend, ascend, toggle, isDown, state };
 
     // -------- trigger: 'J' key (jump down / back up) --------
     // Bare 'j' is otherwise unused (see module 19 tool shortcuts + module 20/30

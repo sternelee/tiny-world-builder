@@ -711,7 +711,7 @@
     position: fixed;
     top: 108px;
     right: 24px;
-    z-index: 40;
+    z-index: 55;
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -3092,6 +3092,14 @@
   body.vehicle-demo-active #crowd-panel,
   body.vehicle-demo-active #crowd-panel-handle,
   body.vehicle-demo-active #stamp-builder-panel {
+    display: none;
+  }
+  body.tinyverse-rally-watch #agent-input,
+  body.tinyverse-rally-watch #agent-panel,
+  body.tinyverse-rally-watch #agent-panel-handle,
+  body.tinyverse-rally-watch #crowd-panel,
+  body.tinyverse-rally-watch #crowd-panel-handle,
+  body.tinyverse-rally-watch #stamp-builder-panel {
     display: none;
   }
   @keyframes vehicle-demo-pulse {
@@ -8717,3 +8725,24 @@ body.ui-theme-dark .agent-panel-clear:hover {
   }
 }
 .flight-menu-btn:hover { background: #d96148; }
+
+/* ---- surface roam mode ---- */
+body.surface-roam-active { cursor: crosshair; }
+body.surface-roam-fp { cursor: none; }
+#tw-surface-roam-hud {
+  position: fixed;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 96;
+  font: 700 12px 'Pixelify Sans', ui-monospace, Menlo, monospace;
+  letter-spacing: .06em;
+  color: #c8f0c8;
+  background: rgba(8, 22, 8, .78);
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 2px #2b7a2b;
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}

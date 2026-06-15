@@ -84,9 +84,9 @@
 
     let stateTimer = null, sawWorldState = false;
     let prevPlayMode = null;
-    function enterRoom(w, joinToken) {
+    function enterRoom(w, joinToken, joinRole) {
       leaveRoom();
-      world = w; token = joinToken || ''; role = 'play';
+      world = w; token = joinToken || ''; role = joinRole || 'play';
       gridSize = w.gridSize || 8; taxPercent = w.taxPercent != null ? w.taxPercent : null;
       cells = w.data && Array.isArray(w.data.cells) ? w.data.cells : [];
       rebuildBlocked();
@@ -177,7 +177,9 @@
     function onMessage(d) {
       switch (d.type) {
         case 'welcome':
-          myId = d.id || myId; role = 'play'; emit('status', { connected: true, role });
+          myId = d.id || myId;
+          if (typeof d.role === 'string') role = d.role;
+          emit('status', { connected: true, role });
           // An upgraded world server flags the welcome; an old collab server does
           // not — bail out so the minimap/HUD don't linger over the builder.
           if (d.world !== true) { sawWorldState = true; toast(T('worlds.serverOld')); WS.leaveRoom(); }
@@ -186,10 +188,9 @@
           sawWorldState = true;
           gridSize = d.gridSize || gridSize; taxPercent = d.taxPercent != null ? d.taxPercent : taxPercent;
           you = Object.assign(you, d.you || {});
-          you.role = 'play';
+          if (typeof you.role === 'string') role = you.role;
           nodes = d.nodes || {}; animals = d.animals || [];
           peers.clear(); (d.peers || []).forEach(p => { if (p.id && p.id !== myId) { p._t = Date.now(); peers.set(p.id, p); } });
-          role = 'play';
           emit('state', snapshot()); drawMinimap(); updateSelfAvatar(); updatePeerAvatars(); break;
         case 'presence': {
           const p = d.presence; if (!p || !p.id) break;
@@ -262,16 +263,11 @@
 
     let lastStepAt = 0;
     function step(dx, dz) {
-      if (selfEnt && (selfEnt._traveling || selfEnt._climb || selfEnt._skyfall)) return;   // no grid move mid-portal/climb/freefall
+      if (selfEnt && (selfEnt._traveling || selfEnt._climb || selfEnt._skyfall || selfEnt._srActive)) return;   // no grid move mid-portal/climb/freefall/surface-roam
       const now = Date.now();
       if (now - lastStepAt < 175) return;   // one tile at a time: hold-to-move is capped to the glide
-      // Walk OFF the edge of the floating island -> freefall (skydive). Detect a step whose
-      // UNCLAMPED target leaves the grid while standing on the boundary row/col, and hand off
-      // to the skyfall mode instead of the (clamped) no-op the grid would otherwise produce.
-      const rx = you.x + dx, rz = you.z + dz;
-      if (rx < 0 || rx > gridSize - 1 || rz < 0 || rz > gridSize - 1) {
-        if (startSkyfall(dx, dz)) { lastStepAt = now; return; }
-      }
+      // The island edge is SOLID: a step past the rim clamps to a no-op below (you can't walk
+      // off and freefall). To descend to the surface, walk through a stargate (see tryEnterGate).
       const nx = Math.max(0, Math.min(gridSize - 1, you.x + dx));   // cadence so key-repeat can't skip tiles
       const nz = Math.max(0, Math.min(gridSize - 1, you.z + dz));
       if (nx === you.x && nz === you.z) return;
@@ -289,7 +285,17 @@
     function tryEnterGate() {
       if (!selfEnt || !selfEnt.voxel || selfEnt._traveling) return;
       const GT = window.__tinyworldGateTransit;
-      if (!GT || typeof GT.travelPlayer !== 'function') return;
+      if (!GT) return;
+      // Sky-edge stargate -> descend to the mainland (replaces walk-off-the-edge). J still works.
+      if (typeof GT.skyGateCell === 'function') {
+        const sc = GT.skyGateCell();
+        if (sc && sc.x === you.x && sc.z === you.z) {
+          const FD = window.__tinyworldFlyDown;
+          if (FD && !FD.isDown()) { if (GT.flashSky) GT.flashSky(); FD.descend(); }
+          return;
+        }
+      }
+      if (typeof GT.travelPlayer !== 'function') return;
       if (typeof GT.gateAtCell === 'function' && !GT.gateAtCell({ x: you.x, z: you.z })) return;
       selfEnt._traveling = true;
       const ok = GT.travelPlayer({ x: you.x, z: you.z }, selfEnt.voxel, (destCell) => {
@@ -315,9 +321,39 @@
     let skyRingMeshes = [];
     let skyHudEl = null;
     let skyYaw = 0;                          // chase-cam + steering frame = the launch heading
+    const SKY_DIVE_BODY_PITCH = -1.52;       // belly-to-earth, readable from the chase cam
+    const skySteerVec = { x: 0, z: 0, thrust: false };
+    function resetSkyKeys() { skyKeys.up = 0; skyKeys.down = 0; skyKeys.left = 0; skyKeys.right = 0; skyKeys.thrust = 0; }
+    function skyAngleLerp(a, b, t) {
+      const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+      return a + d * Math.max(0, Math.min(1, t));
+    }
+    function skyActiveRing(sim, st) {
+      if (!sim || !sim.rings || !sim.rings.length) return null;
+      const y = st && typeof st.y === 'number' ? st.y : 9999;
+      for (const rg of sim.rings) {
+        if (rg.passed || rg.missed) continue;
+        if (y >= rg.y - Math.max(1.0, rg.r * 0.6)) return rg;
+      }
+      for (const rg of sim.rings) {
+        if (!rg.passed && !rg.missed) return rg;
+      }
+      return null;
+    }
+    function skyDesiredYaw(sim, st) {
+      st = st || (sim && sim.state);
+      if (!st) return skyYaw;
+      const rg = skyActiveRing(sim, st);
+      if (rg) {
+        const dx = rg.x - st.x, dz = rg.z - st.z;
+        if (Math.hypot(dx, dz) > 0.08) return Math.atan2(dx, dz);
+      }
+      const hs = Math.hypot(st.vx || 0, st.vz || 0);
+      return hs > 0.12 ? Math.atan2(st.vx, st.vz) : skyYaw;
+    }
     // Steering is CAMERA-RELATIVE (the 3rd-person cam sits behind skyYaw): W/up = forward
-    // (away from the camera, the way you leapt), S = back toward camera, A/D = strafe. The
-    // avatar faces skyYaw so the camera always sees its back. Returns a world XZ steer dir.
+    // (away from the camera, toward the active ring), S = back toward camera, A/D = strafe.
+    // The avatar faces skyYaw so the camera always sees its back. Reuses skySteerVec.
     function skySteer() {
       const fx = Math.sin(skyYaw), fz = Math.cos(skyYaw);    // forward (heading convention)
       const rxp = Math.cos(skyYaw), rzp = -Math.sin(skyYaw); // right = forward rotated -90deg
@@ -328,25 +364,39 @@
       if (skyKeys.left) s -= 1;
       let x = fx * f + rxp * s, z = fz * f + rzp * s;
       const d = Math.hypot(x, z); if (d > 1) { x /= d; z /= d; }
-      return { x, z };
+      skySteerVec.x = x; skySteerVec.z = z;
+      return skySteerVec;
     }
     // 3rd-person chase camera: sit BEHIND + above the falling avatar, looking forward+down so
     // the rings below stay in frame. Bypasses the orbit updateCamera while _skyfall is active.
     function updateSkyfallCamera() {
       if (!selfEnt || !selfEnt.sprite || typeof camera === 'undefined' || !camera) return;
       const sp = selfEnt.sprite.position;
+      const sim = selfEnt._skyfall;
+      const st = sim && sim.state;
+      const rg = skyActiveRing(sim, st);
       const fx = Math.sin(skyYaw), fz = Math.cos(skyYaw);
       // A falling chase cam must look DOWN from ABOVE (not horizontally), or it buries in the
       // island's edge wall and the void/rings below never show. Sit high + slightly behind and
       // aim steeply down past the avatar to the rings below; the island recedes up out of frame
       // as you drop. (Tunables: BACK behind, UP height, AHEAD/DOWN where the gaze lands.)
-      const BACK = 4.5, UP = 7.5, AHEAD = 1.5, DOWN = 7.0;
+      const BACK = 5.4, UP = 6.0, AHEAD = 1.5, DOWN = 7.0;
+      let lx = sp.x + fx * AHEAD, ly = sp.y - DOWN, lz = sp.z + fz * AHEAD;
+      if (rg) {
+        lx = sp.x * 0.35 + rg.x * 0.65;
+        ly = Math.min(sp.y - 4.0, rg.y);
+        lz = sp.z * 0.35 + rg.z * 0.65;
+      }
       camera.up.set(0, 1, 0);
       camera.position.set(sp.x - fx * BACK, sp.y + UP, sp.z - fz * BACK);
-      camera.lookAt(sp.x + fx * AHEAD, sp.y - DOWN, sp.z + fz * AHEAD);
+      camera.lookAt(lx, ly, lz);
       camera.updateMatrixWorld();
     }
     function startSkyfall(dx, dz) {
+      // RETIRED: the walk-off-the-edge freefall (and its rings) is disabled — islands have
+      // solid edges now and descent is via stargate. Sim/ring code below is kept but unreachable.
+      return false;
+      // eslint-disable-next-line no-unreachable
       const SF = window.__tinyworldSkyfall;
       if (!SF || typeof SF.createSim !== 'function') return false;
       if (!selfEnt || !selfEnt.sprite || selfEnt._skyfall) return false;
@@ -355,13 +405,15 @@
       // ~1.3 cells PAST the rim so the body clears the island and drops in open air (was
       // starting on the edge tile and dropping straight down -> "falls through the island").
       skyYaw = (dx || dz) ? Math.atan2(dx, dz) : ((selfEnt.voxel && selfEnt.voxel._heading) || 0);
+      resetSkyKeys();
       const OUT = 1.3;
       const sx = p.x + dx * OUT, sz = p.z + dz * OUT;
       const seed = ((you.x * 73856093) ^ (you.z * 19349663) ^ (Date.now() & 0xffff)) >>> 0;
       const sim = SF.createSim({ x: sx, y: p.y, z: sz, seed, dirX: dx, dirZ: dz });
+      if (sim.rings && sim.rings[0]) skyYaw = Math.atan2(sim.rings[0].x - sx, sim.rings[0].z - sz);
       selfEnt._skyfall = sim;
       if (selfEnt.voxel) {
-        selfEnt.voxel.setBodyPitch(-1.4);                 // belly-to-earth (controller owns pitch)
+        selfEnt.voxel.setBodyPitch(SKY_DIVE_BODY_PITCH);  // belly-to-earth (controller owns pitch)
         selfEnt.voxel.setHeading(skyYaw);                 // face forward; the chase cam sees the back
         selfEnt.voxel.setState('skydive');
       }
@@ -385,6 +437,7 @@
         m.position.set(rg.x, rg.y, rg.z);
         m.rotation.x = Math.PI / 2;            // lay the ring flat so you fall through the hole
         m.userData.ring = rg;
+        m.userData.skyState = 'live';
         parent.add(m);
         skyRingMeshes.push(m);
       }
@@ -392,8 +445,15 @@
     function refreshSkyRings() {
       for (const m of skyRingMeshes) {
         const rg = m.userData.ring;
-        if (rg && rg.passed && m.material && m.material.color) {
+        const next = rg && rg.passed ? 'passed' : (rg && rg.missed ? 'missed' : 'live');
+        if (next === m.userData.skyState || !m.material || !m.material.color) continue;
+        m.userData.skyState = next;
+        if (next === 'passed') {
           m.material.color.setHex(0x46e36b); m.material.emissive.setHex(0x0a3315);   // passed -> green
+        } else if (next === 'missed') {
+          m.material.color.setHex(0xff8d4a); m.material.emissive.setHex(0x331206);   // missed -> orange
+        } else {
+          m.material.color.setHex(0x49d6ff); m.material.emissive.setHex(0x113344);
         }
       }
     }
@@ -406,8 +466,10 @@
     }
     function stepSkyfall(ent, dt) {
       const sim = ent._skyfall; if (!sim) return;
+      skyYaw = skyAngleLerp(skyYaw, skyDesiredYaw(sim, sim.state), (dt || 0) * 3.2);
       const steer = skySteer(); steer.thrust = !!skyKeys.thrust;   // SPACE fires the rocket pack
       const st = sim.tick(dt, steer);
+      skyYaw = skyAngleLerp(skyYaw, skyDesiredYaw(sim, st), (dt || 0) * 4.0);
       ent.sprite.position.set(st.x, st.y, st.z);
       if (ent.voxel) {
         if (st.rocket && typeof ent.voxel.getState === 'function' && ent.voxel.getState() !== 'rocket') {
@@ -423,11 +485,13 @@
     }
     function endSkyfall(ent) {
       const sim = ent._skyfall; ent._skyfall = null;
+      resetSkyKeys();
       disposeSkyRings();
       const PS = window.__tinyworldPoserSurface;
       if (PS && typeof PS.hide === 'function') { try { PS.hide(); } catch (_) {} }   // hide the landscape again
       if (ent.voxel) {
         ent.voxel.setBodyPitch(0); ent.voxel.setState('idle');
+        if (typeof ent.voxel.setThrusting === 'function') ent.voxel.setThrusting(false);
         if (typeof ent.voxel.setRocketVisible === 'function') ent.voxel.setRocketVisible(false);
       }
       // settle back onto the lobby: clamp to the nearest standable cell to the step-off point.
@@ -463,6 +527,432 @@
       }
     }
     function skyHudHide() { if (skyHudEl) skyHudEl.style.display = 'none'; }
+
+    // ---- surface roam: descended free movement on the poser surface --------
+    // Activated when fly-down (54) is fully descended and not in skyfall.
+    // Uses camera-relative WASD + drag-look (hold LMB to rotate camera yaw/pitch).
+    // Deactivates when J ascends back to the lobby. LOCAL-SELF only (no networked 3D pos yet).
+
+    const _srKeys = { up: false, down: false, left: false, right: false, fly: false, sink: false, sprint: false };
+    let _srActive = false;         // surface roam is live
+    let _srYaw = 0;                // camera yaw (radians, same convention as skyYaw)
+    let _srPitch = 0.35;           // look pitch (radians); positive = look DOWN (both cam modes)
+    let _srX = 0, _srZ = 0;       // avatar world position (3D)
+    let _srY = 0;                  // avatar Y (world units)
+    let _srVY = 0;                 // vertical velocity (flying mode)
+    let _srFlying = false;         // true while in air above surface
+    let _srHudEl = null;
+    // drag-look state
+    let _srDragActive = false;
+    let _srDragLX = 0, _srDragLY = 0;
+    // fly-down poll state
+    let _srWasDown = false;
+    // saved grid position to restore on ascend
+    let _srSavedYouX = 0, _srSavedYouZ = 0;
+    // camera zoom + first-person
+    let _srCamDist = 5.0;          // live chase-cam distance (wheel-adjustable)
+    let _srFirstPerson = false;    // true once zoomed all the way in
+    let _srEyeH = 1.6;             // eye height above feet (measured at activate)
+    // jump arc (visible hop while grounded)
+    let _srJumping = false;
+    let _srJumpT = 0;
+    let _srLastSpace = 0;          // ms timestamp of last Space press (double-tap -> toggle fly)
+    const _srEye = new THREE.Vector3();
+    const _srTmp = new THREE.Vector3();
+    // surface stargate (walk into it to ascend back up)
+    let _srGatePos = null;         // world XZ of the mainland gate (THREE.Vector3) or null
+    let _srGateArmed = false;      // true once you're clear of the gate (so emerging doesn't re-trigger)
+    let _srAscending = false;      // guard so we fire ascend() once
+    const SR_GATE_R = 2.2;         // trigger radius around the surface gate (world units)
+    const SR_GATE_SPAWN = 3.4;     // spawn this far in front (+z) of the gate
+
+    // speed tunables (world units/sec)
+    const SR_WALK = 3.2;
+    const SR_SPRINT = 6.4;
+    const SR_FLY_V = 4.0;       // vertical fly speed
+    const SR_CAM_UP = 2.4;      // chase-cam height above avatar
+    const SR_DRAG_SENS = 0.005; // mouse drag sensitivity (rad/px)
+    const SR_PITCH_MIN = 0.05;  // 3rd-person pitch floor (camera elevation)
+    const SR_PITCH_MAX = 1.4;
+    const SR_FP_PITCH_MIN = -1.30; // first-person: look up
+    const SR_FP_PITCH_MAX = 1.30;  // first-person: look down
+    const SR_CAM_MIN = 1.2;     // zoom-in limit (below this -> first person)
+    const SR_CAM_MAX = 14.0;    // zoom-out limit
+    const SR_FP_THRESH = 1.6;   // cam distance at/below which first-person engages
+    const SR_JUMP_DUR = 0.46;   // matches voxel-avatar JUMP_DUR
+    const SR_JUMP_H = 1.4;      // peak hop height (world units)
+    const SR_DBL_MS = 320;      // double-tap window for Space -> fly toggle
+
+    function _srActivate() {
+      if (!selfEnt || !selfEnt.sprite) return;
+      _srActive = true;
+      window.__tinyworldSurfaceRoamActive = true;
+      // Position the avatar at the surface centre (local 0,0 = under the island group)
+      const PS = window.__tinyworldPoserSurface;
+      const gx = (typeof target !== 'undefined' && target) ? target.x : 0;
+      const gz = (typeof target !== 'undefined' && target) ? target.z : 0;
+      // Place the mainland stargate (surface-local 0,0) and spawn just in FRONT of it (+z),
+      // as if you stepped out of it. Walk back into it to ascend (see _srStep).
+      _srGatePos = null; _srGateArmed = false; _srAscending = false;
+      const GT = window.__tinyworldGateTransit;
+      if (GT && typeof GT.ensureLandGate === 'function') {
+        try {
+          GT.ensureLandGate();
+          if (typeof GT.landGateWorldPos === 'function') _srGatePos = GT.landGateWorldPos();
+        } catch (_) {}
+      }
+      if (_srGatePos) {
+        _srX = _srGatePos.x; _srZ = _srGatePos.z + SR_GATE_SPAWN;
+        _srGateArmed = true;                 // spawned clear of the gate -> ready to re-enter
+      } else {
+        _srX = gx; _srZ = gz;
+      }
+      if (PS && typeof PS.sampleWorld === 'function') {
+        const s = PS.sampleWorld(_srX, _srZ);
+        _srY = s.walkWorldY;
+      } else {
+        _srY = -58; // fallback: approx ground level (DROP=60, slight isle height)
+      }
+      _srVY = 0; _srFlying = false;
+      _srYaw = 0; _srPitch = 0.35;
+      _srCamDist = 5.0; _srFirstPerson = false;
+      _srJumping = false; _srJumpT = 0; _srLastSpace = 0;
+      selfEnt._srActive = true;
+      selfEnt.sprite.position.set(_srX, _srY, _srZ);
+      selfEnt._yc = _srY; selfEnt.ty = _srY;
+      selfEnt.tx = _srX; selfEnt.tz = _srZ;
+      // measure rendered avatar height so the first-person eye sits near the head
+      try {
+        const box = new THREE.Box3().setFromObject(selfEnt.sprite);
+        const h = box.max.y - box.min.y;
+        if (isFinite(h) && h > 0) _srEyeH = h * 0.92;
+      } catch (_) {}
+      if (selfEnt.voxel) {
+        selfEnt.voxel.setBodyPitch(0);
+        selfEnt.voxel.setState('idle');
+        selfEnt.voxel.setHeading(_srYaw);
+        if (selfEnt.voxel.setFirstPerson) selfEnt.voxel.setFirstPerson(false);
+      }
+      document.body.classList.add('surface-roam-active');
+      _srShowHud();
+      _srBindInput();
+    }
+
+    function _srDeactivate() {
+      if (!_srActive) return;
+      _srActive = false;
+      window.__tinyworldSurfaceRoamActive = false;
+      if (selfEnt) {
+        selfEnt._srActive = false;
+        if (selfEnt.voxel) {
+          selfEnt.voxel.setBodyPitch(0); selfEnt.voxel.setState('idle');
+          if (selfEnt.voxel.setFirstPerson) selfEnt.voxel.setFirstPerson(false);
+        }
+      }
+      _srFirstPerson = false;
+      _srGatePos = null; _srGateArmed = false; _srAscending = false;
+      document.body.classList.remove('surface-roam-fp');
+      // restore grid position
+      you.x = _srSavedYouX; you.z = _srSavedYouZ;
+      if (selfEnt) moveEntity(selfEnt, you.x, you.z);
+      document.body.classList.remove('surface-roam-active');
+      _srHideHud();
+      _srUnbindInput();
+      // restore orbit camera
+      if (typeof updateCamera === 'function') updateCamera();
+    }
+
+    function _srStep(dt) {
+      if (!selfEnt || !selfEnt.sprite || !_srActive) return;
+      const PS = window.__tinyworldPoserSurface;
+      const speed = _srKeys.sprint ? SR_SPRINT : SR_WALK;
+      // camera-relative WASD. forward = dir from camera into the screen; right =
+      // cross(forward, up) = (-cosYaw, sinYaw) so D moves screen-RIGHT (was inverted).
+      const fx = Math.sin(_srYaw), fz = Math.cos(_srYaw);   // forward (into screen)
+      const rx = -Math.cos(_srYaw), rz = Math.sin(_srYaw);  // screen-right
+      let mx = 0, mz = 0;
+      if (_srKeys.up)    { mx += fx; mz += fz; }
+      if (_srKeys.down)  { mx -= fx; mz -= fz; }
+      if (_srKeys.right) { mx += rx; mz += rz; }
+      if (_srKeys.left)  { mx -= rx; mz -= rz; }
+      const md = Math.hypot(mx, mz);
+      if (md > 0) { mx /= md; mz /= md; }
+      _srX += mx * speed * dt;
+      _srZ += mz * speed * dt;
+
+      // clamp to sea-plane edge (~118 world units at SCALE=1.6, SURF_CLAMP=74)
+      const SEA_EDGE = 74 * 1.6;
+      const gx = (typeof target !== 'undefined' && target) ? target.x : 0;
+      const gz = (typeof target !== 'undefined' && target) ? target.z : 0;
+      _srX = Math.max(gx - SEA_EDGE, Math.min(gx + SEA_EDGE, _srX));
+      _srZ = Math.max(gz - SEA_EDGE, Math.min(gz + SEA_EDGE, _srZ));
+
+      // ---- stargate: walk into the mainland gate to ascend back to the sky island ----
+      if (_srGatePos && !_srAscending) {
+        const gd = Math.hypot(_srX - _srGatePos.x, _srZ - _srGatePos.z);
+        if (!_srGateArmed) {
+          if (gd > SR_GATE_R * 2) _srGateArmed = true;   // must clear the gate before it re-triggers
+        } else if (gd < SR_GATE_R) {
+          _srAscending = true;
+          const GT = window.__tinyworldGateTransit;
+          if (GT && GT.flashLand) GT.flashLand();
+          const FD = window.__tinyworldFlyDown;
+          if (FD && FD.isDown()) FD.ascend();
+        }
+      }
+
+      // sample ground height
+      let groundY = _srY;
+      if (PS && typeof PS.sampleWorld === 'function') {
+        const s = PS.sampleWorld(_srX, _srZ);
+        groundY = s.walkWorldY;
+      }
+
+      // ---- vertical: fly mode (double-tap Space) or a grounded jump arc ----
+      if (_srFlying) {
+        let vy = 0;
+        if (_srKeys.fly)  vy += SR_FLY_V;   // Space held = rise
+        if (_srKeys.sink) vy -= SR_FLY_V;   // C held = sink
+        _srY += vy * dt;
+        if (_srY < groundY) { _srY = groundY; _srFlying = false; }  // touched down -> walk
+        _srJumping = false;
+      } else if (_srJumping) {
+        _srJumpT += dt;
+        const t = _srJumpT / SR_JUMP_DUR;
+        if (t >= 1) { _srJumping = false; _srY = groundY; }
+        else { _srY = groundY + SR_JUMP_H * Math.sin(Math.PI * t); }  // parabolic hop
+      } else {
+        _srY = groundY;
+      }
+
+      // ---- avatar facing + pose ----
+      if (selfEnt.voxel) {
+        // first-person faces where you LOOK (arms align with view); 3rd-person faces travel
+        const heading = (md > 0) ? Math.atan2(mx, mz) : _srYaw;
+        selfEnt.voxel.setHeading(_srFirstPerson ? _srYaw : heading);
+        const cur = selfEnt.voxel.getState ? selfEnt.voxel.getState() : '';
+        // don't stomp one-shot swings/hops — the rig auto-reverts to idle when each ends
+        if (cur !== 'attack' && cur !== 'jump') {
+          selfEnt.voxel.setState(_srFlying ? 'rocket' : (md > 0 ? 'walk' : 'idle'));
+        }
+        selfEnt.voxel.update(dt);
+      }
+
+      selfEnt.sprite.position.set(_srX, _srY, _srZ);
+      selfEnt._yc = _srY; selfEnt.ty = _srY;
+      selfEnt.tx = _srX; selfEnt.tz = _srZ;
+    }
+
+    function _srUpdateCamera() {
+      if (!selfEnt || !selfEnt.sprite || typeof camera === 'undefined' || !camera) return;
+      const sp = selfEnt.sprite.position;
+      const sinY = Math.sin(_srYaw), cosY = Math.cos(_srYaw);
+      const sinP = Math.sin(_srPitch), cosP = Math.cos(_srPitch);
+      camera.up.set(0, 1, 0);
+      if (_srFirstPerson) {
+        // Through-the-eyes: camera at the head, looking along yaw/pitch (positive pitch = down).
+        const eyeY = sp.y + _srEyeH;
+        const dir = _srTmp.set(sinY * cosP, -sinP, cosY * cosP);
+        camera.position.set(sp.x, eyeY, sp.z);
+        camera.lookAt(sp.x + dir.x, eyeY + dir.y, sp.z + dir.z);
+      } else {
+        // Chase cam: behind + above the avatar; wheel adjusts _srCamDist.
+        const back = _srCamDist * cosP;
+        const up   = _srCamDist * sinP + SR_CAM_UP;
+        camera.position.set(sp.x - sinY * back, sp.y + up, sp.z - cosY * back);
+        camera.lookAt(sp.x, sp.y + 0.8, sp.z);
+      }
+      camera.updateMatrixWorld();
+      // keep orbit target in sync so landing doesn't jerk
+      if (typeof target !== 'undefined' && target) {
+        target.x = sp.x; target.z = sp.z; target.y = sp.y;
+      }
+    }
+
+    // Toggle first-person (zoomed all the way in). Hides the avatar head and lets the
+    // pitch range cover looking up; restoring 3rd person re-clamps pitch to the elevation band.
+    function _srSetFirstPerson(on) {
+      if (on === _srFirstPerson) return;
+      _srFirstPerson = on;
+      if (selfEnt && selfEnt.voxel && selfEnt.voxel.setFirstPerson) selfEnt.voxel.setFirstPerson(on);
+      if (typeof document !== 'undefined') document.body.classList.toggle('surface-roam-fp', on);
+      if (!on) _srPitch = Math.max(SR_PITCH_MIN, Math.min(SR_PITCH_MAX, _srPitch));
+      _srUpdateHudText();
+    }
+
+    function _srShowHud() {
+      if (typeof document === 'undefined') return;
+      if (!_srHudEl) {
+        _srHudEl = document.createElement('div');
+        _srHudEl.id = 'tw-surface-roam-hud';
+        _srHudEl.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:96;' +
+          "font:700 12px 'Pixelify Sans',ui-monospace,Menlo,monospace;letter-spacing:.06em;color:#c8f0c8;" +
+          'background:rgba(8,22,8,.78);padding:8px 16px;border-radius:8px;box-shadow:inset 0 0 0 2px #2b7a2b;text-transform:uppercase';
+        document.body.appendChild(_srHudEl);
+      }
+      _srHudEl.style.display = '';
+      _srUpdateHudText();
+    }
+
+    function _srUpdateHudText() {
+      if (!_srHudEl) return;
+      const view = _srFirstPerson ? '1ST-PERSON' : (_srFlying ? 'FLYING' : 'SURFACE');
+      _srHudEl.textContent = view + '  ·  WASD Move  ·  Drag Look  ·  Scroll Zoom  ·  '
+        + (_srFlying ? 'Space Up / C Down' : 'Space Jump (2× = Fly)')
+        + '  ·  F Swing  ·  Gate or J to Ascend';
+    }
+
+    function _srHideHud() { if (_srHudEl) _srHudEl.style.display = 'none'; }
+
+    function _srOnKeyDown(e) {
+      if (!_srActive) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const k = e.key.toLowerCase();
+      let handled = true;
+      if (k === 'arrowup' || k === 'w')         _srKeys.up    = true;
+      else if (k === 'arrowdown' || k === 's')  _srKeys.down  = true;
+      else if (k === 'arrowleft' || k === 'a')  _srKeys.left  = true;
+      else if (k === 'arrowright' || k === 'd') _srKeys.right = true;
+      else if (k === ' ' || k === 'spacebar') {
+        _srKeys.fly = true;                       // held = rise while flying
+        if (!e.repeat) {
+          const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+          const dbl = (now - _srLastSpace) < SR_DBL_MS;
+          _srLastSpace = now;
+          if (dbl) {                              // double-tap Space toggles fly mode
+            _srFlying = !_srFlying; _srJumping = false; _srUpdateHudText();
+          } else if (!_srFlying) {
+            _srTryJump();                         // single tap on the ground = hop
+          }
+        }
+      }
+      else if (k === 'c')                        _srKeys.sink  = true;
+      else if (k === 'shift')                    _srKeys.sprint = true;
+      else if (k === 'f') { if (!e.repeat) _srTryAttack(); }  // swing / fight
+      else handled = false;
+      if (handled) e.stopPropagation();
+    }
+
+    function _srTryJump() {
+      if (_srFlying || _srJumping) return;
+      const cur = (selfEnt && selfEnt.voxel && selfEnt.voxel.getState) ? selfEnt.voxel.getState() : '';
+      if (cur === 'jump' || cur === 'attack') return;
+      _srJumping = true; _srJumpT = 0;
+      if (selfEnt && selfEnt.voxel) selfEnt.voxel.setState('jump');
+    }
+
+    function _srTryAttack() {
+      const v = selfEnt && selfEnt.voxel;
+      if (!v) return;
+      const cur = v.getState ? v.getState() : '';
+      if (cur === 'attack' || cur === 'jump') return;
+      v.setState('attack');
+    }
+
+    function _srOnKeyUp(e) {
+      if (!_srActive) return;
+      const k = e.key.toLowerCase();
+      if (k === 'arrowup' || k === 'w')         _srKeys.up    = false;
+      else if (k === 'arrowdown' || k === 's')  _srKeys.down  = false;
+      else if (k === 'arrowleft' || k === 'a')  _srKeys.left  = false;
+      else if (k === 'arrowright' || k === 'd') _srKeys.right = false;
+      else if (k === ' ' || k === 'spacebar')   _srKeys.fly   = false;
+      else if (k === 'c')                        _srKeys.sink  = false;
+      else if (k === 'shift')                    _srKeys.sprint = false;
+    }
+
+    function _srOnPointerDown(e) {
+      if (!_srActive) return;
+      if (e.button !== 0) return;
+      _srDragActive = true;
+      _srDragLX = e.clientX; _srDragLY = e.clientY;
+      e.stopPropagation();
+    }
+
+    function _srOnPointerMove(e) {
+      if (!_srActive || !_srDragActive) return;
+      const dx = e.clientX - _srDragLX;
+      const dy = e.clientY - _srDragLY;
+      _srDragLX = e.clientX; _srDragLY = e.clientY;
+      _srYaw -= dx * SR_DRAG_SENS;
+      const lo = _srFirstPerson ? SR_FP_PITCH_MIN : SR_PITCH_MIN;
+      const hi = _srFirstPerson ? SR_FP_PITCH_MAX : SR_PITCH_MAX;
+      _srPitch = Math.max(lo, Math.min(hi, _srPitch + dy * SR_DRAG_SENS));
+      e.stopPropagation();
+    }
+
+    function _srOnPointerUp(e) {
+      if (!_srActive) return;
+      _srDragActive = false;
+      e.stopPropagation();
+    }
+
+    function _srOnContextMenu(e) {
+      if (!_srActive) return;
+      e.stopPropagation(); e.preventDefault();
+    }
+
+    function _srOnWheel(e) {
+      if (!_srActive) return;
+      e.stopPropagation(); e.preventDefault();
+      // scroll up (deltaY<0) = zoom in; clamp; cross SR_FP_THRESH -> first person
+      const step = (e.deltaY > 0 ? 1 : -1) * 0.9;
+      _srCamDist = Math.max(SR_CAM_MIN, Math.min(SR_CAM_MAX, _srCamDist + step));
+      _srSetFirstPerson(_srCamDist <= SR_FP_THRESH);
+    }
+
+    function _srResetKeys() {
+      _srKeys.up = false; _srKeys.down = false; _srKeys.left = false;
+      _srKeys.right = false; _srKeys.fly = false; _srKeys.sink = false; _srKeys.sprint = false;
+      _srDragActive = false;
+    }
+
+    function _srBindInput() {
+      // capture-phase so surface keys intercept before regular 20/30 handlers
+      window.addEventListener('keydown', _srOnKeyDown, true);
+      window.addEventListener('keyup',   _srOnKeyUp,   true);
+      const el = (typeof renderer !== 'undefined' && renderer && renderer.domElement) ? renderer.domElement : document;
+      el.addEventListener('pointerdown',  _srOnPointerDown, true);
+      el.addEventListener('pointermove',  _srOnPointerMove, true);
+      el.addEventListener('pointerup',    _srOnPointerUp,   true);
+      el.addEventListener('contextmenu',  _srOnContextMenu, true);
+      el.addEventListener('wheel',        _srOnWheel, { capture: true, passive: false });
+    }
+
+    function _srUnbindInput() {
+      _srResetKeys();
+      window.removeEventListener('keydown', _srOnKeyDown, true);
+      window.removeEventListener('keyup',   _srOnKeyUp,   true);
+      const el = (typeof renderer !== 'undefined' && renderer && renderer.domElement) ? renderer.domElement : document;
+      el.removeEventListener('pointerdown',  _srOnPointerDown, true);
+      el.removeEventListener('pointermove',  _srOnPointerMove, true);
+      el.removeEventListener('pointerup',    _srOnPointerUp,   true);
+      el.removeEventListener('contextmenu',  _srOnContextMenu, true);
+      el.removeEventListener('wheel',        _srOnWheel, true);
+    }
+
+    // Poll fly-down state each avatar tick — called from startAvatars tick
+    function _srPollFlyDown() {
+      const FD = window.__tinyworldFlyDown;
+      if (!FD) return;
+      const st = FD.state();
+      const isNowDown = st.down && !st.transitioning;
+      const isNowUp   = !st.down && !st.transitioning;
+      if (isNowDown && !_srWasDown && !_srActive) {
+        // just finished descending — activate
+        _srSavedYouX = you.x; _srSavedYouZ = you.z;
+        _srActivate();
+        _srWasDown = true;
+      } else if (isNowUp && _srWasDown && _srActive) {
+        // just finished ascending — deactivate
+        _srDeactivate();
+        _srWasDown = false;
+      } else if (!st.down && !st.transitioning) {
+        _srWasDown = false;
+      }
+    }
 
     // BFS over standable cells; returns the ordered list of steps to (tx,tz).
     function findPath(tx, tz) {
@@ -687,22 +1177,6 @@
       // LOCAL-SELF only (peer sync would need an avatar-state party message — see report).
       else if (k === 'c') { if (selfEnt) selfEnt._crouchHeld = true; }
       else if (k === 'x') { if (selfEnt) selfEnt._sitToggle = !selfEnt._sitToggle; }
-      // DEBUG: 'k' snaps the avatar to the NEAREST island edge and leaps off into open air,
-      // reproducing the real walk-off-the-edge fall from anywhere (the real trigger is still
-      // stepping off the rim). Snapping to the rim avoids launching from mid-island where the
-      // body falls through the island's own geometry and occludes the chase view.
-      else if (k === 'k') {
-        if (selfEnt && selfEnt.sprite && !selfEnt._skyfall && !selfEnt._climb && !selfEnt._traveling) {
-          const dl = you.x, dr = gridSize - 1 - you.x, du = you.z, dd = gridSize - 1 - you.z;
-          const m = Math.min(dl, dr, du, dd);
-          let edx = 0, edz = 0, ex = you.x, ez = you.z;
-          if (m === dl) { ex = 0; edx = -1; } else if (m === dr) { ex = gridSize - 1; edx = 1; }
-          else if (m === du) { ez = 0; edz = -1; } else { ez = gridSize - 1; edz = 1; }
-          you.x = ex; you.z = ez;
-          if (typeof tilePos === 'function') { const tp = tilePos(ex, ez); selfEnt.sprite.position.x = tp.x; selfEnt.sprite.position.z = tp.z; }
-          startSkyfall(edx, edz);
-        }
-      }
       else if (e.code === 'BracketLeft' || k === '[') cycleAvatarClass(-1);
       else if (e.code === 'BracketRight' || k === ']') cycleAvatarClass(1);
       else handled = false;
@@ -1025,12 +1499,25 @@
     // across reloads. myId is NOT available at join time (it arrives in `welcome`
     // AFTER the join envelope is sent), so the seed must be a local id.
     const AVATAR_VOXEL_LS = 'tinyworld:multiplayer:avatar-voxel-seed';
+    const AVATAR_VOXEL_DESC_LS = 'tinyworld:multiplayer:avatar-voxel';
     function stableVoxelSeed() {
       try {
         let v = localStorage.getItem(AVATAR_VOXEL_LS);
         if (!v) { v = 'v' + Math.floor(Math.random() * 1e9).toString(36); localStorage.setItem(AVATAR_VOXEL_LS, v); }
         return v;
       } catch (_) { return 'v' + Math.floor(Math.random() * 1e9).toString(36); }
+    }
+    function readStoredAvatarDescriptor() {
+      try {
+        const raw = localStorage.getItem(AVATAR_VOXEL_DESC_LS);
+        if (!raw) return null;
+        const desc = JSON.parse(raw);
+        return desc && typeof desc === 'object' ? desc : null;
+      } catch (_) { return null; }
+    }
+    function writeStoredAvatarDescriptor(desc) {
+      if (!desc || typeof desc !== 'object') return;
+      try { localStorage.setItem(AVATAR_VOXEL_DESC_LS, JSON.stringify(desc)); } catch (_) {}
     }
     // Resolved LAZILY: 53-voxel-avatar.js loads AFTER this file, so
     // window.voxelAvatarDescriptor is undefined at 47's module-load time. Resolving
@@ -1040,9 +1527,12 @@
     let selfAvatarDescriptor = null;
     function getSelfAvatarDescriptor() {
       if (!selfAvatarDescriptor) {
+        const stored = readStoredAvatarDescriptor();
+        const source = stored || { seed: stableVoxelSeed() };
         selfAvatarDescriptor = (typeof window !== 'undefined' && typeof window.voxelAvatarDescriptor === 'function')
-          ? window.voxelAvatarDescriptor({ seed: stableVoxelSeed() })
-          : { kind: 'voxel', seed: stableVoxelSeed() };
+          ? window.voxelAvatarDescriptor(source)
+          : Object.assign({ kind: 'voxel' }, source);
+        if (stored) writeStoredAvatarDescriptor(selfAvatarDescriptor);
       }
       return selfAvatarDescriptor;
     }
@@ -1080,7 +1570,7 @@
     function previewPose(state) {
       if (!selfEnt || !selfEnt.voxel) return false;
       const v = selfEnt.voxel;
-      if (state === 'skydive') { v.setBodyPitch(-1.4); v.setState('skydive'); if (v.setRocketVisible) v.setRocketVisible(false); }
+      if (state === 'skydive') { v.setBodyPitch(SKY_DIVE_BODY_PITCH); v.setState('skydive'); if (v.setRocketVisible) v.setRocketVisible(false); }
       else if (state === 'rocket') { v.setBodyPitch(0); v.setState('rocket'); if (v.setRocketVisible) { v.setRocketVisible(true); v.setThrusting(true); } }
       else { v.setBodyPitch(0); v.setState('idle'); if (v.setRocketVisible) v.setRocketVisible(false); }
       return true;
@@ -1214,14 +1704,17 @@
     // Set the player's chosen voxel look. Unlike class/pet/strip (which swap textures
     // in place), a voxel body is BAKED at makeVoxelAvatar construction — there is no
     // in-place swap — so the self entity must be rebuilt. The descriptor is stored and
-    // sent on the NEXT world.join; mid-session picks are local-only until reconnect.
+    // persisted for future joins and, when already connected, sent immediately so peers
+    // rebuild the look in the current session.
     function setAvatarVoxel(desc) {
       if (!desc || typeof desc !== 'object') return null;
       const resolved = (typeof window !== 'undefined' && typeof window.voxelAvatarDescriptor === 'function')
         ? window.voxelAvatarDescriptor(desc)
         : desc;
       selfAvatarDescriptor = resolved;
+      writeStoredAvatarDescriptor(resolved);
       if (selfEnt) { disposeEntity(selfEnt); selfEnt = null; updateSelfAvatar(); }
+      try { if (connected && socket && socket.readyState === WebSocket.OPEN) send({ type: 'world.avatar', avatar: resolved }); } catch (_) {}
       return selfAvatarDescriptor;
     }
     WS.setAvatarVoxel = setAvatarVoxel;
@@ -1372,6 +1865,7 @@
       // short-circuits the grid tween/state logic below so it can't yank the avatar back
       // to its base tile while it's on the ladder. ----
       if (ent === selfEnt && ent._skyfall) { stepSkyfall(ent, dt); updateBubble(ent); return; }
+      if (ent === selfEnt && ent._srActive) { _srStep(dt); updateBubble(ent); return; }
       if (ent === selfEnt && ent._climb) { stepClimb(ent, dt); updateBubble(ent); return; }
       // portal travel (LOCAL-SELF): 56's travel() owns the avatar's position + pose during
       // the dissolve/emerge; cede the grid tween so it can't fight the effect.
@@ -1425,6 +1919,7 @@
       // would leave a sprite-avatar skyfall frozen (HUD up, no fall). Posture is voxel-only
       // (stepSkyfall guards on ent.voxel); a sprite avatar still falls + threads rings.
       if (ent === selfEnt && ent._skyfall) { stepSkyfall(ent, dt); updateBubble(ent); return; }
+      if (ent === selfEnt && ent._srActive) { _srStep(dt); updateBubble(ent); return; }
       if (ent.voxel) { animVoxel(ent, dt); return; }
       if (ent.strip) { animStrip(ent, dt); return; }
       if (ent.pet) { animPet(ent, dt); return; }
@@ -1456,6 +1951,11 @@
           target.x = selfEnt.sprite.position.x; target.z = selfEnt.sprite.position.z; target.y = 0;
         }
         updateSkyfallCamera();
+        return;
+      }
+      // Surface roam: use the drag-look chase cam.
+      if (selfEnt._srActive) {
+        _srUpdateCamera();
         return;
       }
       if (typeof updateCamera !== 'function' || typeof target === 'undefined' || !target) return;
@@ -1600,6 +2100,7 @@
       // is shared with the peer path, so the pet must never be applied there).
       if (avatarPetId && PETS[avatarPetId] && (!selfEnt.pet || selfEnt.pet.id !== avatarPetId)) loadPetTextures(selfEnt, PETS[avatarPetId]);
       if (avatarStripId && STRIPS[avatarStripId] && (!selfEnt.strip || selfEnt.strip.id !== avatarStripId)) loadStripTextures(selfEnt, STRIPS[avatarStripId]);
+      if (selfEnt._srActive) return;   // surface roam owns position; don't let presence echoes yank us back
       moveEntity(selfEnt, you.x, you.z);
     }
     const STALE_PEER_MS = 9000; // ~3 missed presence heartbeats => treat as gone
@@ -1616,7 +2117,13 @@
         let ent = peerEnts.get(p.id);
         // Prefer the peer's NETWORKED voxel look (round-tripped via the server);
         // fall back to the id-seed so a peer with no descriptor still renders distinct.
-        if (!ent) { ent = createAvatar(p.avatar || p.id); peerEnts.set(p.id, ent); }
+        const avatarKey = p.avatar ? JSON.stringify(p.avatar) : String(p.id);
+        if (!ent || ent._avatarKey !== avatarKey) {
+          if (ent) disposeEntity(ent);
+          ent = createAvatar(p.avatar || p.id);
+          ent._avatarKey = avatarKey;
+          peerEnts.set(p.id, ent);
+        }
         moveEntity(ent, pos.x, pos.z);
       });
       peerEnts.forEach((ent, id) => { if (!seen.has(id)) { disposeEntity(ent); peerEnts.delete(id); } });
@@ -1628,6 +2135,7 @@
       const tick = () => {
         const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+        _srPollFlyDown();   // detect fly-down transitions, activate/deactivate surface roam
         if (selfEnt) animEntity(selfEnt, dt);
         peerEnts.forEach((e) => animEntity(e, dt));
         // Sweep stale/ghost peers ~every 1.5s even when no messages arrive, so a peer
@@ -1644,6 +2152,7 @@
       disposeSkyRings(); skyHudHide();
       try { const PS = window.__tinyworldPoserSurface; if (PS && PS.hide) PS.hide(); } catch (_) {}
       skyKeys.up = skyKeys.down = skyKeys.left = skyKeys.right = skyKeys.thrust = 0;
+      if (_srActive) { _srUnbindInput(); _srHideHud(); _srActive = false; window.__tinyworldSurfaceRoamActive = false; document.body.classList.remove('surface-roam-active'); }
       disposeEntity(selfEnt); selfEnt = null;
       peerEnts.forEach((e) => disposeEntity(e)); peerEnts.clear();
       avatarErrored = false;

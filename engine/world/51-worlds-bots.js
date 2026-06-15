@@ -24,9 +24,9 @@
     // look; resolved to a full descriptor at join time via window.voxelAvatarDescriptor
     // (53) so it round-trips through the server exactly like a real player's pick.
     const BOT_DEFS = [
-      { name: 'Scout',  color: '#e05c5c', chatOffset: 0, avatarSpec: { seed: 101, body: 'Masc', fit: 'Scout',     skin: 1, head: 'Wide', hair: 'Short' } },
-      { name: 'Forge',  color: '#5ac44e', chatOffset: 4, avatarSpec: { seed: 202, body: 'Masc', fit: 'Barbarian', skin: 3, head: 'Wide', hair: 'Mohawk' } },
-      { name: 'Mira',   color: '#b060e0', chatOffset: 8, avatarSpec: { seed: 303, body: 'Fem',  fit: 'Rogue',     skin: 0, head: 'Slim', hair: 'Tail' } },
+      { name: 'Scout', color: '#e05c5c', chatOffset: 0, avatarSpec: { seed: 101, body: 'Masc', fit: 'Scout', skin: 1, head: 'Wide', hair: 'Short', height: 1, build: -1, gear: 'Sword' } },
+      { name: 'Forge', color: '#5ac44e', chatOffset: 4, avatarSpec: { seed: 202, body: 'Masc', fit: 'Barbarian', skin: 3, head: 'Wide', hair: 'Mohawk', height: 1.15, build: 2, gear: 'Axe' } },
+      { name: 'Mira', color: '#b060e0', chatOffset: 8, avatarSpec: { seed: 303, body: 'Fem', fit: 'Archer', skin: 0, head: 'Slim', hair: 'Tail', height: 0.96, build: -2, gear: 'Bow' } },
     ];
     function botAvatar(spec) {
       if (typeof window.voxelAvatarDescriptor === 'function') return window.voxelAvatarDescriptor(spec);

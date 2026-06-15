@@ -63,6 +63,7 @@
 
     tickStart = repaintProfileBegin();
     tickVehicles(dt);
+    if (window.__tinyworldRaceTrack && typeof window.__tinyworldRaceTrack._tick === 'function') window.__tinyworldRaceTrack._tick(dt);
     repaintProfileEnd('tick.vehicles', tickStart);
 
     tickStart = repaintProfileBegin();

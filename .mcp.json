@@ -2,9 +2,9 @@
   "mcpServers": {
     "contex": {
       "type": "http",
-      "url": "http://127.0.0.1:58041/mcp",
+      "url": "http://127.0.0.1:59403/mcp",
       "headers": {
-        "Authorization": "Bearer 980b86bd-a8b2-4176-be41-d6d656f1864d"
+        "Authorization": "Bearer 3a6be99a-ce52-4e1c-a98e-7736e0fcdd5e"
       }
     }
   }

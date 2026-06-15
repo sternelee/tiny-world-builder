@@ -366,14 +366,80 @@
     WS.hideDraftBar = hideDraftBar;
   
     // ---- enter a published world (hand off to the room client in 47) ----
-    async function enterWorld(w) {
-      const full = await api('/api/worlds?id=' + w.id, 'GET');
-      if (!full || full.error || !full.world) { toast(full && full.error ? full.error : T('worlds.error')); return; }
+    async function enterWorldFull(full) {
+      if (!full || full.error || !full.world) { toast(full && full.error ? full.error : T('worlds.error')); return false; }
+      if (full.world.status !== 'published') { toast(T('worlds.error')); return false; }
       WS.myProfileId = (full.me && full.me.id != null) ? full.me.id : (me && me.id != null ? me.id : null);
       rememberFreeform();
       closeOverlay();
-      if (typeof WS.enterRoom === 'function') WS.enterRoom(full.world, full.token || '', 'play');
-      else toast(T('worlds.error'));
+      if (typeof WS.enterRoom === 'function') {
+        WS.enterRoom(full.world, full.token || '', full.role || 'play');
+        return true;
+      }
+      toast(T('worlds.error'));
+      return false;
+    }
+
+    async function enterWorld(w) {
+      const full = await api('/api/worlds?id=' + w.id, 'GET');
+      return enterWorldFull(full);
+    }
+
+    async function enterBySlug(slug) {
+      const s = String(slug || '').trim().toLowerCase();
+      if (!s) { toast(T('worlds.error')); return false; }
+      const full = await api('/api/worlds?slug=' + encodeURIComponent(s), 'GET');
+      return enterWorldFull(full);
+    }
+
+    function dismissWelcomeForDemoEntry() {
+      try {
+        const modal = document.getElementById('welcome-modal');
+        if (modal && !modal.hidden) {
+          modal.hidden = true;
+          modal.setAttribute('aria-hidden', 'true');
+          document.body.classList.remove('welcome-launch-open');
+        }
+        if (window.__tinyworldMode && typeof window.__tinyworldMode.setPlay === 'function') {
+          window.__tinyworldMode.setPlay();
+        } else {
+          document.body.classList.add('tw-play-mode');
+        }
+      } catch (_) {}
+    }
+
+    function waitForEnterRoom() {
+      return new Promise((resolve) => {
+        if (typeof WS.enterRoom === 'function') { resolve(); return; }
+        let done = false;
+        let timer = null;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (timer) clearTimeout(timer);
+          resolve();
+        };
+        const startedAt = Date.now();
+        const poll = () => {
+          if (typeof WS.enterRoom === 'function' || Date.now() - startedAt >= 5000) {
+            finish();
+            return;
+          }
+          timer = setTimeout(poll, 50);
+        };
+        timer = setTimeout(poll, 50);
+      });
+    }
+
+    async function maybeAutoEnterDemoWorld() {
+      const slugFn = typeof window.__tinyworldTinyverseSlugParam === 'function'
+        ? window.__tinyworldTinyverseSlugParam
+        : null;
+      const slug = slugFn ? slugFn() : null;
+      if (!slug) return;
+      await waitForEnterRoom();
+      dismissWelcomeForDemoEntry();
+      await enterBySlug(slug);
     }
   
     // Netlify deploy previews (and embeds) add a bottom bar/iframe chrome that
@@ -424,6 +490,8 @@
     WS.open = openOverlay;
     WS.close = closeOverlay;
     WS.refresh = loadWorlds;
+    WS.enterPublished = enterWorld;
+    WS.enterBySlug = enterBySlug;
     WS.ready = true;
     window.__tinyworldWorldsReady = Promise.resolve(WS);
     try {
@@ -434,4 +502,9 @@
   
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addLauncher);
     else addLauncher();
+
+    if (typeof window.__tinyworldTinyverseSlugParam === 'function' && window.__tinyworldTinyverseSlugParam()) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybeAutoEnterDemoWorld);
+      else maybeAutoEnterDemoWorld();
+    }
   })();

@@ -143,13 +143,15 @@
     // form is complete and round-trips bit-identically to peers. Thumbs are simple CSS
     // color swatches (the voxel body is 3D — there's no sprite sheet to slice).
     const VOXEL_PRESETS = [
-      { id: 'vx-scout',   displayName: 'Scout',    spec: { seed: 11, body: 'Masc', fit: 'Scout',     skin: 1, head: 'Wide', hair: 'Short' },  swatch: '#5d8a4a' },
-      { id: 'vx-formal',  displayName: 'Formal',   spec: { seed: 22, body: 'Masc', fit: 'Formal',    skin: 2, head: 'Slim', hair: 'Page' },   swatch: '#262a33' },
-      { id: 'vx-sport',   displayName: 'Sport',    spec: { seed: 33, body: 'Fem',  fit: 'Sport',     skin: 0, head: 'Slim', hair: 'Tail' },   swatch: '#e85d75' },
-      { id: 'vx-rogue',   displayName: 'Rogue',    spec: { seed: 44, body: 'Fem',  fit: 'Rogue',     skin: 3, head: 'Wide', hair: 'Bob' },    swatch: '#3f4b4e' },
-      { id: 'vx-barb',    displayName: 'Barbarian', spec: { seed: 55, body: 'Masc', fit: 'Barbarian', skin: 4, head: 'Wide', hair: 'Mohawk' }, swatch: '#8a4b2a' },
-      { id: 'vx-casual',  displayName: 'Casual',   spec: { seed: 66, body: 'Masc', fit: 'Casual',    skin: 1, head: 'Wide', hair: 'Curls' },  swatch: '#4f8ef7' },
-      { id: 'vx-random',  displayName: 'Randomize', random: true,                                                                              swatch: '#7bdc2e' },
+      { id: 'vx-scout', displayName: 'Scout', spec: { seed: 11, body: 'Masc', fit: 'Scout', skin: 1, hairC: 1, head: 'Wide', hair: 'Short', height: 1, build: -1, gear: 'Sword' }, swatch: '#5d8a4a' },
+      { id: 'vx-knight', displayName: 'Knight', spec: { seed: 22, body: 'Masc', fit: 'Knight', skin: 2, hairC: 0, head: 'Wide', hair: 'Buzz', height: 1.08, build: 1, gear: 'SwordShield' }, swatch: '#526074' },
+      { id: 'vx-archer', displayName: 'Archer', spec: { seed: 33, body: 'Fem', fit: 'Archer', skin: 0, hairC: 3, head: 'Slim', hair: 'Tail', height: 0.96, build: -2, gear: 'Bow' }, swatch: '#476f3a' },
+      { id: 'vx-mage', displayName: 'Mage', spec: { seed: 44, body: 'Fem', fit: 'Mage', skin: 3, hairC: 5, head: 'Slim', hair: 'Page', height: 1.03, build: 0, gear: 'Staff' }, swatch: '#47306f' },
+      { id: 'vx-miner', displayName: 'Miner', spec: { seed: 55, body: 'Masc', fit: 'Miner', skin: 4, hairC: 1, head: 'Wide', hair: 'Bald', height: 0.92, build: 2, gear: 'Pickaxe' }, swatch: '#c58a39' },
+      { id: 'vx-rogue', displayName: 'Rogue', spec: { seed: 66, body: 'Fem', fit: 'Rogue', skin: 3, hairC: 0, head: 'Wide', hair: 'Bob', height: 0.98, build: -1, gear: 'Sword' }, swatch: '#3f4b4e' },
+      { id: 'vx-barb', displayName: 'Barbarian', spec: { seed: 77, body: 'Masc', fit: 'Barbarian', skin: 4, hairC: 4, head: 'Wide', hair: 'Mohawk', height: 1.16, build: 2, gear: 'Axe' }, swatch: '#8a4b2a' },
+      { id: 'vx-sky', displayName: 'Skyfarer', spec: { seed: 88, body: 'Masc', fit: 'Skyfarer', skin: 1, hairC: 6, head: 'Slim', hair: 'Curls', height: 1.04, build: 0, gear: 'Shield' }, swatch: '#5f86b6' },
+      { id: 'vx-random', displayName: 'Randomize', random: true, swatch: '#7bdc2e' },
     ];
     function voxelDesc(spec) {
       return (typeof window.voxelAvatarDescriptor === 'function')
@@ -180,7 +182,19 @@
         if (typeof WS.setAvatarVoxel !== 'function') return;
         const p = VOXEL_PRESETS.find(x => x.id === id);
         if (!p) return;
-        if (p.random) { WS.setAvatarVoxel(voxelDesc({ seed: (Math.random() * 0xffffffff) >>> 0 })); voxelCurrentId = null; }
+        if (p.random) {
+          const VD = window.voxelAvatarDescriptor || {};
+          const gears = (VD.GEARS && VD.GEARS.length) ? VD.GEARS : ['None', 'Sword', 'Bow', 'Shield', 'SwordShield', 'Axe', 'Staff', 'Pickaxe'];
+          const heights = (VD.HEIGHTS && VD.HEIGHTS.length) ? VD.HEIGHTS : [{ value: 0.88 }, { value: 1 }, { value: 1.13 }];
+          const builds = (VD.BUILDS && VD.BUILDS.length) ? VD.BUILDS : [{ value: -2 }, { value: -1 }, { value: 0 }, { value: 1 }, { value: 2 }];
+          WS.setAvatarVoxel(voxelDesc({
+            seed: (Math.random() * 0xffffffff) >>> 0,
+            height: heights[(Math.random() * heights.length) | 0].value,
+            build: builds[(Math.random() * builds.length) | 0].value,
+            gear: gears[(Math.random() * gears.length) | 0],
+          }));
+          voxelCurrentId = null;
+        }
         else { WS.setAvatarVoxel(voxelDesc(p.spec)); voxelCurrentId = id; }
       },
     });
@@ -200,8 +214,21 @@
       const VD = window.voxelAvatarDescriptor || {};
       const BODIES = ['Masc', 'Fem'];
       const HEADS = ['Wide', 'Slim'];
-      const HAIRS = (VD.HAIRS && VD.HAIRS.length) ? VD.HAIRS.slice() : ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot'];
-      const OUTFITS = (VD.OUTFITS && VD.OUTFITS.length) ? VD.OUTFITS.slice() : ['Casual', 'Formal', 'Scout', 'Sport', 'Rogue', 'Barbarian'];
+      const HAIRS = (VD.HAIRS && VD.HAIRS.length) ? VD.HAIRS.slice() : ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot', 'Bald'];
+      const OUTFITS = (VD.OUTFITS && VD.OUTFITS.length) ? VD.OUTFITS.slice() : ['Casual', 'Formal', 'Scout', 'Sport', 'Rogue', 'Barbarian', 'Knight', 'Archer', 'Mage', 'Miner', 'Skyfarer'];
+      const GEARS = (VD.GEARS && VD.GEARS.length) ? VD.GEARS.slice() : ['None', 'Sword', 'Bow', 'Shield', 'SwordShield', 'Axe', 'Staff', 'Pickaxe'];
+      const HEIGHTS = (VD.HEIGHTS && VD.HEIGHTS.length) ? VD.HEIGHTS.slice() : [
+        { value: 0.88, label: 'Short' },
+        { value: 1, label: 'Average' },
+        { value: 1.13, label: 'Tall' },
+      ];
+      const BUILDS = (VD.BUILDS && VD.BUILDS.length) ? VD.BUILDS.slice() : [
+        { value: -2, label: 'Thin' },
+        { value: -1, label: 'Lean' },
+        { value: 0, label: 'Average' },
+        { value: 1, label: 'Stocky' },
+        { value: 2, label: 'Fat' },
+      ];
       const NSKIN = VD.SKINS || 5;
       const NHAIRC = VD.HAIRC || 7;
 
@@ -209,7 +236,8 @@
       const base = (VOXEL_PRESETS[0] && VOXEL_PRESETS[0].spec) || {};
       const state = {
         seed: 0xC0FFEE, body: base.body || 'Masc', head: base.head || 'Wide',
-        skin: base.skin || 0, hairC: 0, hair: base.hair || 'Short', fit: base.fit || 'Casual',
+        skin: base.skin || 0, hairC: base.hairC != null ? base.hairC : 0, hair: base.hair || 'Short', fit: base.fit || 'Casual',
+        height: base.height != null ? base.height : 1, build: base.build != null ? base.build : 0, gear: base.gear || 'None',
       };
 
       // --- THREE preview scene ---
@@ -219,7 +247,7 @@
       renderer.setSize(220, 240, false);
       const scene = new THREE.Scene();
       const cam = new THREE.PerspectiveCamera(30, 220 / 240, 0.01, 50);
-      cam.position.set(0, 0.30, 1.15);
+      cam.position.set(0, 0.30, 1.35);
       cam.lookAt(0, 0.26, 0);
       scene.add(new THREE.AmbientLight(0xffffff, 0.85));
       const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(0.6, 1.2, 0.8); scene.add(key);
@@ -249,9 +277,48 @@
 
       // --- per-attribute controls (cycle prev/next; each change rebuilds the preview) ---
       const valSpans = {};
+      function itemLabel(list, value) {
+        const item = list.find(x => x.value === value);
+        if (item) return item.label;
+        return Number.isFinite(value) ? Math.round(value * 100) + '%' : String(value);
+      }
+      function itemIndex(list, value) {
+        const idx = list.findIndex(x => x.value === value);
+        if (idx >= 0) return idx;
+        if (Number.isFinite(value)) {
+          let best = 0, bestD = Infinity;
+          list.forEach((x, i) => {
+            const d = Math.abs(Number(x.value) - value);
+            if (Number.isFinite(d) && d < bestD) { best = i; bestD = d; }
+          });
+          return best;
+        }
+        return 0;
+      }
+      function applyResolved(desc) {
+        if (!desc) return;
+        state.seed = desc.seed;
+        state.body = desc.body;
+        state.head = desc.head;
+        state.skin = desc.skin;
+        state.hairC = desc.hairC;
+        state.hair = desc.hair;
+        state.fit = desc.fit;
+        state.height = desc.height || 1;
+        state.build = desc.build || 0;
+        state.gear = desc.gear || 'None';
+        refresh(); rebuild();
+      }
       function valueOf(k) {
         if (k === 'skin') return trVoxel('worlds.avatarTone', 'Tone') + ' ' + (state.skin + 1);
         if (k === 'hairC') return trVoxel('worlds.avatarColour', 'Colour') + ' ' + (state.hairC + 1);
+        if (k === 'height') return itemLabel(HEIGHTS, state.height);
+        if (k === 'build') return itemLabel(BUILDS, state.build);
+        if (k === 'gear') {
+          if (state.gear === 'SwordShield') return 'Sword + Shield';
+          if (state.gear === 'Bow') return 'Bow + Quiver';
+          return cap(state.gear);
+        }
         return cap(state[k]);
       }
       function refresh() { for (const k in valSpans) valSpans[k].textContent = valueOf(k); }
@@ -260,6 +327,9 @@
         else if (k === 'head') state.head = HEADS[(HEADS.indexOf(state.head) + dir + HEADS.length) % HEADS.length];
         else if (k === 'hair') state.hair = HAIRS[(HAIRS.indexOf(state.hair) + dir + HAIRS.length) % HAIRS.length];
         else if (k === 'fit') state.fit = OUTFITS[(OUTFITS.indexOf(state.fit) + dir + OUTFITS.length) % OUTFITS.length];
+        else if (k === 'height') state.height = HEIGHTS[(itemIndex(HEIGHTS, state.height) + dir + HEIGHTS.length) % HEIGHTS.length].value;
+        else if (k === 'build') state.build = BUILDS[(itemIndex(BUILDS, state.build) + dir + BUILDS.length) % BUILDS.length].value;
+        else if (k === 'gear') state.gear = GEARS[(GEARS.indexOf(state.gear) + dir + GEARS.length) % GEARS.length];
         else if (k === 'skin') state.skin = (state.skin + dir + NSKIN) % NSKIN;
         else if (k === 'hairC') state.hairC = (state.hairC + dir + NHAIRC) % NHAIRC;
         refresh(); rebuild();
@@ -276,18 +346,21 @@
       }
       const controls = el('div', { class: 'tw-avp-vox-controls' }, [
         row('body', trVoxel('worlds.avatarBody', 'Body')),
+        row('height', trVoxel('worlds.avatarHeight', 'Height')),
+        row('build', trVoxel('worlds.avatarBuild', 'Build')),
         row('head', trVoxel('worlds.avatarHead', 'Head')),
         row('skin', trVoxel('worlds.avatarSkin', 'Skin')),
         row('hair', trVoxel('worlds.avatarHair', 'Hair')),
         row('hairC', trVoxel('worlds.avatarHairColour', 'Hair Colour')),
         row('fit', trVoxel('worlds.avatarOutfit', 'Outfit')),
+        row('gear', trVoxel('worlds.avatarGear', 'Gear')),
       ]);
 
       // preset quick-starts: seed the customizer from a hand-tuned look, then tweak.
       const quick = el('div', { class: 'tw-avp-vox-quick' },
         VOXEL_PRESETS.filter(p => !p.random).map(p => el('button', {
           class: 'tw-avp-vox-chip', title: p.displayName, style: 'background:' + p.swatch,
-          onclick: () => { Object.assign(state, p.spec); refresh(); rebuild(); },
+          onclick: () => { applyResolved(voxelDesc(p.spec)); },
         }, [p.displayName])));
 
       const useBtn = el('button', {
@@ -299,9 +372,12 @@
       }, [trVoxel('worlds.avatarUseLook', 'Use This Look')]);
       const randBtn = el('button', {
         class: 'tw-avp-vox-rand', onclick: () => {
-          const r = voxelDesc({ seed: (Math.random() * 0xffffffff) >>> 0 });
-          state.body = r.body; state.head = r.head; state.skin = r.skin; state.hairC = r.hairC; state.hair = r.hair; state.fit = r.fit;
-          refresh(); rebuild();
+          applyResolved(voxelDesc({
+            seed: (Math.random() * 0xffffffff) >>> 0,
+            height: HEIGHTS[(Math.random() * HEIGHTS.length) | 0].value,
+            build: BUILDS[(Math.random() * BUILDS.length) | 0].value,
+            gear: GEARS[(Math.random() * GEARS.length) | 0],
+          }));
         },
       }, [trVoxel('worlds.avatarRandom', 'Randomize')]);
 
@@ -340,7 +416,7 @@
   .tw-avp-vox-row{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:6px;background:#0e1120;padding:5px 8px;border-radius:8px;
     box-shadow:inset 1px 1px 0 #2b3350, inset -1px -1px 0 #05070e}
   .tw-avp-vox-lab{text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:#cfd8f5}
-  .tw-avp-vox-val{min-width:78px;text-align:center;font-size:11px;color:#fff}
+  .tw-avp-vox-val{min-width:92px;text-align:center;font-size:11px;color:#fff}
   .tw-avp-vox-arrow{border:0;cursor:pointer;color:#fff;background:#2b59d6;width:24px;height:24px;border-radius:6px;font-size:14px;line-height:1;
     box-shadow:inset 1px 1px 0 rgba(255,255,255,.25), inset -1px -1px 0 rgba(0,0,0,.45);transition:filter .08s,transform .04s}
   .tw-avp-vox-arrow:hover{filter:brightness(1.15)} .tw-avp-vox-arrow:active{transform:translateY(1px)}

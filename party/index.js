@@ -68,6 +68,7 @@ const RATE_LIMITS = {
   'harvest.start': { refill: 3, burst: 6 },
   'harvest.cancel': { refill: 3, burst: 6 },
   'world.join': { refill: 2, burst: 4 },
+  'world.avatar': { refill: 2, burst: 4 },
   // Lobby presentation: a presenter advancing slides is human-paced, like chat.
   present: { refill: 4, burst: 10 },
 };
@@ -152,12 +153,16 @@ function cleanSelection(value) {
 //   hair  : one of HAIRS
 //   fit   : one of OUTFIT_KEYS
 //   head  : 'Wide' | 'Slim'
-const VOXEL_HAIRS = ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot'];
-const VOXEL_OUTFITS = ['Casual', 'Formal', 'Scout', 'Sport', 'Rogue', 'Barbarian'];
+//   height: number 0.84..1.22
+//   build : int -2..2
+//   gear  : one of GEARS
+const VOXEL_HAIRS = ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot', 'Bald'];
+const VOXEL_OUTFITS = ['Casual', 'Formal', 'Scout', 'Sport', 'Rogue', 'Barbarian', 'Knight', 'Archer', 'Mage', 'Miner', 'Skyfarer'];
+const VOXEL_GEARS = ['None', 'Sword', 'Bow', 'Shield', 'SwordShield', 'Axe', 'Staff', 'Pickaxe'];
 function cleanAvatar(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   if (input.kind !== 'voxel') return null;
-  // Cap object size — an honest descriptor has <= 8 keys; reject obvious bloat.
+  // Cap object size — an honest descriptor has <= 11 keys; reject obvious bloat.
   if (Object.keys(input).length > 12) return null;
   const out = { kind: 'voxel' };
   // seed: always keep, coerced to a finite non-negative int (uint32).
@@ -165,6 +170,7 @@ function cleanAvatar(input) {
   out.seed = Number.isFinite(seedN) ? (seedN >>> 0) : 0;
   // Each optional look field: validate IF PRESENT; any present-and-invalid => reject whole.
   const intInRange = (v, max) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n < max ? n : undefined; };
+  const signedIntInRange = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : undefined; };
   if (Object.prototype.hasOwnProperty.call(input, 'body')) {
     if (input.body !== 'Masc' && input.body !== 'Fem') return null;
     out.body = input.body;
@@ -183,6 +189,17 @@ function cleanAvatar(input) {
   }
   if (Object.prototype.hasOwnProperty.call(input, 'head')) {
     if (input.head !== 'Wide' && input.head !== 'Slim') return null; out.head = input.head;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'height')) {
+    const n = Number(input.height);
+    if (!Number.isFinite(n) || n < 0.84 || n > 1.22) return null;
+    out.height = Math.round(n * 100) / 100;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'build')) {
+    const v = signedIntInRange(input.build, -2, 2); if (v === undefined) return null; out.build = v;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'gear')) {
+    if (!VOXEL_GEARS.includes(input.gear)) return null; out.gear = input.gear;
   }
   return out;
 }
@@ -1050,6 +1067,17 @@ export default class TinyWorldParty {
       return;
     }
 
+    if (type === 'world.avatar') {
+      if (!this.admitted.has(id)) return;
+      const av = cleanAvatar(data.avatar);
+      if (!av) return;
+      const p = this.getPlayer(id);
+      p.avatar = av;
+      this.presence.set(id, this.presenceFor(id));
+      this.broadcastToAdmitted({ type: 'presence', presence: this.presenceFor(id) }, id);
+      return;
+    }
+
     if (type === 'move') return this.handleMove(id, data);
     if (type === 'harvest.start') return this.handleHarvestStart(id, data);
     if (type === 'harvest.cancel') return this.handleHarvestCancel(id);
@@ -1084,7 +1112,8 @@ export default class TinyWorldParty {
 
   handleMove(id, data) {
     const p = this.getPlayer(id);
-    if (p.role !== 'play' || !p.profileId) return;    // observers/guests can't roam the board
+    if (p.role !== 'play' && p.role !== 'observe') return;
+    if (p.role === 'play' && !p.profileId) return;    // play requires a logged-in profile; observe guests may roam
     if (Date.now() < p.busyUntil) return;             // movement locked during a harvest
     if (!this.worldState) return;
     const to = { x: Math.round(Number(data.x)), z: Math.round(Number(data.z)) };

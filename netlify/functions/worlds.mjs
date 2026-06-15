@@ -37,6 +37,14 @@ function worldIdFromRequest(request) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function slugFromRequest(request) {
+  const slug = new URL(request.url).searchParams.get('slug');
+  if (!slug) return null;
+  const s = String(slug).trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(s)) return null;
+  return s;
+}
+
 // Room join role for a connecting client. build = draft owner, play = logged-in
 // in a published world, observe = guest in a published world. null = no access.
 function roleFor(world, profileId) {
@@ -59,18 +67,27 @@ export default async function worldsFunction(request) {
     const user = await getAuthUser(request);
     const profile = (user && user.id) ? await ensureProfile(user) : null;
     const worldId = worldIdFromRequest(request);
+    const worldSlug = slugFromRequest(request);
 
     if (request.method === 'GET') {
       const economy = await loadEconomy(sql);
 
-      if (worldId) {
-        const rows = await sql`
-          SELECT w.*, p.display_name AS owner_name
-          FROM worlds w
-          LEFT JOIN profiles p ON p.id = w.owner_profile_id
-          WHERE w.id = ${worldId}
-          LIMIT 1
-        `;
+      if (worldId || worldSlug) {
+        const rows = worldId
+          ? await sql`
+              SELECT w.*, p.display_name AS owner_name
+              FROM worlds w
+              LEFT JOIN profiles p ON p.id = w.owner_profile_id
+              WHERE w.id = ${worldId}
+              LIMIT 1
+            `
+          : await sql`
+              SELECT w.*, p.display_name AS owner_name
+              FROM worlds w
+              LEFT JOIN profiles p ON p.id = w.owner_profile_id
+              WHERE w.slug = ${worldSlug}
+              LIMIT 1
+            `;
         if (!rows.length) return errorResponse('World not found', 404, origin);
         const world = rows[0];
         const isOwner = profile && Number(world.owner_profile_id) === Number(profile.id);

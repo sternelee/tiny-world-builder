@@ -537,6 +537,20 @@
       placeGate, placeLandGate, enter, remove,
       placeLobbyGates, travel, travelDemo, travelPlayer, gateAtCell, removeLobby,
       isOnSurface: () => onSurface,
+      // --- player stargate round-trip (47 surface-roam wires these) ---
+      // The sky-edge gate cell: walk onto it to descend to the mainland.
+      skyGateCell: () => gate ? { x: gate._cellX, z: gate._cellZ } : null,
+      ensureSkyGate: () => placeGate(),
+      flashSky: () => flash(),
+      // The mainland gate (surface-local 0,0): walk into it to ascend back up.
+      ensureLandGate: () => placeLandGate(),
+      flashLand: () => flashGate(landGate),
+      landGateWorldPos: (out) => {
+        if (!landGate || !landGate.group) return null;
+        const v = out || new THREE.Vector3();
+        landGate.group.getWorldPosition(v);
+        return v;
+      },
       gate: () => gate,
       landGate: () => landGate,
       lobbyGates: () => lobbyGates,

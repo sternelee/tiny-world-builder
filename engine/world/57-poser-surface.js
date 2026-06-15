@@ -667,5 +667,39 @@
     }
     function stopTick() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
 
-    window.__tinyworldPoserSurface = { show, hide, build, group: () => group };
+    // ---- surface coordinate helpers (used by 47's surface-roam controller) ----
+    // The surface group is positioned at worldGroup y=-DROP with scale SCALE*Y_BOOST on y.
+    // These helpers convert between world-space (Three.js scene) and local poser space.
+    const SURF_CLAMP = 74; // clamp x/z to just inside the sea-plane to avoid the fogged edge
+    function clampSurf(v) { return Math.max(-SURF_CLAMP, Math.min(SURF_CLAMP, v)); }
+
+    // World (Three.js) position -> poser-local position (the frame groundH works in).
+    // Use group.position (set once in show()) not target (moves every camera frame during roam).
+    function worldToLocal(wx, wy, wz) {
+      const gx = (group && group.position) ? group.position.x : 0;
+      const gz = (group && group.position) ? group.position.z : 0;
+      const lx = (wx - gx) / SCALE;
+      const lz = (wz - gz) / SCALE;
+      const ly = (wy - (-DROP)) / (SCALE * Y_BOOST);
+      return { x: clampSurf(lx), y: ly, z: clampSurf(lz) };
+    }
+
+    // Poser-local (x, z) -> world-space Y that the avatar should stand on.
+    // walkY is the surface height in world units (sea level = 0 in local -> -DROP in world).
+    // Use group.position (stable anchor set by show()) not target (moves every camera frame).
+    function sampleWorld(wx, wz) {
+      const gx = (group && group.position) ? group.position.x : 0;
+      const gz = (group && group.position) ? group.position.z : 0;
+      const lx = clampSurf((wx - gx) / SCALE);
+      const lz = clampSurf((wz - gz) / SCALE);
+      const [bi, sd] = nearestIsle(lx, lz);
+      const localH = isleH(sd, lx, lz, bi === 0);
+      // walkY: never below sea level (water is walkable, not sunken)
+      const walkLocalY = Math.max(0, localH);
+      // convert to world Y: localY * SCALE * Y_BOOST + (-DROP)
+      const walkWorldY = walkLocalY * SCALE * Y_BOOST + (-DROP);
+      return { wx, wz, walkWorldY, localH, water: localH < 0 };
+    }
+
+    window.__tinyworldPoserSurface = { show, hide, build, group: () => group, sampleWorld, worldToLocal };
   })();

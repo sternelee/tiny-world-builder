@@ -24,6 +24,8 @@
     // the doors. Build at ~0.62 so the figure stands a touch above a 0.48 door.
     const AVATAR_HEIGHT = 0.5;
     const _col = new THREE.Color();
+    const _avatarSharedGeos = Object.create(null);
+    const _avatarSharedMats = Object.create(null);
 
     // ---- deterministic per-voxel hash (subtle color jitter so flat color reads textured) ----
     function hash3(x, y, z) {
@@ -33,6 +35,16 @@
     function makePrng(seed) {
       let s = ((seed >>> 0) ^ 0x9e3779b9) >>> 0;
       return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; };
+    }
+    function clampInt(value, fallback, min, max) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.max(min, Math.min(max, Math.round(n)));
+    }
+    function clampNum(value, fallback, min, max) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
     }
 
     // ---- planar 2-bone IK (sagittal Y-Z plane) -> {hip, knee} rotation.x angles ----
@@ -152,7 +164,7 @@
     // ---- wardrobe (ported from voxel-poser) ----
     const SKINS = ['#fcdca0', '#eab38f', '#c98a5f', '#9c6644', '#6e482e'];
     const HAIRC = ['#241f26', '#54371f', '#d9a441', '#b05f28', '#a83a2a', '#5a6fd1', '#cdd3dc'];
-    const HAIRS = ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot'];
+    const HAIRS = ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot', 'Bald'];
     const OUTFITS = {
       Casual: { shirt: '#4f8ef7', sleeve: 'short', pants: '#39496b', shoes: '#e8e6e1', belt: '#262b38' },
       Formal: { shirt: '#262a33', sleeve: 'long', pants: '#262a33', shoes: '#16171c', belt: '#16171c', collar: '#f0efe9', tie: '#a8392a' },
@@ -160,8 +172,21 @@
       Sport: { shirt: '#e85d75', sleeve: 'long', pants: '#2c2f38', shoes: '#f2b441', belt: '#222630' },
       Rogue: { shirt: '#3f4b4e', sleeve: 'long', pants: '#320632', shoes: '#2c2c2c', belt: '#b05f28', boots: true, sash: '#c3cbdb', skirt: '#560b28' },
       Barbarian: { bare: true, sleeve: 'short', barelegs: true, shoes: '#9c4528', belt: '#5a3018', boots: true, bootTall: true, harness: '#7e8a96', emblem: '#b8341f', fur: '#8a4b2a', fur2: '#6e3a1f', brace: '#6b4226', skirt: '#6e3a1f', shirt: '#000', pants: '#000' },
+      Knight: { shirt: '#526074', sleeve: 'long', pants: '#333a4d', shoes: '#202535', belt: '#3a2118', boots: true, harness: '#a8b0bd', emblem: '#d9b64b', brace: '#8d95a3' },
+      Archer: { shirt: '#476f3a', sleeve: 'long', pants: '#584631', shoes: '#3b2d1d', belt: '#9b6b30', boots: true, sash: '#c6d16b', brace: '#73512b' },
+      Mage: { shirt: '#47306f', sleeve: 'long', pants: '#281b43', shoes: '#211630', belt: '#d2ad54', collar: '#e8d993', tie: '#5aa6ff', skirt: '#2f1f55' },
+      Miner: { shirt: '#c58a39', sleeve: 'long', pants: '#345064', shoes: '#2b2925', belt: '#53361e', boots: true, brace: '#6d7781' },
+      Skyfarer: { shirt: '#5f86b6', sleeve: 'long', pants: '#6d4a34', shoes: '#2d2a28', belt: '#7c512d', boots: true, harness: '#dbc17a', emblem: '#f3e5a2', brace: '#c9a86a' },
     };
     const OUTFIT_KEYS = Object.keys(OUTFITS);
+    const GEARS = ['None', 'Sword', 'Bow', 'Shield', 'SwordShield', 'Axe', 'Staff', 'Pickaxe'];
+    const BUILD_PROFILES = [
+      { x: 0.78, z: 0.84, hipX: 0.84, limbX: 0.78, footX: 0.88, shoulder: 0.88 }, // -2 thin
+      { x: 0.9, z: 0.92, hipX: 0.92, limbX: 0.9, footX: 0.94, shoulder: 0.94 },  // -1 lean
+      { x: 1, z: 1, hipX: 1, limbX: 1, footX: 1, shoulder: 1 },                  // 0 average
+      { x: 1.13, z: 1.08, hipX: 1.1, limbX: 1.08, footX: 1.08, shoulder: 1.1 },   // 1 stocky
+      { x: 1.28, z: 1.18, hipX: 1.22, limbX: 1.14, footX: 1.12, shoulder: 1.22 }, // 2 fat
+    ];
 
     function fill(map, x0, x1, y0, y1, z0, z1, color) {
       for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++)
@@ -171,6 +196,39 @@
       _col.set(hex).multiplyScalar(f);
       _col.r = Math.min(_col.r, 1); _col.g = Math.min(_col.g, 1); _col.b = Math.min(_col.b, 1);
       return '#' + _col.getHexString();
+    }
+    function buildProfile(build) {
+      return BUILD_PROFILES[(clampInt(build, 0, -2, 2) + 2)] || BUILD_PROFILES[2];
+    }
+    function avatarSharedGeo(key, make) {
+      if (!_avatarSharedGeos[key]) _avatarSharedGeos[key] = make();
+      return _avatarSharedGeos[key];
+    }
+    function avatarSharedMat(key, color) {
+      if (!_avatarSharedMats[key]) _avatarSharedMats[key] = new THREE.MeshLambertMaterial({ color });
+      return _avatarSharedMats[key];
+    }
+    function avatarGearMesh(geoKey, makeGeo, matKey, color) {
+      const mesh = new THREE.Mesh(avatarSharedGeo(geoKey, makeGeo), avatarSharedMat(matKey, color));
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.userData.sharedAvatarAsset = true;
+      return mesh;
+    }
+    function gearBox(w, h, d, matKey, color) {
+      return avatarGearMesh('box:' + w + ':' + h + ':' + d, () => new THREE.BoxGeometry(w, h, d), matKey, color);
+    }
+    function gearCylinder(r, h, seg, matKey, color) {
+      return avatarGearMesh('cyl:' + r + ':' + h + ':' + seg, () => new THREE.CylinderGeometry(r, r, h, seg), matKey, color);
+    }
+    function gearCone(r, h, seg, matKey, color) {
+      return avatarGearMesh('cone:' + r + ':' + h + ':' + seg, () => new THREE.ConeGeometry(r, h, seg), matKey, color);
+    }
+    function gearSphere(r, seg, matKey, color) {
+      return avatarGearMesh('sphere:' + r + ':' + seg, () => new THREE.SphereGeometry(r, seg, Math.max(4, Math.floor(seg * 0.6))), matKey, color);
+    }
+    function gearTorus(r, tube, seg, arc, matKey, color) {
+      return avatarGearMesh('torus:' + r + ':' + tube + ':' + seg + ':' + arc, () => new THREE.TorusGeometry(r, tube, 6, seg, arc), matKey, color);
     }
 
     // ---- head (skin + face + hair) ----  (ported; viseme/Talk simplified to a static mouth)
@@ -225,6 +283,7 @@
       else if (cfg.mouth === 'Frown') { mouth(m0, 1); mouth(m1, 1); for (let x = ca; x <= cb; x++) mouth(x, 2); }
       else { for (let x = m0; x <= m1; x++) mouth(x, 2); for (let x = ca; x <= cb; x++) mouth(x, 1); } // Open/default
       // hair
+      if (cfg.hair === 'Bald') return [H, (HW - 1) / 2, -0.5, 3.5];
       const paint = (x, y, z) => { const k = x + ',' + y + ',' + z; if (H.has(k)) H.set(k, hair); };
       for (let x = 0; x < HW; x++) for (let z = 0; z < 8; z++) paint(x, 7, z);
       if (cfg.hair !== 'Buzz') {
@@ -365,13 +424,17 @@
       seed = (seed >>> 0) || 1;
       const r = makePrng(seed);
       const pick = (arr) => arr[(r() * arr.length) | 0];
+      const body = (opts.body === 'Masc' || opts.body === 'Fem') ? opts.body : (r() < 0.5 ? 'Masc' : 'Fem');
+      const skin = opts.skin != null ? clampInt(opts.skin, 0, 0, SKINS.length - 1) : ((r() * SKINS.length) | 0);
+      const hairC = opts.hairC != null ? clampInt(opts.hairC, 0, 0, HAIRC.length - 1) : ((r() * HAIRC.length) | 0);
+      const hair = HAIRS.includes(opts.hair) ? opts.hair : pick(HAIRS);
+      const fit = OUTFIT_KEYS.includes(opts.fit) ? opts.fit : pick(OUTFIT_KEYS);
+      const head = (opts.head === 'Wide' || opts.head === 'Slim') ? opts.head : (r() < 0.5 ? 'Wide' : 'Slim');
+      const height = Math.round((opts.height != null ? clampNum(opts.height, 1, 0.84, 1.22) : (0.88 + r() * 0.31)) * 100) / 100;
+      const build = opts.build != null ? clampInt(opts.build, 0, -2, 2) : (((r() * 5) | 0) - 2);
+      const gear = GEARS.includes(opts.gear) ? opts.gear : (r() < 0.42 ? 'None' : GEARS[1 + ((r() * (GEARS.length - 1)) | 0)]);
       return {
-        body: opts.body || (r() < 0.5 ? 'Masc' : 'Fem'),
-        skin: opts.skin != null ? opts.skin : (r() * SKINS.length) | 0,
-        hairC: opts.hairC != null ? opts.hairC : (r() * HAIRC.length) | 0,
-        hair: opts.hair || pick(HAIRS),
-        fit: opts.fit || pick(OUTFIT_KEYS),
-        head: opts.head || (r() < 0.5 ? 'Wide' : 'Slim'),
+        body, skin, hairC, hair, fit, head, height, build, gear,
         bevel: opts.bevel != null ? opts.bevel : false,   // flat voxels: fewer verts, render-budget friendly
         eyes: opts.eyes || 'Focus',
         mouth: opts.mouth || 'Smile',
@@ -382,6 +445,7 @@
     // ---- assemble a posed skeleton of limb Groups from the part meshes ----
     function makeVoxelAvatar(opts) {
       const cfg = deriveCfg(opts);
+      const build = buildProfile(cfg.build);
       const maps = buildParts(cfg);
       // side: DoubleSide is REQUIRED — the ported voxGeo mesher emits inconsistent
       // face winding (voxel-poser's voxMat used DoubleSide too). With the default
@@ -398,6 +462,7 @@
         if (g.boundingBox) mesh.userData.bb = g.boundingBox.clone();
         return mesh;
       };
+      const scalePart = (mesh, sx, sz) => { if (mesh) { mesh.scale.x = sx; mesh.scale.z = sz; } };
       const grp = (parent, x, y, z) => { const g = new THREE.Group(); if (x || y || z) g.position.set(x || 0, y || 0, z || 0); if (parent) parent.add(g); return g; };
 
       const root = new THREE.Group();
@@ -409,10 +474,12 @@
       const BASE = { chestY: 0, chestX: 0, chestZ: 0, headY: 0, headX: 0, headZ: 0, hipPivotY: 0 };
 
       const pelvis = meshPart('pelvis'); hips.add(pelvis);
+      scalePart(pelvis, build.hipX, build.z);
       const pbb = pelvis.userData.bb;
 
       const chest = grp(hips, 0, pbb.max.y, 0);
       const chestMesh = meshPart('chest'); chest.add(chestMesh);
+      scalePart(chestMesh, build.x, build.z);
       const cbb = chestMesh.userData.bb;
 
       const head = grp(chest, 0, cbb.max.y, 0);
@@ -433,24 +500,27 @@
 
       // arms: shoulder pivots at the upper chest, just outside the torso edge
       const shY = cbb.max.y - 1.2;
-      const shX = cbb.max.x + 0.2;
+      const shX = (cbb.max.x * build.shoulder) + 0.2;
       const ARM = { len: 0 };                            // total arm length, for swing-amp -> angle
       const arm = (side) => {
         const tag = side < 0 ? 'L' : 'R';
         const sh = grp(chest, side * shX, shY, 0); sh.name = 'arm' + tag + '_sh';
         const up = meshPart(side < 0 ? 'upperL' : 'upperR'); sh.add(up);
+        scalePart(up, build.limbX, build.z);
         const elbow = grp(sh, 0, up.userData.bb.min.y, 0); elbow.name = 'arm' + tag + '_elbow';
         const fore = meshPart(side < 0 ? 'foreL' : 'foreR'); elbow.add(fore);
+        scalePart(fore, build.limbX, build.z);
         const wrist = grp(elbow, 0, fore.userData.bb.min.y, 0);
-        wrist.add(meshPart(side < 0 ? 'handL' : 'handR'));
+        const hand = meshPart(side < 0 ? 'handL' : 'handR'); wrist.add(hand);
+        scalePart(hand, build.limbX, build.z);
         ARM.len = -up.userData.bb.min.y + -fore.userData.bb.min.y;
-        return { sh, elbow };
+        return { sh, elbow, wrist };
       };
       const armL = arm(-1), armR = arm(1);
 
       // legs: hip pivots under the pelvis
       const hipY = pbb.min.y;
-      const hipX = Math.max(0.8, pbb.max.x * 0.5);
+      const hipX = Math.max(0.65, pbb.max.x * 0.5 * build.hipX);
       // segment lengths captured from the built bb's — fed to the planar leg IK so
       // strideCore's foot targets (ported V->1) solve against THIS rig's true limbs.
       const LEG = { U: 0, F: 0, ankleY: 0 };
@@ -458,12 +528,15 @@
         const tag = side < 0 ? 'L' : 'R';
         const hip = grp(hips, side * hipX, hipY, 0); hip.name = 'leg' + tag + '_hip';
         const th = meshPart(side < 0 ? 'thighL' : 'thighR'); hip.add(th);
+        scalePart(th, build.limbX, build.z);
         const kneeY = th.userData.bb.min.y;             // thigh extends down (negative Y)
         const knee = grp(hip, 0, kneeY, 0); knee.name = 'leg' + tag + '_knee';
         const shin = meshPart(side < 0 ? 'shinL' : 'shinR'); knee.add(shin);
+        scalePart(shin, build.limbX, build.z);
         const ankleY = shin.userData.bb.min.y;
         const ankle = grp(knee, 0, ankleY, 0);
-        ankle.add(meshPart(side < 0 ? 'footL' : 'footR'));
+        const foot = meshPart(side < 0 ? 'footL' : 'footR'); ankle.add(foot);
+        scalePart(foot, build.footX, build.z);
         LEG.U = -kneeY; LEG.F = -ankleY;                // upper/fore segment lengths (positive)
         return { hip, knee };
       };
@@ -490,6 +563,85 @@
         rocketPack.add(flame); rocketFlames.push(flame); geos.push(flame.geometry);
       }
 
+      function addSwordGear(parent) {
+        const g = grp(parent, 0, -0.7, 1.35); g.name = 'avatar-gear-sword';
+        const grip = gearBox(0.34, 1.15, 0.34, 'avatarGearLeather', 0x5c3a26);
+        grip.position.y = -0.15; g.add(grip);
+        const guard = gearBox(1.75, 0.24, 0.28, 'avatarGearGold', 0xd9a441);
+        guard.position.y = -0.82; g.add(guard);
+        const blade = gearBox(0.36, 4.5, 0.16, 'avatarGearSteel', 0xcfd8e6);
+        blade.position.y = -3.15; g.add(blade);
+        const tip = gearCone(0.34, 0.7, 4, 'avatarGearSteel', 0xcfd8e6);
+        tip.position.y = -5.75; tip.rotation.z = Math.PI; g.add(tip);
+      }
+      function addStaffGear(parent) {
+        const g = grp(parent, 0, -1.25, 1.1); g.name = 'avatar-gear-staff';
+        const pole = gearCylinder(0.13, 7.2, 6, 'avatarGearWood', 0x6b4226);
+        pole.position.y = -2.2; g.add(pole);
+        const band = gearBox(0.62, 0.22, 0.62, 'avatarGearGold', 0xd9a441);
+        band.position.y = 1.18; g.add(band);
+        const gem = gearSphere(0.46, 8, 'avatarGearGem', 0x59c7ff);
+        gem.position.y = 1.72; g.add(gem);
+      }
+      function addShieldGear(parent) {
+        const g = grp(parent, 0, -1.25, 1.8); g.name = 'avatar-gear-shield';
+        const shield = gearCylinder(1.08, 0.34, 8, 'avatarGearShield', 0x3f6fb7);
+        shield.rotation.x = Math.PI / 2; shield.scale.y = 1.22; g.add(shield);
+        const boss = gearCylinder(0.36, 0.42, 8, 'avatarGearGold', 0xd9a441);
+        boss.rotation.x = Math.PI / 2; boss.position.z = 0.26; g.add(boss);
+        const stripe = gearBox(0.22, 2.0, 0.08, 'avatarGearSteelDark', 0x273247);
+        stripe.position.z = 0.45; g.add(stripe);
+      }
+      function addBowGear(parent) {
+        const g = grp(parent, 0, -1.8, 1.15); g.name = 'avatar-gear-bow';
+        const bow = gearTorus(1.22, 0.075, 20, Math.PI * 1.35, 'avatarGearWood', 0x6b4226);
+        bow.rotation.z = -Math.PI * 0.68; bow.scale.y = 1.35; g.add(bow);
+        const string = gearBox(0.05, 3.85, 0.05, 'avatarGearString', 0xe8dcc3);
+        string.position.x = -0.36; g.add(string);
+        const grip = gearBox(0.28, 0.8, 0.24, 'avatarGearLeather', 0x5c3a26);
+        grip.position.x = -0.02; g.add(grip);
+      }
+      function addQuiverGear(parent) {
+        const g = grp(parent, -2.2, cbb.max.y * 0.45, cbb.min.z - 1.2); g.name = 'avatar-gear-quiver';
+        g.rotation.z = -0.22;
+        const tube = gearCylinder(0.42, 3.3, 7, 'avatarGearLeather', 0x5c3a26);
+        tube.position.y = -0.4; g.add(tube);
+        for (const off of [-0.22, 0, 0.22]) {
+          const shaft = gearBox(0.07, 3.6, 0.07, 'avatarGearArrow', 0xd8c18c);
+          shaft.position.set(off, 0.9, 0.08); g.add(shaft);
+          const head = gearCone(0.15, 0.38, 4, 'avatarGearSteel', 0xcfd8e6);
+          head.position.set(off, 2.88, 0.08); g.add(head);
+        }
+      }
+      function addAxeGear(parent) {
+        const g = grp(parent, 0, -1.15, 1.18); g.name = 'avatar-gear-axe';
+        const haft = gearCylinder(0.14, 5.6, 6, 'avatarGearWood', 0x6b4226);
+        haft.position.y = -2.0; g.add(haft);
+        const head = gearBox(1.35, 0.8, 0.22, 'avatarGearSteel', 0xcfd8e6);
+        head.position.set(0.35, 0.55, 0); g.add(head);
+        const bite = gearCone(0.52, 0.65, 4, 'avatarGearSteel', 0xcfd8e6);
+        bite.position.set(1.15, 0.55, 0); bite.rotation.z = -Math.PI / 2; g.add(bite);
+      }
+      function addPickaxeGear(parent) {
+        const g = grp(parent, 0, -1.1, 1.18); g.name = 'avatar-gear-pickaxe';
+        const haft = gearCylinder(0.13, 5.4, 6, 'avatarGearWood', 0x6b4226);
+        haft.position.y = -2.1; g.add(haft);
+        const bar = gearBox(2.2, 0.24, 0.2, 'avatarGearSteel', 0xcfd8e6);
+        bar.position.y = 0.58; g.add(bar);
+        const pointL = gearCone(0.22, 0.7, 4, 'avatarGearSteel', 0xcfd8e6);
+        pointL.position.set(-1.34, 0.58, 0); pointL.rotation.z = Math.PI / 2; g.add(pointL);
+        const pointR = gearCone(0.22, 0.7, 4, 'avatarGearSteel', 0xcfd8e6);
+        pointR.position.set(1.34, 0.58, 0); pointR.rotation.z = -Math.PI / 2; g.add(pointR);
+      }
+      function addAvatarGear() {
+        if (cfg.gear === 'Sword' || cfg.gear === 'SwordShield') addSwordGear(armR.wrist);
+        if (cfg.gear === 'Shield' || cfg.gear === 'SwordShield') addShieldGear(armL.wrist);
+        if (cfg.gear === 'Bow') { addBowGear(armL.wrist); addQuiverGear(chest); }
+        if (cfg.gear === 'Staff') addStaffGear(armR.wrist);
+        if (cfg.gear === 'Axe') addAxeGear(armR.wrist);
+        if (cfg.gear === 'Pickaxe') addPickaxeGear(armR.wrist);
+      }
+
       // record rest-pose pivot bases (chest/head local positions, hip-pivot Y in `hips`)
       BASE.chestY = chest.position.y; BASE.chestX = chest.position.x; BASE.chestZ = chest.position.z;
       BASE.headY = head.position.y; BASE.headX = head.position.x; BASE.headZ = head.position.z;
@@ -502,7 +654,8 @@
       const bobBase = -fullBB.min.y;          // lift so lowest voxel sits at y=0
       body.position.y = bobBase;
       const rawH = (fullBB.max.y - fullBB.min.y) || 1;
-      root.scale.setScalar(AVATAR_HEIGHT / rawH);
+      root.scale.setScalar((AVATAR_HEIGHT * cfg.height) / rawH);
+      addAvatarGear();
 
       // ---- animation: rotate limb Groups only; geometry is never rebuilt ----
       const A = {                              // amplitudes (radians) — kept modest so
@@ -566,6 +719,15 @@
         // Rocket pack: show/hide the back-mounted thrusters (on earn) and the flames (on thrust).
         setRocketVisible(on) { rocketPack.visible = !!on; if (!on) for (const f of rocketFlames) f.visible = false; },
         setThrusting(on) { for (const f of rocketFlames) f.visible = !!on; },
+        // First-person: hide the head so the camera (sat at eye height) isn't inside it.
+        // Arms + torso stay visible so they swing into the bottom of view (Minecraft-style).
+        setFirstPerson(on) { head.visible = !on; },
+        // World-space eye position (top of the head group) for placing the FP camera.
+        getEyeWorldPosition(out) {
+          const v = out || new THREE.Vector3();
+          head.getWorldPosition(v);
+          return v;
+        },
         getState() { return this._state; },
         // climb phase channel: 47 calls this each frame BEFORE update(dt) with a phase
         // delta proportional to vertical distance moved. Positive = climbing up, negative
@@ -907,22 +1069,22 @@
             //   chest ARCHES back (chest.x negative).
             // A wind-buffet flutter keeps it alive instead of a frozen mannequin. Eases in.
             // Spec (per the user, viewed 3rd-person from BEHIND): arms straight OUT to the
-            // sides, legs swept BACK and bent up at the knee — an "upside-down table". The
-            // FALL CONTROLLER pitches the whole body face-down (~-1.4), so legs-back (+hip.x,
+            // sides, legs swept BACK/APART and bent up at the knee. The FALL CONTROLLER
+            // pitches the whole body face-down (~-1.5), so legs-back (+hip.x,
             // toward body -z) + knees-bent read as the table legs pointing up; arms out = wings.
             this._poseT = Math.min(1, this._poseT + dt * 5);
             const u = this._poseT;
             body.position.y = bobBase;
             const buf = Math.sin(this._t * 9) * 0.06 + Math.sin(this._t * 5.3) * 0.04; // wind flutter
-            // arms straight out to the sides (big abduction), barely forward, near-extended.
-            armR.sh.rotation.z = (1.45 + buf) * u; armL.sh.rotation.z = -(1.45 + buf) * u;
-            armR.sh.rotation.x = 0.05 * u;          armL.sh.rotation.x = 0.05 * u;
-            armR.elbow.rotation.x = -0.25 * u;      armL.elbow.rotation.x = -0.25 * u;
-            // legs swept BACK (+hip.x) with a slight table-spread, knees strongly bent (shins up).
-            legR.hip.rotation.z = (0.28 + buf * 0.5) * u; legL.hip.rotation.z = -(0.28 + buf * 0.5) * u;
-            legR.hip.rotation.x = 0.6 * u;          legL.hip.rotation.x = 0.6 * u;
-            legR.knee.rotation.x = 1.2 * u;         legL.knee.rotation.x = 1.2 * u;
-            chest.rotation.x = -0.15 * u;
+            // arms straight out to the sides (large abduction), elbows only slightly bent.
+            armR.sh.rotation.z = (1.62 + buf) * u; armL.sh.rotation.z = -(1.62 + buf) * u;
+            armR.sh.rotation.x = 0.08 * u;         armL.sh.rotation.x = 0.08 * u;
+            armR.elbow.rotation.x = -0.12 * u;     armL.elbow.rotation.x = -0.12 * u;
+            // legs swept back and spread so the knees/boots stay readable behind the torso.
+            legR.hip.rotation.z = (0.46 + buf * 0.5) * u; legL.hip.rotation.z = -(0.46 + buf * 0.5) * u;
+            legR.hip.rotation.x = 0.88 * u;        legL.hip.rotation.x = 0.88 * u;
+            legR.knee.rotation.x = 1.48 * u;       legL.knee.rotation.x = 1.48 * u;
+            chest.rotation.x = -0.22 * u;
           } else if (st === 'rocket') {
             // ---- ROCKET-PACK FLIGHT: upright stance, arms drawn down/back as if braced against
             // the pack's thrust, legs together with a soft bend trailing below. The FALL
@@ -954,7 +1116,7 @@
           }
         },
         dispose() {
-          root.traverse((o) => { if (o.isMesh && o.geometry) { try { o.geometry.dispose(); } catch (_) {} } });
+          root.traverse((o) => { if (o.isMesh && o.geometry && !(o.userData && o.userData.sharedAvatarAsset)) { try { o.geometry.dispose(); } catch (_) {} } });
           if (root.parent) root.parent.remove(root);
           try { mat.dispose(); } catch (_) {}
           try { packMat.dispose(); flameMat.dispose(); } catch (_) {}
@@ -968,7 +1130,7 @@
 
     // ---- networked descriptor: a strict, fully-RESOLVED subset of makeVoxelAvatar
     //      opts, safe to send over the wire so every client renders the SAME look.
-    //      Returns { kind:'voxel', seed, body, skin, hairC, hair, fit, head } with
+    //      Returns { kind:'voxel', seed, body, skin, hairC, hair, fit, head, height, build, gear } with
     //      ALL look fields populated (deriveCfg fills any unset from seed). Storing
     //      the resolved form (not seed-only) is deliberate: deriveCfg derives later
     //      fields via short-circuit PRNG calls, so an under-specified descriptor
@@ -976,7 +1138,7 @@
     //      bit-identically on self and on peers. Field domains (keep in sync with the
     //      server's cleanAvatar in party/index.js): body Masc|Fem; skin int 0..4
     //      (SKINS.length); hairC int 0..6 (HAIRC.length); hair in HAIRS; fit in
-    //      OUTFIT_KEYS; head Wide|Slim.
+    //      OUTFIT_KEYS; head Wide|Slim; height 0.84..1.22; build int -2..2; gear in GEARS.
     function voxelAvatarDescriptor(opts) {
       const c = deriveCfg(opts);
       return {
@@ -988,6 +1150,9 @@
         hair: c.hair,
         fit: c.fit,
         head: c.head,
+        height: c.height,
+        build: c.build,
+        gear: c.gear,
       };
     }
     // Expose the wardrobe option lists so the picker (49) can build preset/random
@@ -996,5 +1161,18 @@
     voxelAvatarDescriptor.HAIRC = HAIRC.length;
     voxelAvatarDescriptor.HAIRS = HAIRS.slice();
     voxelAvatarDescriptor.OUTFITS = OUTFIT_KEYS.slice();
+    voxelAvatarDescriptor.GEARS = GEARS.slice();
+    voxelAvatarDescriptor.BUILDS = [
+      { value: -2, label: 'Thin' },
+      { value: -1, label: 'Lean' },
+      { value: 0, label: 'Average' },
+      { value: 1, label: 'Stocky' },
+      { value: 2, label: 'Fat' },
+    ];
+    voxelAvatarDescriptor.HEIGHTS = [
+      { value: 0.88, label: 'Short' },
+      { value: 1, label: 'Average' },
+      { value: 1.13, label: 'Tall' },
+    ];
     window.voxelAvatarDescriptor = voxelAvatarDescriptor;
   })();

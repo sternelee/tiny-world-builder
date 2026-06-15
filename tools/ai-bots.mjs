@@ -52,7 +52,8 @@ function arg(name, def) {
   return (v === undefined || v.startsWith('--')) ? true : v;
 }
 const CFG = {
-  slug: String(arg('slug', 'ai-lobby')),
+  slug: String(arg('slug', 'mixed-hollow')),
+  origin: String(arg('origin', 'http://localhost:8888')).replace(/\/+$/, ''),
   bots: Math.max(1, Math.min(8, parseInt(arg('bots', '3'), 10) || 3)),
   mode: String(arg('mode', 'both')),
   model: String(arg('model', 'claude-haiku-4-5')),
@@ -62,6 +63,36 @@ const CFG = {
   seconds: parseInt(arg('seconds', '0'), 10) || 0,
   verbose: !!arg('verbose', false),
 };
+
+function compactCells(data) {
+  const out = [];
+  const cs = (data && Array.isArray(data.cells)) ? data.cells : [];
+  for (const c of cs) {
+    const x = Array.isArray(c) ? c[0] : c.x;
+    const z = Array.isArray(c) ? c[1] : c.z;
+    if (x == null || z == null) continue;
+    const ter = (Array.isArray(c) ? c[2] : c.terrain) || 'grass';
+    const k = Array.isArray(c) ? c[3] : c.kind;
+    out.push(k ? [x, z, ter, k] : [x, z, ter]);
+    if (out.length >= 1500) break;
+  }
+  return out;
+}
+
+let WORLD_META = null;
+async function loadWorldMeta() {
+  try {
+    const res = await fetch(`${CFG.origin}/api/worlds?slug=${encodeURIComponent(CFG.slug)}`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    if (!body || !body.world) return null;
+    WORLD_META = body.world;
+    CFG.grid = WORLD_META.gridSize || CFG.grid;
+    return WORLD_META;
+  } catch (_) {
+    return null;
+  }
+}
 const wantAmbient = CFG.mode === 'ambient' || CFG.mode === 'both';
 const wantReact = CFG.mode === 'react' || CFG.mode === 'both';
 
@@ -141,11 +172,14 @@ class Bot {
     const url = `${CFG.host}/party/${encodeURIComponent('world-' + CFG.slug)}?_pk=${encodeURIComponent(pk)}`;
     this.ws = new WebSocket(url);
     this.ws.on('open', () => {
+      const w = WORLD_META;
       this.send({
-        type: 'world.join', token: '', worldId: CFG.slug, name: this.p.name, color: this.p.color,
+        type: 'world.join', token: '', worldId: w ? w.id : CFG.slug, name: this.p.name, color: this.p.color,
         role: 'play', profileId: 'bot:' + this.p.name.toLowerCase(),
-        gridSize: CFG.grid, cells: syntheticCells(CFG.grid),
-        taxPercent: null, ownerProfileId: null, avatar: Object.assign({ kind: 'voxel' }, this.p.avatar),
+        gridSize: w ? (w.gridSize || CFG.grid) : CFG.grid,
+        cells: w && w.data ? compactCells(w.data) : syntheticCells(CFG.grid),
+        taxPercent: w ? w.taxPercent : null, ownerProfileId: w ? w.ownerProfileId : null,
+        avatar: Object.assign({ kind: 'voxel' }, this.p.avatar),
       });
     });
     this.ws.on('message', (buf) => { let d; try { d = JSON.parse(buf.toString()); } catch { return; } this.onMsg(d); });
@@ -244,16 +278,24 @@ class Bot {
 if (CFG.provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
   console.error('ANTHROPIC_API_KEY not set (looked in .env and environment). Aborting.'); process.exit(1);
 }
-console.log(`ai-bots: ${CFG.bots} bots -> ${CFG.host}/party/world-${CFG.slug} | mode=${CFG.mode} provider=${CFG.provider} model=${CFG.model}`);
-const bots = PERSONAS.slice(0, CFG.bots).map((p, i) => new Bot(p, i));
-bots.forEach((b, i) => setTimeout(() => b.connect(), i * 500));
 
-function shutdown() {
-  console.log('\nai-bots: summary');
-  for (const b of bots) console.log(`  ${b.p.name}: role=${b.role} moves=${b.moves} lines=${b.lines} peersSeen=${b.peers.size}`);
-  bots.forEach(b => b.disconnect());
-  process.exit(0);
-}
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-if (CFG.seconds > 0) setTimeout(shutdown, CFG.seconds * 1000);
+(async function boot() {
+  const w = await loadWorldMeta();
+  if (w) console.log(`ai-bots: loaded "${w.name}" from ${CFG.origin}`);
+  else console.log(`ai-bots: no world at ${CFG.origin} — using synthetic ${CFG.grid}x${CFG.grid} grass`);
+  console.log(`ai-bots: ${CFG.bots} bots -> ${CFG.host}/party/world-${CFG.slug} | mode=${CFG.mode} provider=${CFG.provider} model=${CFG.model}`);
+  const bots = PERSONAS.slice(0, CFG.bots).map((p, i) => new Bot(p, i));
+  bots.forEach((b, i) => setTimeout(() => b.connect(), i * 500));
+
+  function shutdown() {
+    console.log('\nai-bots: summary');
+    for (const b of bots) console.log(`  ${b.p.name}: role=${b.role} moves=${b.moves} lines=${b.lines} peersSeen=${b.peers.size}`);
+    bots.forEach(b => b.disconnect());
+    process.exit(0);
+  }
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  if (CFG.seconds > 0) setTimeout(shutdown, CFG.seconds * 1000);
+})();
+
+
