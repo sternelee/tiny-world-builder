@@ -469,6 +469,27 @@
       };
       const legL = leg(-1), legR = leg(1);
 
+      // ---- rocket pack (hidden until EARNED in the skyfall minigame) ----
+      // Two thrusters mounted on the upper BACK (-z) of the chest + downward flame cones that
+      // light only while thrusting. Built once, toggled via setRocketVisible/setThrusting (47
+      // drives them). Sized in rig-local voxel units so it scales with the avatar. Makes the
+      // "get a rocket pack" reward tangible/visible (was an invisible thrust mechanic).
+      const rocketPack = new THREE.Group(); rocketPack.visible = false; chest.add(rocketPack);
+      const packMat = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.55, metalness: 0.35 });
+      const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa033 });
+      const rocketFlames = [];
+      const packY = cbb.max.y * 0.5, packZ = cbb.min.z - 1.2;
+      for (const sx of [-1, 1]) {
+        const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 3.2, 8), packMat);
+        cyl.position.set(sx * 1.9, packY, packZ);
+        rocketPack.add(cyl); geos.push(cyl.geometry);
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.75, 2.4, 8), flameMat);
+        flame.position.set(sx * 1.9, packY - 2.6, packZ);
+        flame.rotation.x = Math.PI;                       // point the cone DOWN (thrust exhaust)
+        flame.visible = false;
+        rocketPack.add(flame); rocketFlames.push(flame); geos.push(flame.geometry);
+      }
+
       // record rest-pose pivot bases (chest/head local positions, hip-pivot Y in `hips`)
       BASE.chestY = chest.position.y; BASE.chestX = chest.position.x; BASE.chestZ = chest.position.z;
       BASE.headY = head.position.y; BASE.headX = head.position.x; BASE.headZ = head.position.z;
@@ -537,6 +558,14 @@
         _nextGaze: 1.5 + Math.random() * 2.5,  // idle saccade timer
         setHeading(yaw) { if (typeof yaw === 'number') { this._heading = yaw; root.rotation.y = yaw; } },
         setHeadingFromDelta(dx, dz) { if (dx || dz) this.setHeading(Math.atan2(dx, dz)); },
+        // Freefall/parachute body pitch. Owned by the FALL CONTROLLER (47), never by a
+        // per-frame state branch: it writes root.rotation.x ONLY, so it never fights
+        // setHeading (root.rotation.y). 0 = upright; ~-1.4 = belly-to-earth face-down.
+        // The skydive/parachute STATES pose limbs only; this orients the whole body.
+        setBodyPitch(rad) { root.rotation.x = (typeof rad === 'number') ? rad : 0; },
+        // Rocket pack: show/hide the back-mounted thrusters (on earn) and the flames (on thrust).
+        setRocketVisible(on) { rocketPack.visible = !!on; if (!on) for (const f of rocketFlames) f.visible = false; },
+        setThrusting(on) { for (const f of rocketFlames) f.visible = !!on; },
         getState() { return this._state; },
         // climb phase channel: 47 calls this each frame BEFORE update(dt) with a phase
         // delta proportional to vertical distance moved. Positive = climbing up, negative
@@ -550,8 +579,8 @@
           // re-asserting them while the key is held / sit toggle is on, and switches
           // to walk/idle to release. crouch blends in over _poseT so the squat eases
           // down instead of snapping.
-          if (s === 'crouch' || s === 'sit') this._poseT = 0;
-          this._state = (s === 'walk' || s === 'attack' || s === 'jump' || s === 'crouch' || s === 'sit' || s === 'climb') ? s : 'idle';
+          if (s === 'crouch' || s === 'sit' || s === 'skydive' || s === 'rocket') this._poseT = 0;
+          this._state = (s === 'walk' || s === 'attack' || s === 'jump' || s === 'crouch' || s === 'sit' || s === 'climb' || s === 'skydive' || s === 'rocket') ? s : 'idle';
         },
         // blink runs on its own clock, independent of walk/idle/jump, and re-meshes
         // only the head (small map). Eyes also wander between blinks (idle saccade).
@@ -581,6 +610,17 @@
           this._t += dt;
           this._faceStep(dt);
           const st = this._state;
+          // Neutralize the "extra" rotation axes that only SPECIAL poses touch (arm
+          // abduction sh.y/z, torso rotation, leg splay hip.y/z). Every branch sets the
+          // CORE axes (sh.x, elbow.x, hip.x, knee.x, body.y) itself, so those can't leak;
+          // these extras could, so zero them here and let each branch re-set what it needs
+          // AFTER (same frame). Without this, skydive leg-splay / arm-spread would persist
+          // into crouch/jump/walk which never clear those axes.
+          armL.sh.rotation.y = 0; armL.sh.rotation.z = 0;
+          armR.sh.rotation.y = 0; armR.sh.rotation.z = 0;
+          chest.rotation.set(0, 0, 0);
+          legL.hip.rotation.y = 0; legL.hip.rotation.z = 0;
+          legR.hip.rotation.y = 0; legR.hip.rotation.z = 0;
           if (st !== 'walk') {
             // restore the chest/head pivot deltas the natural walk applies, so idle/
             // attack/jump start from the rest layout (no leftover bob/sway/chin lean).
@@ -856,6 +896,48 @@
             const stepL = Math.max(0, Math.sin(ph + Math.PI)); // left leg steps with right arm
             legR.hip.rotation.x = -STEP * 0.8 * stepR; legR.knee.rotation.x = 0.4 + STEP * stepR;
             legL.hip.rotation.x = -STEP * 0.8 * stepL; legL.knee.rotation.x = 0.4 + STEP * stepL;
+          } else if (st === 'skydive') {
+            // ---- FREEFALL: belly-to-earth "box"/banana position. The FALL CONTROLLER
+            // (47, via setBodyPitch) tips the whole body face-down + owns the falling Y;
+            // THIS branch poses LIMBS ONLY (never the root) so it can't fight setHeading.
+            // Geometric spec (visually unconfirmed — no poser source for this pose):
+            //   arms ABDUCT out to the sides (sh.z, mirrored) + raise slightly fwd (sh.x)
+            //        + forearms bend up ~60deg (elbow.x);
+            //   legs SPLAY outward (hip.z, mirrored) + slight fwd (hip.x) + knees bent up;
+            //   chest ARCHES back (chest.x negative).
+            // A wind-buffet flutter keeps it alive instead of a frozen mannequin. Eases in.
+            // Spec (per the user, viewed 3rd-person from BEHIND): arms straight OUT to the
+            // sides, legs swept BACK and bent up at the knee — an "upside-down table". The
+            // FALL CONTROLLER pitches the whole body face-down (~-1.4), so legs-back (+hip.x,
+            // toward body -z) + knees-bent read as the table legs pointing up; arms out = wings.
+            this._poseT = Math.min(1, this._poseT + dt * 5);
+            const u = this._poseT;
+            body.position.y = bobBase;
+            const buf = Math.sin(this._t * 9) * 0.06 + Math.sin(this._t * 5.3) * 0.04; // wind flutter
+            // arms straight out to the sides (big abduction), barely forward, near-extended.
+            armR.sh.rotation.z = (1.45 + buf) * u; armL.sh.rotation.z = -(1.45 + buf) * u;
+            armR.sh.rotation.x = 0.05 * u;          armL.sh.rotation.x = 0.05 * u;
+            armR.elbow.rotation.x = -0.25 * u;      armL.elbow.rotation.x = -0.25 * u;
+            // legs swept BACK (+hip.x) with a slight table-spread, knees strongly bent (shins up).
+            legR.hip.rotation.z = (0.28 + buf * 0.5) * u; legL.hip.rotation.z = -(0.28 + buf * 0.5) * u;
+            legR.hip.rotation.x = 0.6 * u;          legL.hip.rotation.x = 0.6 * u;
+            legR.knee.rotation.x = 1.2 * u;         legL.knee.rotation.x = 1.2 * u;
+            chest.rotation.x = -0.15 * u;
+          } else if (st === 'rocket') {
+            // ---- ROCKET-PACK FLIGHT: upright stance, arms drawn down/back as if braced against
+            // the pack's thrust, legs together with a soft bend trailing below. The FALL
+            // CONTROLLER (47) keeps the body ~upright (setBodyPitch ~0) and SPACE-thrust is the
+            // sim's job; this is the visual stance. Gentle sway = the pack's wobble. (Unconfirmed.)
+            this._poseT = Math.min(1, this._poseT + dt * 5);
+            const u = this._poseT;
+            body.position.y = bobBase;
+            const sway = Math.sin(this._t * 2.2) * 0.06;
+            armR.sh.rotation.x = -0.35 * u; armL.sh.rotation.x = -0.35 * u;     // arms drawn back/down
+            armR.sh.rotation.z = (0.2 + sway) * u; armL.sh.rotation.z = -(0.2 - sway) * u;
+            armR.elbow.rotation.x = -0.5 * u; armL.elbow.rotation.x = -0.5 * u;
+            legR.hip.rotation.x = 0.2 * u; legL.hip.rotation.x = 0.2 * u;       // legs trail slightly
+            legR.knee.rotation.x = 0.35 * u; legL.knee.rotation.x = 0.35 * u;
+            chest.rotation.x = -0.1 * u;
           } else {                                             // idle: gentle breathing sway
             const b = Math.sin(this._t * 1.6);
             armL.sh.rotation.x = b * A.idleArm; armR.sh.rotation.x = -b * A.idleArm;
@@ -875,6 +957,7 @@
           root.traverse((o) => { if (o.isMesh && o.geometry) { try { o.geometry.dispose(); } catch (_) {} } });
           if (root.parent) root.parent.remove(root);
           try { mat.dispose(); } catch (_) {}
+          try { packMat.dispose(); flameMat.dispose(); } catch (_) {}
           geos.length = 0;
         },
       };

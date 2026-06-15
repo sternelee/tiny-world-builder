@@ -41,7 +41,7 @@
     // WS.registerAvatarProvider references `picker`, and providers register at load
     // BEFORE the UI section runs — a `let` declared later would throw a TDZ
     // ReferenceError and silently abort this whole module (avatar button = no-op).
-    let picker = null, gridEl = null, tabsEl = null, activeProviderId = 'classes';
+    let picker = null, gridEl = null, tabsEl = null, activeProviderId = 'classes', voxelPreview = null;
     const providers = [];
     WS.registerAvatarProvider = function (p) {
       if (!p || !p.id || typeof p.list !== 'function' || typeof p.select !== 'function') return null;
@@ -185,6 +185,180 @@
       },
     });
 
+    // ---- live 3D voxel customizer (per-attribute gear/clothes choice + rotating preview) ----
+    // Built ONCE (lazily, first time the Voxel tab opens) and reused. Renders a single
+    // makeVoxelAvatar (53) into a small WebGL canvas; changing any attribute disposes and
+    // rebuilds that one avatar so you SEE the gear/clothes before committing. The working
+    // descriptor reaches the real networked avatar only on "Use This Look" (WS.setAvatarVoxel).
+    // Self-manages its rAF (start/stop) so no hidden WebGL loop runs when the tab/modal is
+    // closed; dispose() frees the GL context on room-leave. Returns null (caller falls back
+    // to preset cards) if THREE or 53 aren't available yet.
+    function buildVoxelPreview() {
+      if (voxelPreview) return voxelPreview;
+      if (typeof THREE === 'undefined' || typeof window.makeVoxelAvatar !== 'function') return null;
+
+      const VD = window.voxelAvatarDescriptor || {};
+      const BODIES = ['Masc', 'Fem'];
+      const HEADS = ['Wide', 'Slim'];
+      const HAIRS = (VD.HAIRS && VD.HAIRS.length) ? VD.HAIRS.slice() : ['Buzz', 'Short', 'Spike', 'Mohawk', 'Curls', 'Page', 'Bob', 'Tail', 'Knot'];
+      const OUTFITS = (VD.OUTFITS && VD.OUTFITS.length) ? VD.OUTFITS.slice() : ['Casual', 'Formal', 'Scout', 'Sport', 'Rogue', 'Barbarian'];
+      const NSKIN = VD.SKINS || 5;
+      const NHAIRC = VD.HAIRC || 7;
+
+      // working look — seeded from the first preset so the tab opens on a sensible avatar.
+      const base = (VOXEL_PRESETS[0] && VOXEL_PRESETS[0].spec) || {};
+      const state = {
+        seed: 0xC0FFEE, body: base.body || 'Masc', head: base.head || 'Wide',
+        skin: base.skin || 0, hairC: 0, hair: base.hair || 'Short', fit: base.fit || 'Casual',
+      };
+
+      // --- THREE preview scene ---
+      const canvas = el('canvas', { class: 'tw-avp-vox-canvas' });
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      renderer.setSize(220, 240, false);
+      const scene = new THREE.Scene();
+      const cam = new THREE.PerspectiveCamera(30, 220 / 240, 0.01, 50);
+      cam.position.set(0, 0.30, 1.15);
+      cam.lookAt(0, 0.26, 0);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+      const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(0.6, 1.2, 0.8); scene.add(key);
+      const rim = new THREE.DirectionalLight(0x9fc0ff, 0.4); rim.position.set(-0.8, 0.4, -0.6); scene.add(rim);
+      const turn = new THREE.Group(); scene.add(turn);   // spins the avatar
+
+      let avatar = null;
+      function rebuild() {
+        if (avatar) { try { avatar.dispose(); } catch (_) {} avatar = null; }
+        avatar = window.makeVoxelAvatar({ ...state });
+        if (avatar) { avatar.setState('idle'); turn.add(avatar.group); }
+      }
+      rebuild();
+
+      // --- rAF loop (auto-rotate + the rig's idle breathing/blink) ---
+      let raf = 0, last = 0, running = false;
+      function frame(now) {
+        if (!running) { raf = 0; return; }
+        const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016; last = now;
+        turn.rotation.y += dt * 0.7;
+        if (avatar) avatar.update(dt);
+        renderer.render(scene, cam);
+        raf = requestAnimationFrame(frame);
+      }
+      function start() { if (running) return; running = true; last = 0; raf = requestAnimationFrame(frame); }
+      function stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+
+      // --- per-attribute controls (cycle prev/next; each change rebuilds the preview) ---
+      const valSpans = {};
+      function valueOf(k) {
+        if (k === 'skin') return trVoxel('worlds.avatarTone', 'Tone') + ' ' + (state.skin + 1);
+        if (k === 'hairC') return trVoxel('worlds.avatarColour', 'Colour') + ' ' + (state.hairC + 1);
+        return cap(state[k]);
+      }
+      function refresh() { for (const k in valSpans) valSpans[k].textContent = valueOf(k); }
+      function cycle(k, dir) {
+        if (k === 'body') state.body = BODIES[(BODIES.indexOf(state.body) + dir + BODIES.length) % BODIES.length];
+        else if (k === 'head') state.head = HEADS[(HEADS.indexOf(state.head) + dir + HEADS.length) % HEADS.length];
+        else if (k === 'hair') state.hair = HAIRS[(HAIRS.indexOf(state.hair) + dir + HAIRS.length) % HAIRS.length];
+        else if (k === 'fit') state.fit = OUTFITS[(OUTFITS.indexOf(state.fit) + dir + OUTFITS.length) % OUTFITS.length];
+        else if (k === 'skin') state.skin = (state.skin + dir + NSKIN) % NSKIN;
+        else if (k === 'hairC') state.hairC = (state.hairC + dir + NHAIRC) % NHAIRC;
+        refresh(); rebuild();
+      }
+      function row(k, label) {
+        const v = el('span', { class: 'tw-avp-vox-val', text: valueOf(k) });
+        valSpans[k] = v;
+        return el('div', { class: 'tw-avp-vox-row' }, [
+          el('span', { class: 'tw-avp-vox-lab', text: label }),
+          el('button', { class: 'tw-avp-vox-arrow', 'aria-label': 'previous ' + label, onclick: () => cycle(k, -1) }, ['‹']),
+          v,
+          el('button', { class: 'tw-avp-vox-arrow', 'aria-label': 'next ' + label, onclick: () => cycle(k, 1) }, ['›']),
+        ]);
+      }
+      const controls = el('div', { class: 'tw-avp-vox-controls' }, [
+        row('body', trVoxel('worlds.avatarBody', 'Body')),
+        row('head', trVoxel('worlds.avatarHead', 'Head')),
+        row('skin', trVoxel('worlds.avatarSkin', 'Skin')),
+        row('hair', trVoxel('worlds.avatarHair', 'Hair')),
+        row('hairC', trVoxel('worlds.avatarHairColour', 'Hair Colour')),
+        row('fit', trVoxel('worlds.avatarOutfit', 'Outfit')),
+      ]);
+
+      // preset quick-starts: seed the customizer from a hand-tuned look, then tweak.
+      const quick = el('div', { class: 'tw-avp-vox-quick' },
+        VOXEL_PRESETS.filter(p => !p.random).map(p => el('button', {
+          class: 'tw-avp-vox-chip', title: p.displayName, style: 'background:' + p.swatch,
+          onclick: () => { Object.assign(state, p.spec); refresh(); rebuild(); },
+        }, [p.displayName])));
+
+      const useBtn = el('button', {
+        class: 'tw-avp-vox-use', onclick: () => {
+          if (typeof WS.setAvatarVoxel === 'function') WS.setAvatarVoxel(voxelDesc({ ...state }));
+          voxelCurrentId = null;
+          if (typeof window.twToast === 'function') window.twToast(trVoxel('worlds.avatarApplied', 'Look applied'));
+        },
+      }, [trVoxel('worlds.avatarUseLook', 'Use This Look')]);
+      const randBtn = el('button', {
+        class: 'tw-avp-vox-rand', onclick: () => {
+          const r = voxelDesc({ seed: (Math.random() * 0xffffffff) >>> 0 });
+          state.body = r.body; state.head = r.head; state.skin = r.skin; state.hairC = r.hairC; state.hair = r.hair; state.fit = r.fit;
+          refresh(); rebuild();
+        },
+      }, [trVoxel('worlds.avatarRandom', 'Randomize')]);
+
+      const root = el('div', { class: 'tw-avp-vox' }, [
+        el('div', { class: 'tw-avp-vox-stage' }, [canvas]),
+        el('div', { class: 'tw-avp-vox-side' }, [
+          controls,
+          el('div', { class: 'tw-avp-vox-btns' }, [randBtn, useBtn]),
+          quick,
+        ]),
+      ]);
+
+      injectVoxStyles();
+      voxelPreview = {
+        el: root, start, stop,
+        dispose() {
+          stop();
+          if (avatar) { try { avatar.dispose(); } catch (_) {} avatar = null; }
+          try { renderer.dispose(); } catch (_) {}
+          voxelPreview = null;
+        },
+      };
+      return voxelPreview;
+    }
+
+    function injectVoxStyles() {
+      if (document.getElementById('tw-avp-vox-style')) return;
+      const css = `
+  .tw-avp-vox{display:flex;gap:14px;flex-wrap:wrap}
+  .tw-avp-vox-stage{flex:0 0 auto;width:220px;height:240px;border-radius:6px;
+    background:radial-gradient(120% 120% at 50% 30%,#1b2742 0%,#0a0f1c 100%);
+    box-shadow:inset 2px 2px 0 #2b3350, inset -2px -2px 0 #05070e;display:flex;align-items:center;justify-content:center}
+  .tw-avp-vox-canvas{width:220px;height:240px;display:block}
+  .tw-avp-vox-side{flex:1 1 220px;min-width:200px;display:flex;flex-direction:column;gap:8px}
+  .tw-avp-vox-controls{display:flex;flex-direction:column;gap:6px}
+  .tw-avp-vox-row{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:6px;background:#0e1120;padding:5px 8px;border-radius:8px;
+    box-shadow:inset 1px 1px 0 #2b3350, inset -1px -1px 0 #05070e}
+  .tw-avp-vox-lab{text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:#cfd8f5}
+  .tw-avp-vox-val{min-width:78px;text-align:center;font-size:11px;color:#fff}
+  .tw-avp-vox-arrow{border:0;cursor:pointer;color:#fff;background:#2b59d6;width:24px;height:24px;border-radius:6px;font-size:14px;line-height:1;
+    box-shadow:inset 1px 1px 0 rgba(255,255,255,.25), inset -1px -1px 0 rgba(0,0,0,.45);transition:filter .08s,transform .04s}
+  .tw-avp-vox-arrow:hover{filter:brightness(1.15)} .tw-avp-vox-arrow:active{transform:translateY(1px)}
+  .tw-avp-vox-btns{display:flex;gap:8px;margin-top:2px}
+  .tw-avp-vox-use{flex:1;border:0;cursor:pointer;color:#fff;background:#54bd37;padding:9px;border-radius:8px;text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.30), inset -2px -2px 0 rgba(0,0,0,.40), 0 2px 0 0 rgba(0,0,0,.4);transition:filter .08s,transform .04s}
+  .tw-avp-vox-use:hover{filter:brightness(1.12)} .tw-avp-vox-use:active{transform:translateY(1px)}
+  .tw-avp-vox-rand{border:0;cursor:pointer;color:#fff;background:#222a42;padding:9px 12px;border-radius:8px;text-transform:uppercase;letter-spacing:.06em;font-size:11px;
+    box-shadow:inset 2px 2px 0 rgba(255,255,255,.16), inset -2px -2px 0 rgba(0,0,0,.45);transition:filter .08s}
+  .tw-avp-vox-rand:hover{filter:brightness(1.15)}
+  .tw-avp-vox-quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .tw-avp-vox-chip{border:0;cursor:pointer;color:#fff;font-size:9px;padding:5px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;
+    text-shadow:0 1px 1px rgba(0,0,0,.6);box-shadow:inset 1px 1px 0 rgba(255,255,255,.18), inset -1px -1px 0 rgba(0,0,0,.5)}
+  .tw-avp-vox-chip:hover{filter:brightness(1.15)}
+  `;
+      document.head.appendChild(el('style', { id: 'tw-avp-vox-style', text: css }));
+    }
+
     function injectStyles() {
       if (document.getElementById('tw-avp-style')) return;
       const css = `
@@ -266,6 +440,16 @@
       if (!gridEl) return;
       gridEl.textContent = '';
       const prov = activeProvider();
+      // Voxel tab: render the live 3D customizer (rotating preview + per-attribute gear/
+      // clothes controls) instead of a static card grid. Falls back to cards if THREE/53
+      // aren't ready. Other tabs halt the preview's WebGL loop so it never runs hidden.
+      if (prov && prov.id === 'voxel') {
+        const pv = buildVoxelPreview();
+        if (pv) { gridEl.style.display = 'block'; gridEl.appendChild(pv.el); pv.start(); return; }
+      } else if (voxelPreview) {
+        voxelPreview.stop();
+      }
+      gridEl.style.display = '';
       const items = (prov && prov.list()) || [];
       const current = prov && typeof prov.current === 'function' ? prov.current() : null;
       if (!items.length) {
@@ -299,15 +483,18 @@
 
     function openPicker() {
       buildPicker();
+      // Default to the 3D Voxel tab (goal: choose the "3D version not sprites") whenever it's
+      // registered — the picker otherwise opens on the 2.5D sprite "classes" tab.
+      if (providers.some((p) => p.id === 'voxel')) activeProviderId = 'voxel';
       renderTabs();
       renderGrid();
       picker.classList.add('open');
     }
-    function closePicker() { if (picker) picker.classList.remove('open'); }
+    function closePicker() { if (picker) picker.classList.remove('open'); if (voxelPreview) voxelPreview.stop(); }
 
     WS.openAvatarPicker = openPicker;
     WS.closeAvatarPicker = closePicker;
 
-    on('leave', closePicker);
+    on('leave', () => { closePicker(); if (voxelPreview) voxelPreview.dispose(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && picker && picker.classList.contains('open')) closePicker(); });
   })();
