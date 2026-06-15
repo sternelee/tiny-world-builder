@@ -2122,6 +2122,28 @@
     }
     WS.showChatBubble = showChatBubble;
 
+    // Live subject feed for the CCTV/Truman cameras: every avatar currently in the
+    // room (self + peers) as { pos, name }. The cameras use this to pan and look at
+    // whoever is moving — the hidden-camera "show" tracking its subject. Positions
+    // are in the avatarParent() local frame, which is the same frame the cameras
+    // live in (they are added under avatarParent too), so no conversion is needed.
+    WS.subjects = function subjects() {
+      const out = [];
+      if (selfEnt && selfEnt.sprite && selfEnt.sprite.visible !== false) {
+        out.push({ pos: selfEnt.sprite.position, name: (playerName ? playerName() : 'YOU') || 'YOU' });
+      }
+      if (peerEnts && peerEnts.size) {
+        peerEnts.forEach((ent) => {
+          if (ent && ent.sprite && ent.sprite.visible !== false) {
+            out.push({ pos: ent.sprite.position, name: (ent.name || 'BUILDER').toUpperCase() });
+          }
+        });
+      }
+      return out;
+    };
+    // The parent the cameras should attach to (shared avatar/lobby frame).
+    WS.avatarParent = function () { return avatarParent(); };
+
     function updateSelfAvatar() {
       if (!selfEnt) selfEnt = createAvatar(getSelfAvatarDescriptor());
       // Pet choice is SELF-ONLY and local (peers keep their class avatars; createAvatar
