@@ -47,3 +47,19 @@ test('applyEmote ignores unknown cmd and null ent', () => {
   assert.equal(ent.emote, undefined);
   assert.doesNotThrow(() => applyEmote(null, 'wave'));
 });
+
+const { emoteShouldClear } = buildEngineFns(ROOM, ['emoteShouldClear'], '');
+
+test('emote clears when expired regardless of movement', () => {
+  assert.equal(emoteShouldClear({ until: 100, hold: false }, 200, false), true);
+  assert.equal(emoteShouldClear({ until: 100, hold: true }, 200, true), true);
+});
+test('moving cancels a HOLD emote early', () => {
+  assert.equal(emoteShouldClear({ until: 9999, hold: true }, 0, true), true);
+});
+test('moving does NOT cancel a one-shot emote (it finishes naturally)', () => {
+  assert.equal(emoteShouldClear({ until: 9999, hold: false }, 0, true), false);
+});
+test('a live, stationary emote stays', () => {
+  assert.equal(emoteShouldClear({ until: 9999, hold: true }, 0, false), false);
+});

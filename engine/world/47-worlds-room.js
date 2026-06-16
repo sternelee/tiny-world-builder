@@ -48,6 +48,13 @@
       ent.emote = { state: def.state, until: Date.now() + def.ms, hold: def.hold };
       ent._emoteFresh = true;
     }
+    // The emote layer clears the field when the timer expires, OR when the
+    // entity moves AND the emote is a HOLD pose (sit/crouch/dance). One-shot
+    // emotes (wave/jump/attack) are NOT cancelled by movement — they finish on
+    // the rig's own clock, matching how the jump/attack poses run today.
+    function emoteShouldClear(emote, now, moving) {
+      return now >= emote.until || (moving && emote.hold);
+    }
 
     // ---- tiny event emitter ----
     const listeners = {};
@@ -275,6 +282,16 @@
           break;
         case 'harvest.deny': emit('deny', d); break;
         case 'chat': emit('chat', d); if (d && d.text != null) showChatBubble(d.id, d.text); break;
+        case 'emote': {
+          if (!d.cmd || !EMOTES[d.cmd]) break;            // ignore unknown (defensive)
+          const ent = (d.id != null && d.id === myId) ? selfEnt : peerEnts.get(d.id);
+          applyEmote(ent, d.cmd);                          // drive the rig (self re-confirms)
+          const name = String(d.name || 'Player');
+          const line = name + ' ' + T('worlds.emote.' + d.cmd);   // e.g. "Jason waves"
+          showChatBubble(d.id, line);                      // floating bubble (existing path)
+          emit('chat', { id: d.id, name, text: line, action: true });  // chat-log entry
+          break;
+        }
         case 'chat.typing': emit('typing', d); break;
         case 'present': emit('present', d); break;   // lobby slide sync (58-lobby-presentation)
         case 'world.refresh':
@@ -2184,14 +2201,28 @@
       // bending) is self-timed inside the rig and auto-returns to idle.
       if (ent.jumpStart && !ent._jumpPrev) ent.voxel.setState('jump');
       ent._jumpPrev = !!ent.jumpStart;
+      // ---- emote layer (networked; runs for self AND peers). One field set by
+      // applyEmote replaces six special cases. While an emote is active it OWNS
+      // the rig state, so the walk/idle precedence below is skipped (note the
+      // `!ent.emote` guard) — without that guard the idle fallback would stomp
+      // the pose every frame, and peers (who have no _crouchHeld/_sitToggle)
+      // would never show sit/crouch at all.
+      if (ent.emote) {
+        if (emoteShouldClear(ent.emote, Date.now(), moving)) {
+          ent.emote = null;            // expired, or movement cancelled a HOLD pose
+        } else if (ent._emoteFresh || ent.emote.hold) {
+          // one-shot: set once on the rising edge; HOLD: re-assert each frame so
+          // the rig can't fall back to idle (and dance keeps looping).
+          ent.voxel.setState(ent.emote.state);
+          ent._emoteFresh = false;
+        }
+      }
       const rigState = ent.voxel.getState();
       // attack and jump are one-shot poses owned by the rig — don't stomp them with
       // walk/idle each frame (the rig clears back to idle when the pose finishes).
-      if (rigState !== 'attack' && rigState !== 'jump') {
+      // An active emote also owns the state, hence the `!ent.emote` guard.
+      if (!ent.emote && rigState !== 'attack' && rigState !== 'jump') {
         if (ent.attacking) ent.attacking = false;          // rig finished the swing
-        // crouch (hold 'c') / sit (toggle 'x') are LOCAL-SELF only (v1). Precedence,
-        // re-evaluated each frame: moving -> walk (this also clears the sit toggle so
-        // you stand up when you move); else crouch-held; else sit-toggled; else idle.
         let want;
         if (moving) { want = 'walk'; if (ent === selfEnt) ent._sitToggle = false; }
         else if (ent === selfEnt && ent._crouchHeld) want = 'crouch';
