@@ -228,9 +228,9 @@
       rig.add(ladderMarker);
       // Railed top viewing deck beside the ladder top. platform() adds side posts +
       // a back rail; add a front (screen-facing) rail too so it's enclosed.
-      const deckX = PX - 0.5, deckZ = BZ - 0.45;
-      platform(deckX, TOP, deckZ);
-      box(platW, 0.05, 0.05, deckX, TOP + 0.55, deckZ + (platD / 2 - 0.05));        // front rail
+      const deckX = PX - 0.5, deckZ2 = BZ - 0.45;
+      platform(deckX, TOP, deckZ2);
+      box(platW, 0.05, 0.05, deckX, TOP + 0.55, deckZ2 + (platD / 2 - 0.05));        // front rail
       group.add(rig);
       return rig;
     }

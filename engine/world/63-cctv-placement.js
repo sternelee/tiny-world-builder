@@ -19,6 +19,14 @@
     let active = false;
     let parentRef = null;
 
+    // Monitor-wall layout (beside the lobby screen). The screen is 6 x 3.375 with its
+    // bottom at 1.0 (see 58-lobby-presentation), so its centre sits ~2.69 above the
+    // lobby group origin. Six monitors hang in two columns of three flanking it.
+    const SCREEN_CY = 2.69;   // screen vertical centre above ground (matches 58 cy)
+    const ROW_STEP = 1.12;    // vertical pitch between stacked monitors
+    const COL_X = 3.85;       // |x| of each monitor column (just outside the screen edge)
+    const MON_W = 1.25;       // monitor width (height derives 4:3)
+
     function CCTV() { return window.__tinyworldCCTV || null; }
 
     function gridSize() {
@@ -60,6 +68,19 @@
     function lobbyScreenAnchor() {
       const g = gridSize();
       return new THREE.Vector3(0, 0, -(g / 2) + 1.0);   // mirrors 58-lobby-presentation screenZ()
+    }
+
+    // Build a feature-cam spec { base, camPos, look, opts } from a world cell — a low
+    // camera set back and below, looking up at the feature (the Truman framing).
+    function cellCamSpec(base, cell, offX) {
+      const wp = cellWorld(cell.x, cell.z);
+      const gy = groundY(cell.x, cell.z);
+      return {
+        base,
+        camPos: new THREE.Vector3(wp.x + offX, gy + 2.4, wp.z + 1.6),
+        look: new THREE.Vector3(wp.x, gy + 0.5, wp.z),
+        opts: { fov: 48, sweep: { yaw: 0.55, pitch: 0.1, speed: 0.34 } },
+      };
     }
 
     // Mount one camera + its physical monitor. camPos/look in local frame.
@@ -200,17 +221,13 @@
         }
       }
 
-      // --- low-impact cable conduit linking the monitor columns + into the screen ---
-      // Left column x = -(sideX+0.2): lobby-l @ monY, pumpkincam @ monY+1.5.
-      // Right column x = +(sideX+0.2): lobby-r @ monY, treecam-1/2 stacked above.
-      const colX = sideX + 0.2;
-      const leftPts = [{ y: monY }];
-      if (pumpkins.length) leftPts.push({ y: monY + 1.5 });
-      const rightPts = [{ y: monY }];
-      for (let i = 0; i < treeCount; i++) rightPts.push({ y: monY + 1.5 + i * 1.4 });
+      // --- low-impact cable conduit linking each monitor column + into the screen ---
+      // Each column has up to 3 monitors at screenY + rows[r]; the conduit runs a riser
+      // down the column back, drops a nipple at each monitor, and trunks into the screen.
+      const colPts = rows.map((rOff) => ({ y: screenY + rOff }));
       buildConnectors([
-        { x: -colX, pts: leftPts },
-        { x: colX, pts: rightPts },
+        { x: -COL_X, pts: colPts.slice() },
+        { x: COL_X, pts: colPts.slice() },
       ], anchor.z);
 
       // Feed live avatar positions to the cameras so they track whoever moves.

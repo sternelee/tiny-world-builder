@@ -9,7 +9,7 @@
   'use strict';
   if (typeof window === 'undefined') return;
 
-  const WS = (window.__tinyworldWorlds = window.__tinyworldWorlds || {});
+  const LBW = (window.__tinyworldWorlds = window.__tinyworldWorlds || {});
   const _lbnLobbyWorldSlug = (window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay').toLowerCase();
   const _lbnWalletKey = 'tinyworld:auth:wallet-session.v1';
   const _lbnPollMs = 12000;
@@ -112,7 +112,7 @@
   function _lbnLivePeerProfileIds() {
     const ids = new Set();
     try {
-      const peers = (typeof WS.getPeers === 'function') ? WS.getPeers() : null;
+      const peers = (typeof LBW.getPeers === 'function') ? LBW.getPeers() : null;
       if (Array.isArray(peers)) for (const p of peers) { if (p && p.profileId) ids.add(p.profileId); }
     } catch (_) {}
     return ids;
@@ -186,14 +186,14 @@
     _lbnPollTimer = setInterval(_lbnSync, _lbnPollMs);
   }
 
-  if (typeof WS.on === 'function') {
-    WS.on('enter', function (e) {
+  if (typeof LBW.on === 'function') {
+    LBW.on('enter', function (e) {
       const slug = e && e.world && String(e.world.slug || '').toLowerCase();
       const nowActive = !!slug && slug === _lbnLobbyWorldSlug;
       if (nowActive && !_lbnActive) { _lbnActive = true; _lbnStart(); }
       else if (!nowActive && _lbnActive) { _lbnStop(); }
     });
-    WS.on('leave-room', _lbnStop);
+    LBW.on('leave-room', _lbnStop);
   }
 
   window.__tinyworldLobbyBenches = { isActive: () => _lbnActive, seated: () => _lbnSeated.size, sync: _lbnSync };
