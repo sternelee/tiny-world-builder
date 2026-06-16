@@ -69,6 +69,13 @@
     'worlds.avatarPets': 'Mascotas',
     'worlds.avatarWarriors': 'Guerreros',
     'worlds.avatarOrcs': 'Orcos',
+    'worlds.emote.wave': 'saluda con la mano',
+    'worlds.emote.dance': 'baila',
+    'worlds.emote.jump': 'salta',
+    'worlds.emote.sit': 'se sienta',
+    'worlds.emote.crouch': 'se agacha',
+    'worlds.emote.attack': 'ataca',
+    'worlds.unknownCommand': 'Comando desconocido',
 
     // ---- editor de lobby (admin) ----
     'lobbyAdmin.tag': 'Admin',

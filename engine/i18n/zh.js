@@ -69,6 +69,13 @@
     'worlds.avatarPets': '宠物',
     'worlds.avatarWarriors': '战士',
     'worlds.avatarOrcs': '兽人',
+    'worlds.emote.wave': '挥手致意',
+    'worlds.emote.dance': '跳舞',
+    'worlds.emote.jump': '跳跃',
+    'worlds.emote.sit': '坐下',
+    'worlds.emote.crouch': '蹲下',
+    'worlds.emote.attack': '发动攻击',
+    'worlds.unknownCommand': '未知指令',
 
     // ---- 管理员实时大厅编辑器 ----
     'lobbyAdmin.tag': '管理员',

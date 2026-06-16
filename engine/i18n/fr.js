@@ -69,6 +69,13 @@
     'worlds.avatarPets': 'Familiers',
     'worlds.avatarWarriors': 'Guerriers',
     'worlds.avatarOrcs': 'Orcs',
+    'worlds.emote.wave': 'salue de la main',
+    'worlds.emote.dance': 'danse',
+    'worlds.emote.jump': 'saute',
+    'worlds.emote.sit': 's’assoit',
+    'worlds.emote.crouch': 'se baisse',
+    'worlds.emote.attack': 'attaque',
+    'worlds.unknownCommand': 'Commande inconnue',
 
     // ---- éditeur de lobby (admin) ----
     'lobbyAdmin.tag': 'Admin',

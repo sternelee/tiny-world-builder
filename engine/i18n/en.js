@@ -81,6 +81,13 @@
     'worlds.avatarPets': 'Pets',
     'worlds.avatarWarriors': 'Warriors',
     'worlds.avatarOrcs': 'Orcs',
+    'worlds.emote.wave': 'waves',
+    'worlds.emote.dance': 'dances',
+    'worlds.emote.jump': 'jumps',
+    'worlds.emote.sit': 'sits down',
+    'worlds.emote.crouch': 'crouches',
+    'worlds.emote.attack': 'attacks',
+    'worlds.unknownCommand': 'Unknown command',
 
     // ---- god-admin live lobby editor (66-lobby-admin.js) ----
     // Admin-only control surface; kept terse. Shown only to allow-listed accounts.

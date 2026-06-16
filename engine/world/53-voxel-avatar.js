@@ -796,7 +796,7 @@
       const GAZE_STATES = ['Focus', 'Mid-L', 'Mid-R', 'Up-C', 'Low-C', 'Up-L', 'Up-R'];
       const inst = {
         group: root, cfg, _mat: mat, _geos: geos,
-        _t: 0, _phase: 0, _state: 'idle', _attackT: 0, _swingType: -1, _jumpT: 0, _poseT: 0, _heading: 0, _bobBase: bobBase,
+        _t: 0, _phase: 0, _state: 'idle', _attackT: 0, _swingType: -1, _jumpT: 0, _poseT: 0, _heading: 0, _bobBase: bobBase, _emoteT: 0,
         // strideCore gait phase + weight-sway tracker (mirrors voxel-poser st.gph/gswx)
         _gph: 0, _gswx: 0, _walkSpd: 0,
         // idle weight-shift desync: a random phase so a crowd of idle avatars rock on
@@ -841,12 +841,13 @@
           if (s === this._state) return;
           if (s === 'attack') { this._attackT = 0; this._swingType = (this._swingType + 1) % 3; }
           if (s === 'jump') this._jumpT = 0;
+          if (s === 'wave') this._emoteT = 0;
           // crouch/sit are HOLD poses (not self-timed one-shots): the 47 drive keeps
           // re-asserting them while the key is held / sit toggle is on, and switches
           // to walk/idle to release. crouch blends in over _poseT so the squat eases
           // down instead of snapping.
-          if (s === 'crouch' || s === 'sit' || s === 'skydive' || s === 'rocket') this._poseT = 0;
-          this._state = (s === 'walk' || s === 'attack' || s === 'jump' || s === 'crouch' || s === 'sit' || s === 'climb' || s === 'skydive' || s === 'rocket') ? s : 'idle';
+          if (s === 'crouch' || s === 'sit' || s === 'skydive' || s === 'rocket' || s === 'dance') this._poseT = 0;
+          this._state = (s === 'walk' || s === 'attack' || s === 'jump' || s === 'crouch' || s === 'sit' || s === 'climb' || s === 'skydive' || s === 'rocket' || s === 'wave' || s === 'dance') ? s : 'idle';
         },
         // blink runs on its own clock, independent of walk/idle/jump, and re-meshes
         // only the head (small map). Eyes also wander between blinks (idle saccade).
@@ -1205,6 +1206,50 @@
             legR.hip.rotation.x = 0.2 * u; legL.hip.rotation.x = 0.2 * u;       // legs trail slightly
             legR.knee.rotation.x = 0.35 * u; legL.knee.rotation.x = 0.35 * u;
             chest.rotation.x = -0.1 * u;
+          } else if (st === 'wave') {
+            // ---- WAVE: right arm raises to the side and the forearm oscillates a
+            // few times, then auto-returns to idle (self-timed via _emoteT, the same
+            // pattern jump/attack use). Left arm + legs hold the rest pose. Core axes
+            // only: sh.x raises the upper arm, sh.z lifts it out to the side, elbow.x
+            // bends the forearm, and a sine on the forearm is the wave itself.
+            this._emoteT += dt;
+            const DUR = 1.6;
+            const a = Math.min(this._emoteT / DUR, 1);
+            const ease = (t) => t * t * (3 - 2 * t);     // smoothstep raise/lower
+            const lift = ease(Math.min(1, a / 0.2)) * (1 - ease(Math.max(0, (a - 0.85) / 0.15)));
+            armR.sh.rotation.x = -1.9 * lift;            // upper arm up (negative = up/forward)
+            armR.sh.rotation.z = 0.5 * lift;             // out to the side a touch
+            armR.elbow.rotation.x = (-0.5 - 0.5 * Math.sin(this._t * 14)) * lift;  // forearm waves
+            armL.sh.rotation.x = 0; armL.elbow.rotation.x = 0;
+            legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
+            legL.knee.rotation.x = 0; legR.knee.rotation.x = 0;
+            body.position.y = bobBase;
+            if (a >= 1) {                                // hard-zero, return to idle
+              armR.sh.rotation.set(0, 0, 0); armR.elbow.rotation.x = 0;
+              this.setState('idle');
+            }
+          } else if (st === 'dance') {
+            // ---- DANCE: a looping groove — chest bob + lateral sway, alternating arm
+            // pumps and a hip shift. Loops on this._t (the emote timer in 47 releases
+            // it). Core axes only; eased-in via _poseT so it doesn't snap on entry.
+            this._poseT = Math.min(1, this._poseT + dt * 5);
+            const u = this._poseT;
+            const beat = this._t * 6.5;                  // groove tempo
+            const bob = Math.abs(Math.sin(beat)) * 0.4 * u;
+            const sway = Math.sin(beat * 0.5) * 0.5 * u;
+            chest.position.y = BASE.chestY - bob;
+            chest.position.x = BASE.chestX + sway;
+            chest.rotation.z = -sway * 0.12;             // lean into the sway
+            head.position.y = BASE.headY + Math.sin(beat) * 0.2 * u;
+            // arms pump alternately (one up while the other is down)
+            armL.sh.rotation.x = (-1.1 + Math.sin(beat) * 0.8) * u;
+            armR.sh.rotation.x = (-1.1 - Math.sin(beat) * 0.8) * u;
+            armL.elbow.rotation.x = -0.7 * u; armR.elbow.rotation.x = -0.7 * u;
+            // knees give a small bounce in time with the bob (feet stay planted)
+            const bounce = Math.abs(Math.sin(beat)) * 0.12 * u;
+            legL.knee.rotation.x = bounce; legR.knee.rotation.x = bounce;
+            legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
+            body.position.y = bobBase - bounce * 0.5;
           } else {                                             // idle: breathing + weight-shift / rock on feet
             // A relaxed standing idle: the body's mass shifts laterally from one foot to
             // the other (chest x + a slight roll toward the weighted foot), rocks a hair

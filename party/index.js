@@ -56,6 +56,7 @@ const RATE_LIMITS = {
   // Chat messages: human typing rate, so a tight sustained cap with a small
   // burst is plenty. A raw socket cannot flood the room past this.
   chat: { refill: 4, burst: 10 },
+  emote: { refill: 4, burst: 10 },
   // Typing indicator fires on keystrokes — needs its own bucket or it becomes a
   // spam vector. Generous enough for fast typing, capped against abuse.
   'chat.typing': { refill: 8, burst: 16 },
@@ -72,6 +73,10 @@ const RATE_LIMITS = {
   // Lobby presentation: a presenter advancing slides is human-paced, like chat.
   present: { refill: 4, burst: 10 },
 };
+
+// Server-side allowlist for chat emotes (client EMOTES table in 47-worlds-room.js
+// must stay in sync). Anything not in this set is rejected — no spoofed states.
+export const EMOTE_CMDS = new Set(['wave', 'dance', 'jump', 'sit', 'crouch', 'attack']);
 
 function takeToken(buckets, type, now) {
   const cfg = RATE_LIMITS[type];
@@ -1122,6 +1127,14 @@ export default class TinyWorldParty {
       if (!text) return;
       const p = this.getPlayer(id);
       this.broadcastToAdmitted({ type: 'chat', id, name: p.name, text, ts: Date.now() });
+      return;
+    }
+    if (type === 'emote') {
+      if (!this.admitted.has(id)) return;
+      const cmd = cleanText(data.cmd, 16);
+      if (!EMOTE_CMDS.has(cmd)) return;
+      const p = this.getPlayer(id);
+      this.broadcastToAdmitted({ type: 'emote', id, name: p.name, cmd, ts: Date.now() });
       return;
     }
     if (type === 'chat.typing') {
