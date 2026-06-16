@@ -56,6 +56,7 @@ const RATE_LIMITS = {
   // Chat messages: human typing rate, so a tight sustained cap with a small
   // burst is plenty. A raw socket cannot flood the room past this.
   chat: { refill: 4, burst: 10 },
+  emote: { refill: 4, burst: 10 },
   // Typing indicator fires on keystrokes — needs its own bucket or it becomes a
   // spam vector. Generous enough for fast typing, capped against abuse.
   'chat.typing': { refill: 8, burst: 16 },
@@ -742,22 +743,6 @@ export default class TinyWorldParty {
       return;
     }
 
-    if (data.type === 'emote') {
-      // Chat-triggered avatar emote. NOT host-gated: any admitted peer may emote.
-      // Identity is server-authoritative — id is stamped from sender.id (no spoof)
-      // and name is taken from the trusted presence record. cmd is validated
-      // against EMOTE_CMDS (reject anything else). Broadcast to ALL admitted
-      // INCLUDING the sender so the action line renders through one path on every
-      // client (the sender's own line included), server-ordered.
-      if (!this.admitted.has(sender.id)) return;
-      const cmd = cleanText(data.cmd, 16);
-      if (!EMOTE_CMDS.has(cmd)) return;
-      const known = this.presence.get(sender.id);
-      const name = cleanText((known && known.name) || data.name || 'Builder', 48) || 'Builder';
-      this.broadcastToAdmitted({ type: 'emote', id: sender.id, name, cmd, ts: Date.now() });
-      return;
-    }
-
     if (data.type === 'chat.typing') {
       // Typing indicator. Admitted-only; stamped id = sender.id. Broadcast to
       // admitted EXCEPT the sender (you never want your own typing indicator).
@@ -1142,6 +1127,14 @@ export default class TinyWorldParty {
       if (!text) return;
       const p = this.getPlayer(id);
       this.broadcastToAdmitted({ type: 'chat', id, name: p.name, text, ts: Date.now() });
+      return;
+    }
+    if (type === 'emote') {
+      if (!this.admitted.has(id)) return;
+      const cmd = cleanText(data.cmd, 16);
+      if (!EMOTE_CMDS.has(cmd)) return;
+      const p = this.getPlayer(id);
+      this.broadcastToAdmitted({ type: 'emote', id, name: p.name, cmd, ts: Date.now() });
       return;
     }
     if (type === 'chat.typing') {
