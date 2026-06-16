@@ -3,7 +3,7 @@
 // Reached via tiny-world-builder.html?world=<slug>&view=cctv (embedded as an
 // iframe by community.html). It rides the normal ?world= auto-enter flow, joins
 // the live PartyKit room as a passive observer, hides all builder/play chrome,
-// and re-displays the existing Truman CCTV feeds as a grid on the main canvas.
+// and re-displays the existing Truman CCTV feeds as a vertical stack on the main canvas.
 //
 // It does NOT re-implement the cameras, CRT shader, captions, or tracking — those
 // already run in 62-cctv-truman.js / 63-cctv-placement.js. This module only:
@@ -61,7 +61,7 @@
   function rendererRef() { return (typeof renderer !== 'undefined' && renderer) ? renderer : null; }
   function CCTV() { return window.__tinyworldCCTV || null; }
 
-  let wallScene = null, wallCam = null, built = false;
+  let wallScene = null, wallCam = null, built = false, notifiedReady = false;
   let gridW = 1, gridH = 1;
 
   function buildWall() {
@@ -75,8 +75,8 @@
     wallCam.position.set(0, 0, 5);
 
     const n = feeds.length;
-    const cols = Math.max(1, Math.ceil(Math.sqrt(n)));
-    const rows = Math.max(1, Math.ceil(n / cols));
+    const cols = 1;
+    const rows = n;
     const cellW = 4, cellH = 3, gap = 0.3;          // 4:3 cells to match the feeds
     const pitchX = cellW + gap, pitchY = cellH + gap;
     gridW = cols * pitchX - gap;
@@ -98,13 +98,23 @@
   }
 
   // Called by the animation loop (25) when api.active. Returns true if it drew
-  // the wall to the canvas; false lets the loop fall back to renderScene() so the
-  // world is visible while the feeds are still being mounted (~350ms after enter).
+  // or cleared the canvas. It never falls back to the world render in CCTV mode,
+  // because the parent community panel keeps the iframe hidden until this wall is ready.
   function renderWall() {
     if (!api.active) return false;
     const T = THREEref(); if (!T) return false;
     const r = rendererRef(); if (!r) return false;
-    if (!built && !buildWall()) return false;
+    if (!built && !buildWall()) {
+      const prevTarget = r.getRenderTarget();
+      const prevClear = new T.Color(); r.getClearColor(prevClear);
+      const prevAlpha = r.getClearAlpha();
+      r.setRenderTarget(null);
+      r.setClearColor(0x05060a, 1);
+      r.clear();
+      r.setRenderTarget(prevTarget);
+      r.setClearColor(prevClear, prevAlpha);
+      return true;
+    }
 
     const size = r.getSize(new T.Vector2());
     const aspect = size.x / Math.max(1, size.y);
@@ -128,6 +138,10 @@
     r.setRenderTarget(prevTarget);
     r.setClearColor(prevClear, prevAlpha);
     r.autoClear = prevAutoClear;
+    if (!notifiedReady) {
+      notifiedReady = true;
+      try { parent.postMessage({ type: 'tinyworld:cctv-ready' }, location.origin); } catch (_) {}
+    }
     return true;
   }
 })();

@@ -151,8 +151,14 @@
   .right-rail { display: flex; flex-direction: column; gap: 18px; min-height: 0; }
   .right-rail .members-panel { flex: 0 1 auto; max-height: 340px; }
   .right-rail .cctv-panel { flex: 1 1 auto; min-height: 160px; }
-  .cctv-panel .c-panel-body { padding: 0; display: flex; }
-  .cctv-panel iframe { width: 100%; height: 100%; border: 0; display: block; background: #0b0c10; }
+  .cctv-panel .c-panel-body { padding: 0; display: flex; position: relative; background: #05060a; overflow: hidden; }
+  .cctv-panel iframe { width: 100%; height: 100%; border: 0; display: block; background: #05060a; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+  .cctv-panel iframe.is-ready { opacity: 1; pointer-events: auto; }
+  .cctv-loading {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    padding: 18px; text-align: center; color: var(--muted); font-size: 13px; background: #05060a;
+  }
+  .cctv-loading .skeleton-line { max-width: 170px; }
   .cctv-empty { margin: auto; padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
 
   .icon-btn {
@@ -873,9 +879,17 @@
     function currentRoom() { return state.sel && state.sel.type === 'room' ? state.rooms.find(r => r.id === state.sel.id) : null; }
 
     // Live CCTV feeds for the active room's linked world. Mounts a single lazy
-    // iframe into the right rail; only rebuilds when the linked slug changes so
-    // the 3D engine isn't reloaded on every poll/room switch.
+    // iframe into the right rail; only reveals it after the embedded CCTV wall
+    // renders so the builder boot/loading chrome never flashes in the panel.
     let cctvSlug = undefined;
+    let cctvFrame = null;
+    window.addEventListener('message', ev => {
+      const msg = ev.data || {};
+      if (!cctvFrame || ev.source !== cctvFrame.contentWindow || msg.type !== 'tinyworld:cctv-ready') return;
+      cctvFrame.classList.add('is-ready');
+      const loading = byId('cctv-loading');
+      if (loading) loading.remove();
+    });
     function renderCctv() {
       const body = byId('cctv-body'); if (!body) return;
       const label = byId('cctv-world-label');
@@ -884,6 +898,7 @@
       if (slug === cctvSlug) return;
       cctvSlug = slug;
       if (!slug) {
+        cctvFrame = null;
         body.innerHTML = '<div class="cctv-empty">No world linked to this channel.</div>';
         if (label) label.textContent = '';
         return;
@@ -894,7 +909,8 @@
       ifr.loading = 'lazy';
       ifr.title = 'Live feeds — ' + slug;
       ifr.allow = 'autoplay';
-      body.innerHTML = '';
+      body.innerHTML = '<div class="cctv-loading" id="cctv-loading" role="status" aria-live="polite"><div>Connecting live feeds…</div><div class="skeleton-line" style="width:70%"></div><div class="skeleton-line" style="width:54%"></div></div>';
+      cctvFrame = ifr;
       body.appendChild(ifr);
     }
     function memberById(id) { return state.members.find(m => m.id === id) || null; }
