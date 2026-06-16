@@ -82,6 +82,48 @@
       mounted.push({ id, monitor });
     }
 
+    // Build low-impact cable conduit linking the monitors in a column to each other
+    // and trunking into the main lobby screen — a bit of back-of-house realism.
+    // Cheap: a handful of thin dark boxes, non-shadowing + non-pickable, parked just
+    // behind the monitor backs (toward the screen at anchor.z) so they read as raceways
+    // without adding draw/shadow cost. `col` = [{x,y}] monitor anchor points (same x),
+    // `anchorZ` = screen plane z. All in the avatar/lobby local frame.
+    function buildConnectors(columns, anchorZ) {
+      if (!parentRef) return;
+      const mat = new THREE.MeshStandardMaterial({ color: 0x0c0f15, roughness: 0.9, metalness: 0.15 });
+      const grp = new THREE.Group();
+      grp.name = 'cctv-cable-conduit';
+      const strip = (w, h, d, x, y, z) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z);
+        m.castShadow = false; m.receiveShadow = false;
+        m.userData.noShadow = true; m.userData.noReceiveShadow = true;
+        m.userData.lightVisual = true;          // skip fade-material replacement (render-perf)
+        m.raycast = function () {};              // non-pickable
+        grp.add(m);
+        return m;
+      };
+      const zBack = anchorZ + 0.04;             // just behind the monitor backs, toward the screen
+      for (const col of columns) {
+        if (!col.pts.length) continue;
+        const xs = col.x;
+        const ys = col.pts.map((p) => p.y).sort((a, b) => a - b);
+        const yLo = ys[0], yHi = ys[ys.length - 1];
+        // vertical riser down the back of the column linking stacked monitors
+        if (yHi > yLo) strip(0.06, (yHi - yLo) + 0.3, 0.05, xs, (yLo + yHi) / 2, zBack);
+        // short drop nipples at each monitor (where the cable "enters" the unit)
+        for (const p of col.pts) strip(0.10, 0.06, 0.05, xs, p.y, zBack + 0.02);
+        // horizontal trunk from the column's lowest monitor inward to the screen edge
+        const innerX = (xs < 0) ? -0.45 : 0.45;
+        const runW = Math.abs(xs - innerX);
+        strip(runW, 0.055, 0.05, (xs + innerX) / 2, yLo, zBack);
+        // small junction box where it meets the screen frame
+        strip(0.18, 0.18, 0.10, innerX, yLo, anchorZ - 0.02);
+      }
+      parentRef.add(grp);
+      mounted.push({ id: '__conduit', monitor: grp });   // tracked so teardown removes it
+    }
+
     function setup() {
       const cc = CCTV(); if (!cc) return;
       teardown();   // idempotent
@@ -138,12 +180,25 @@
           { width: 1.1, fov: 48, sweep: { yaw: 0.55, pitch: 0.1, speed: 0.34 } });
       }
 
+      // --- low-impact cable conduit linking the monitor columns + into the screen ---
+      // Left column x = -(sideX+0.2): lobby-l @ monY, pumpkincam @ monY+1.5.
+      // Right column x = +(sideX+0.2): lobby-r @ monY, treecam-1/2 stacked above.
+      const colX = sideX + 0.2;
+      const leftPts = [{ y: monY }];
+      if (pumpkins.length) leftPts.push({ y: monY + 1.5 });
+      const rightPts = [{ y: monY }];
+      for (let i = 0; i < treeCount; i++) rightPts.push({ y: monY + 1.5 + i * 1.4 });
+      buildConnectors([
+        { x: -colX, pts: leftPts },
+        { x: colX, pts: rightPts },
+      ], anchor.z);
+
       // Feed live avatar positions to the cameras so they track whoever moves.
       if (typeof WS.subjects === 'function') cc.setSubjectsProvider(() => WS.subjects());
       cc.setEnabled(true);
       active = true;
-      // Expose mounted feed ids so the lobby screen can cycle through them.
-      window.__tinyworldCCTVFeeds = mounted.map((m) => m.id);
+      // Expose mounted feed ids so the lobby screen can cycle through them (cams only).
+      window.__tinyworldCCTVFeeds = mounted.map((m) => m.id).filter((id) => id !== '__conduit');
     }
 
     function teardown() {
