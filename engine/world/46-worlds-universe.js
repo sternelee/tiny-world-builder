@@ -382,6 +382,10 @@
       if (!full || full.error || !full.world) { toast(full && full.error ? full.error : T('worlds.error')); return false; }
       if (full.world.status !== 'published') { toast(T('worlds.error')); return false; }
       WS.myProfileId = (full.me && full.me.id != null) ? full.me.id : (me && me.id != null ? me.id : null);
+      // God-admin live-edit grant for THIS world (server-verified by account email).
+      // The lobby-admin module (66) reads these to surface the live build controls.
+      WS.canAdminEdit = full.canAdminEdit === true;
+      WS.adminWorldId = full.world && full.world.id != null ? full.world.id : null;
       rememberFreeform();
       closeOverlay();
       if (typeof WS.enterRoom === 'function') {

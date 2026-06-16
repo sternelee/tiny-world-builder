@@ -240,6 +240,12 @@
         case 'chat': emit('chat', d); if (d && d.text != null) showChatBubble(d.id, d.text); break;
         case 'chat.typing': emit('typing', d); break;
         case 'present': emit('present', d); break;   // lobby slide sync (58-lobby-presentation)
+        case 'world.refresh':
+          // A god-admin saved the live world; the server relays the fresh board so
+          // every connected client re-renders without a reload. Only the compact
+          // cells are sent (capped); we rebuild the local tile view + blocked set.
+          applyAdminWorldRefresh(d);
+          break;
         default: break;
       }
     }
@@ -252,6 +258,46 @@
     // Lobby presentation: broadcast the current slide index to the room (58 listens
     // for the server's 'present' echo to apply it on every client).
     WS.present = function (slide) { send({ type: 'present', slide: slide | 0 }); };
+
+    // ---- god-admin live world refresh ----
+    // The admin editor (66) calls this after a successful adminSave. We send the
+    // freshly-serialized board to the server, which relays a `world.refresh` to
+    // every OTHER client in the room so the change appears live (no reload). The
+    // admin's own client already shows the edit (it made it), so it skips re-apply.
+    WS.adminBroadcastWorld = function (data) {
+      if (!connected || !data || !Array.isArray(data.cells)) return;
+      send({ type: 'world.refresh', cells: compactCells(data), gridSize: data.gridSize || gridSize });
+    };
+
+    // Apply an incoming admin world refresh on a peer: re-render the board tiles
+    // from the relayed compact cells and rebuild the blocked/standable set so
+    // movement respects the new layout immediately.
+    let _appliedRefreshAt = 0;
+    function applyAdminWorldRefresh(d) {
+      const incoming = Array.isArray(d.cells) ? d.cells : null;
+      if (!incoming) return;
+      // De-dupe rapid repeats (a save can echo once); ignore bursts within 250ms.
+      const now = Date.now();
+      if (now - _appliedRefreshAt < 250) return;
+      _appliedRefreshAt = now;
+      cells = incoming;
+      gridSize = d.gridSize || gridSize;
+      rebuildBlocked();
+      // Re-render the 3D tiles via the builder's applyState (same path used on
+      // enter). Keep the lobby's terrain-bake behavior consistent.
+      if (typeof applyState === 'function') {
+        const data = { v: 4, gridSize, cells };
+        const bakeOnDone = (world && world.slug === 'tidewater-bay')
+          ? { onDone: () => { try { if (typeof window.__tinyworldSetTerrainBakeForced === 'function') window.__tinyworldSetTerrainBakeForced(true); } catch (_) {} } }
+          : undefined;
+        try {
+          if (typeof window.__tinyworldUnbakeTerrain === 'function') window.__tinyworldUnbakeTerrain();
+          if (typeof window.__tinyworldSetTerrainBakeForced === 'function') window.__tinyworldSetTerrainBakeForced(false);
+        } catch (_) {}
+        try { applyState(data, bakeOnDone); } catch (_) {}
+      }
+      drawMinimap();
+    }
   
     function myPresencePos() {
       // The server tracks our position and broadcasts it in presence.cursor; mirror

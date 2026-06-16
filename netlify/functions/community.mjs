@@ -811,7 +811,7 @@ export default async function communityFunction(request) {
       if (!result.passed) {
         const attempts = await recordVerifyAttempt(sql, profile.id);
         const remaining = Math.max(0, VERIFY_MAX_ATTEMPTS - attempts);
-        return jsonResponse({ verified: false, ok: false, remaining }, origin, 403);
+        return jsonResponse({ verified: false, ok: false, remaining, reason: result.reason }, origin, 403);
       }
       await markVerified(sql, profile.id);
       return jsonResponse({ verified: true, ok: true }, origin);

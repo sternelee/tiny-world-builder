@@ -47,6 +47,21 @@
   status = 200
 
 [[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/code-of-conduct"
+  to = "/code-of-conduct.html"
+  status = 200
+
+[[redirects]]
   from = "/worlds"
   to = "/worlds.html"
   status = 200
