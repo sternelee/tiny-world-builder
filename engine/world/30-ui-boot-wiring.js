@@ -481,6 +481,7 @@
     return world.name || world.slug || 'Untitled world';
   }
   function twWorldCatalogLiveRows() {
+    if (!twCloudLoggedIn()) return [];
     const rows = Array.isArray(twWorldCatalogCache) ? twWorldCatalogCache.slice() : [];
     try {
       const WS = window.__tinyworldWorlds;
@@ -491,7 +492,15 @@
     } catch (_) {}
     return rows;
   }
+  function twWorldCatalogClear() {
+    twWorldCatalogCache = [];
+    twWorldCatalogCacheAt = 0;
+  }
   async function twWorldCatalogLoad(force) {
+    if (!twCloudLoggedIn()) {
+      twWorldCatalogClear();
+      return [];
+    }
     if (!force && twWorldCatalogCacheAt && Date.now() - twWorldCatalogCacheAt < 15_000) return twWorldCatalogCache;
     const res = await twCloudApiCall('/api/worlds', 'GET');
     if (res && Array.isArray(res.worlds)) {
@@ -1655,8 +1664,10 @@
       try {
         await Auth.logout();
       } catch (_) {}
+      twWorldCatalogClear();
       setLoggedInState(false);
       revertAccountAiEntitlement();
+      if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
     });
 
     // Top-bar Sign In button opens the login modal.
@@ -3141,10 +3152,12 @@
     if (!window.TinyWorldAuth && collaborateBtn) collaborateBtn.hidden = true;
 
     function menuWorlds() {
-      return twWorldCatalogMergedWorlds(
-        twCloudMergedWorlds(readWorldsMeta(), twCloudWorldCache),
-        twWorldCatalogLiveRows()
+      const loggedIn = twCloudLoggedIn();
+      const rows = twWorldCatalogMergedWorlds(
+        twCloudMergedWorlds(readWorldsMeta(), loggedIn ? twCloudWorldCache : []),
+        loggedIn ? twWorldCatalogLiveRows() : []
       );
+      return loggedIn ? rows : rows.filter(row => row && !row.catalog && !row.cloud);
     }
     function findMenuActiveWorld() {
       const activeId = getActiveWorldId();

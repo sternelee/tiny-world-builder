@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildEngineFns } from './helpers/extract-fn.mjs';
 
 const file = new URL('../engine/world/30-ui-boot-wiring.js', import.meta.url);
+const bootWiringJs = readFileSync(file, 'utf8');
 const fns = buildEngineFns(file, [
   'twWorldCatalogSlotId',
   'twWorldCatalogIdFromSlotId',
@@ -74,4 +76,12 @@ test('current/full catalog worlds carry state so they can be cached and edited o
   assert.equal(rows[0].id, 'world:9');
   assert.equal(rows[0].catalog, true);
   assert.deepEqual(rows[0].state, data);
+});
+
+test('world menu filters live catalog rows for anonymous users', () => {
+  assert.match(bootWiringJs, /const loggedIn = twCloudLoggedIn\(\)/);
+  assert.match(bootWiringJs, /loggedIn \? twCloudWorldCache : \[\]/);
+  assert.match(bootWiringJs, /loggedIn \? twWorldCatalogLiveRows\(\) : \[\]/);
+  assert.match(bootWiringJs, /rows\.filter\(row => row && !row\.catalog && !row\.cloud\)/);
+  assert.match(bootWiringJs, /function twWorldCatalogClear\(\)/);
 });
