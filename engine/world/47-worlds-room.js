@@ -1029,17 +1029,31 @@
     // of the ladder base (the ladder is behind the lobby screen near the north edge; if the
     // rig/screen tiles are blocked, the enter tile/margin may need adjustment).
     const _v3a = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
-    // Resolve the ladder marker (if present + visible) into the avatar's coordinate frame.
-    // Returns { cx, cz, baseY, topY, halfW, halfD, exitDX, exitDZ } or null.
+    // Resolve the NEAREST ladder marker (if present + visible) into the avatar's frame.
+    // Multiple rigs can each tag a 'climb-ladder' Object3D (e.g. the lobby screen catwalk
+    // has one at each end); we pick whichever is closest to the self avatar in x/z so
+    // "press up" enters the ladder you're standing at. Returns the resolved descriptor
+    // { cx, cz, markerY, halfW, halfD, exitDX, exitDZ, _ud, _marker, _sc } or null.
     function findLadder() {
       const par = avatarParent();
       if (!par || !_v3a) return null;
-      const marker = (typeof par.getObjectByName === 'function') ? par.getObjectByName('climb-ladder') : null;
-      if (!marker) return null;
-      // skip if the rig is hidden (lobby presentation not shown)
-      let o = marker, vis = true;
-      while (o) { if (o.visible === false) { vis = false; break; } o = o.parent; }
-      if (!vis) return null;
+      // collect all visible climb-ladder markers under the avatar parent
+      const markers = [];
+      par.traverse((o) => {
+        if (!o || o.name !== 'climb-ladder') return;
+        let p = o, vis = true;
+        while (p) { if (p.visible === false) { vis = false; break; } p = p.parent; }
+        if (vis) markers.push(o);
+      });
+      if (!markers.length) return null;
+      const sp = selfEnt && selfEnt.sprite ? selfEnt.sprite.position : null;
+      let marker = markers[0], bestD = Infinity;
+      for (const m of markers) {
+        m.getWorldPosition(_v3a);
+        par.worldToLocal(_v3a);
+        const d = sp ? ((_v3a.x - sp.x) ** 2 + (_v3a.z - sp.z) ** 2) : 0;
+        if (d < bestD) { bestD = d; marker = m; }
+      }
       const ud = marker.userData || {};
       marker.getWorldPosition(_v3a);
       par.worldToLocal(_v3a);                          // marker origin -> avatar/group frame

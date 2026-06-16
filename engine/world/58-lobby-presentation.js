@@ -158,9 +158,12 @@
       return group;
     }
 
-    // Industrial maintenance access up the BACK of the screen (the −z side): a ladder
-    // up the right leg to a platform, then switchback stairs through mid platforms to a
-    // top catwalk. A climb test rig. Added to `group` so it grounds/shows with the screen.
+    // Industrial maintenance access up the BACK of the screen (the −z side): a single
+    // railed top catwalk that runs the FULL WIDTH behind the screen, reached by a
+    // vertical ladder at EACH end (left + right). The catwalk is lowered so its railing
+    // just peeks over the top edge of the screen when viewed from the front. Both
+    // ladders are climbable via the mechanic in 47 (each tagged 'climb-ladder'; the
+    // nearest one is chosen). Added to `group` so it grounds/shows with the screen.
     function buildMaintenanceRig() {
       const steel = new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.55, metalness: 0.55 });
       const grate = new THREE.MeshStandardMaterial({ color: 0x262d36, roughness: 0.8, metalness: 0.3 });
@@ -169,41 +172,42 @@
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || steel);
         m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; rig.add(m); return m;
       };
-      const PX = 2.6, BZ = -0.6, TOP = 4.45;        // right leg x, behind-screen z, ~screen top
-      const platW = 1.5, platD = 0.95;
-      const platform = (cx, cy, cz) => {
-        box(platW, 0.08, platD, cx, cy, cz, grate);                                  // deck
-        for (const sx of [-1, 1]) {                                                  // side rail posts + top rail
-          box(0.05, 0.55, 0.05, cx + sx * (platW / 2 - 0.05), cy + 0.3, cz - (platD / 2 - 0.05));
-          box(0.05, 0.55, 0.05, cx + sx * (platW / 2 - 0.05), cy + 0.3, cz + (platD / 2 - 0.05));
-        }
-        box(platW, 0.05, 0.05, cx, cy + 0.55, cz - (platD / 2 - 0.05));              // back rail
+      const PX = 2.6, BZ = -0.6;                       // leg x, behind-screen z
+      // Catwalk height: lowered so the rail tops sit JUST above the screen's top edge
+      // (screen top ≈ 4.375 in local Y) — deck 3.95 + 0.55 rail ≈ 4.50, ~0.12 peek.
+      const TOP = 3.95, railH = 0.55;
+      const deckZ = BZ - 0.45;                          // catwalk sits behind the screen
+      const deckD = 0.95;                               // catwalk depth (z)
+      const deckXL = -PX - 0.15, deckXR = PX + 0.15;    // full-width run, leg to leg
+      const deckW = deckXR - deckXL, deckXC = (deckXL + deckXR) / 2;
+      const backZ = deckZ - (deckD / 2 - 0.05);
+      const frontZ = deckZ + (deckD / 2 - 0.05);
+      // --- the catwalk deck + perimeter rails -------------------------------
+      box(deckW, 0.08, deckD, deckXC, TOP, deckZ, grate);                       // deck
+      box(deckW, 0.05, 0.05, deckXC, TOP + railH, backZ);                       // back rail (full length)
+      box(deckW - 1.2, 0.05, 0.05, deckXC, TOP + railH, frontZ);                // front rail (gaps at the ladder landings)
+      box(0.05, railH, deckD, deckXL, TOP + railH / 2, deckZ);                  // left end rail
+      box(0.05, railH, deckD, deckXR, TOP + railH / 2, deckZ);                  // right end rail
+      const step = deckW / 5;
+      for (let x = deckXL; x <= deckXR + 1e-3; x += step) {                     // posts along both edges
+        box(0.05, railH, 0.05, x, TOP + railH / 2, backZ);
+        if (x > deckXL + 0.6 && x < deckXR - 0.6) box(0.05, railH, 0.05, x, TOP + railH / 2, frontZ);
+      }
+      // --- a vertical ladder at EACH end, ground -> catwalk ------------------
+      const ladZ = deckZ + (deckD / 2) + 0.12;         // just in front of the deck edge
+      const makeLadder = (lx) => {
+        box(0.05, TOP, 0.05, lx - 0.2, TOP / 2 + 0.1, ladZ);                    // rails
+        box(0.05, TOP, 0.05, lx + 0.2, TOP / 2 + 0.1, ladZ);
+        for (let y = 0.35; y < TOP; y += 0.27) box(0.46, 0.045, 0.045, lx, y, ladZ);   // rungs
+        // climb marker (47 picks the nearest of all 'climb-ladder' markers).
+        const marker = new THREE.Object3D();
+        marker.name = 'climb-ladder';
+        marker.position.set(lx, 0, ladZ);
+        marker.userData = { climbable: true, baseY: 0.1, topY: TOP, halfW: 0.35, halfD: 0.35, exitDX: 0, exitDZ: -(deckD / 2 + 0.12) };   // step north onto the deck
+        rig.add(marker);
       };
-      const stairs = (x0, y0, x1, y1, z, steps) => {
-        for (let i = 0; i < steps; i++) {
-          const t = (i + 1) / steps;
-          box(0.5, 0.06, 0.34, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, z, grate);
-        }
-      };
-      const L1 = 2.15, L2 = 3.3;                     // platform heights
-      // ladder up the right leg, ground -> platform 1
-      box(0.05, L1, 0.05, PX - 0.2, L1 / 2 + 0.1, BZ);
-      box(0.05, L1, 0.05, PX + 0.2, L1 / 2 + 0.1, BZ);
-      for (let y = 0.35; y < L1; y += 0.27) box(0.46, 0.045, 0.045, PX, y, BZ);      // rungs
-      // marker so the climb mechanic (47) can locate this ladder: world pos + the
-      // climb volume (base->top) and which platform to step off onto at the top.
-      const ladderMarker = new THREE.Object3D();
-      ladderMarker.name = 'climb-ladder';
-      ladderMarker.position.set(PX, 0, BZ);
-      ladderMarker.userData = { climbable: true, baseY: 0.1, topY: L1, halfW: 0.35, halfD: 0.35, exitDX: -0.45, exitDZ: -0.45 };
-      rig.add(ladderMarker);
-      platform(PX - 0.45, L1, BZ - 0.45);
-      // switchback stairs L1 -> L2 (heading left)
-      stairs(PX - 1.2, L1, PX - 2.6, L2, BZ - 0.45, 6);
-      platform(PX - 3.1, L2, BZ - 0.45);
-      // switchback stairs L2 -> top (heading right, back toward centre)
-      stairs(PX - 3.1 + 0.5, L2, 0.0, TOP, BZ - 0.45, 6);
-      platform(0.0, TOP, BZ - 0.45);                 // top catwalk behind the screen top
+      makeLadder(deckXL + 0.3);                         // left ladder
+      makeLadder(deckXR - 0.3);                         // right ladder
       group.add(rig);
       return rig;
     }
