@@ -6353,6 +6353,12 @@
   }
   .layers-tabpanel[hidden] { display: none; }
   .layers-props { flex: 1 1 auto; overflow: auto; }
+  .layers-helper {
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: #58647a;
+    margin: 0 2px 2px;
+  }
   .layers-props-empty { font-size: 11.5px; color: #58647a; margin: 6px 2px; }
   .layers-search input {
     width: 100%;
