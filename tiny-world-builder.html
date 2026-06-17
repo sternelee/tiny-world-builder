@@ -267,7 +267,7 @@
     <svg class="ic-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
     <svg class="ic-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>
   </button>
-  <button type="button" id="layers-toggle" class="layers-handle" data-pos-type="neutral" data-tooltip="Layers" data-i18n-tooltip="layers.toggle" aria-label="Open layers panel" data-i18n-aria-label="layers.open" aria-expanded="false" aria-controls="layers-panel">
+  <button type="button" id="layers-toggle" class="layers-handle" data-pos-type="neutral" data-tooltip="World Items" data-i18n-tooltip="layers.toggle" aria-label="Open world items panel" data-i18n-aria-label="layers.open" aria-expanded="false" aria-controls="layers-panel">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
   </button>
 
@@ -494,23 +494,25 @@
   <p class="xr-status" id="xr-status" role="status" aria-live="polite" hidden></p>
 
   <section id="layers-panel" class="layers-panel" role="dialog" aria-modal="false" hidden>
-    <div class="layers-panel-head" id="layers-panel-head" aria-label="Drag to move layers panel">
-      <button class="layers-panel-close" id="layers-close" type="button" title="Close" aria-label="Close layers" data-i18n-aria-label="layers.close">×</button>
+    <div class="layers-panel-head" id="layers-panel-head" aria-label="Drag to move world items panel">
+      <button class="layers-panel-close" id="layers-close" type="button" title="Close" aria-label="Close world items" data-i18n-aria-label="layers.close">×</button>
     </div>
-    <div class="layers-tabs" role="tablist" aria-label="Layers / Properties">
-      <button class="layers-tab is-active" id="layers-tab-layers" type="button" role="tab" aria-selected="true" data-layers-tab="layers" data-i18n="layers.tabLayers">Layers</button>
+    <div class="sound-section-title" data-i18n="layers.tabLayers">World Items</div>
+    <p class="layers-props-empty" data-i18n="layers.helper">Everything you've placed — click to find and edit it.</p>
+    <div class="layers-tabs" role="tablist" aria-label="World Items / Properties">
+      <button class="layers-tab is-active" id="layers-tab-layers" type="button" role="tab" aria-selected="true" data-layers-tab="layers" data-i18n="layers.tabLayers">World Items</button>
       <button class="layers-tab" id="layers-tab-properties" type="button" role="tab" aria-selected="false" data-layers-tab="properties" data-i18n="layers.tabProperties">Properties</button>
     </div>
     <div class="layers-tabpanel" id="layers-panel-layers" role="tabpanel" data-layers-panel="layers">
       <label class="layers-search">
-        <span class="sr-only" data-i18n="layers.searchAria">Search layers</span>
+        <span class="sr-only" data-i18n="layers.searchAria">Search world items</span>
         <input id="layers-search" type="search" placeholder="Search…" autocomplete="off" data-i18n-placeholder="layers.search" />
       </label>
       <div class="layers-tree" id="layers-tree" role="tree" aria-label="World hierarchy"></div>
     </div>
     <div class="layers-tabpanel" id="layers-panel-properties" role="tabpanel" data-layers-panel="properties" hidden>
       <div class="layers-props" id="layers-props-host"></div>
-      <p class="layers-props-empty" id="layers-props-empty" data-i18n="layers.propsEmpty">Select an item in Layers to see its properties.</p>
+      <p class="layers-props-empty" id="layers-props-empty" data-i18n="layers.propsEmpty">Select an item in World Items to see its properties.</p>
     </div>
     <span id="layers-summary" hidden></span>
   </section>

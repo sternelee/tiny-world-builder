@@ -209,14 +209,15 @@
     // ---- layers / tips ----
     'tips.show': 'Show controls',
     'tips.hide': 'Hide tips',
-    'layers.toggle': 'Layers',
-    'layers.open': 'Open layers panel',
-    'layers.close': 'Close layers',
-    'layers.tabLayers': 'Layers',
+    'layers.toggle': 'World Items',
+    'layers.open': 'Open world items panel',
+    'layers.close': 'Close world items',
+    'layers.tabLayers': 'World Items',
+    'layers.helper': "Everything you've placed — click to find and edit it.",
     'layers.tabProperties': 'Properties',
     'layers.search': 'Search…',
-    'layers.searchAria': 'Search layers',
-    'layers.propsEmpty': 'Select an item in Layers to see its properties.',
+    'layers.searchAria': 'Search world items',
+    'layers.propsEmpty': 'Select an item in World Items to see its properties.',
 
     // ---- welcome / how-to ----
     'welcome.subtitle': "Choose how you'd like to begin",
