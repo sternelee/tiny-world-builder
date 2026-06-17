@@ -112,6 +112,10 @@
     // Per-room multiplayer stub saved/restored on enter/leave so 34-flight-sim.js
     // can call broadcastFlight without knowing which mode it's in.
     let _prevMultiplayer = null;
+    // True only while OUR world-room stub owns window.__tinyworldMultiplayer. Gates the
+    // restore in leaveRoom() so the top-of-enterRoom() reset call can't null out the
+    // builder's live 38 instance before we've saved it (would kill builder flight+combat).
+    let _mpInstalled = false;
     // Roster DOM element (mirrors the .multiplayer-roster pill from 38-multiplayer-partykit).
     let rosterEl = null;
     // Throttle flight broadcasts to ~15/s (same cadence as 38-multiplayer-partykit).
@@ -131,13 +135,22 @@
         return v;
       } catch (_) { return 'u_' + Math.random().toString(36).slice(2, 10); }
     }
+    // Stable per-device guest label (e.g. "Guest 3F9A") so two not-logged-in
+    // visitors are never both the literal "Player". Mirrors 38-multiplayer-partykit's
+    // localName(): reads the SAME 'tinyworld:multiplayer:client-id' key via connToken,
+    // so the builder and tinyverse show the same guest name on a given device.
+    function guestName() {
+      try { return 'Guest ' + connToken().slice(-4).toUpperCase(); }
+      catch (_) { return 'Guest'; }
+    }
     function playerName() {
       try {
         const account = window.__tinyworldAccount || null;
         const profile = account && typeof account.profile === 'function' ? account.profile() : null;
         const profileName = profile && (profile.displayName || profile.username);
-        return (profileName || localStorage.getItem('tinyworld:multiplayer:name') || '').slice(0, 48) || 'Player';
-      } catch (_) { return 'Player'; }
+        const named = (profileName || localStorage.getItem('tinyworld:multiplayer:name') || '').slice(0, 48);
+        return named || guestName();
+      } catch (_) { return guestName(); }
     }
     const PLAYER_COLORS = ['#e05c5c','#e08c3c','#d4c040','#5ac44e','#40b8d0','#5a78e0','#b060e0','#e060a0'];
     function playerColor() {
@@ -223,11 +236,15 @@
       _prevMultiplayer = window.__tinyworldMultiplayer || null;
       window.__tinyworldMultiplayer = {
         broadcastFlight: _broadcastFlightWorld,
-        flightGhosts: () => { const out = []; flightGhosts.forEach(g => out.push(g)); return out; },
+        // Mirror 38's shape: include the peer id (map KEY) and filter to visible ghosts,
+        // or 41-flight-combat targets every ghost as id:undefined (hit routing + speed
+        // tracking break, and stale/hidden ghosts get targeted).
+        flightGhosts: () => { const out = []; flightGhosts.forEach((ghost, id) => { if (ghost && ghost.group && ghost.group.visible) out.push({ id, group: ghost.group }); }); return out; },
         canInteract: () => connected,
         roomId: () => 'world-' + (w ? w.slug : ''),
         send,
       };
+      _mpInstalled = true;
       emit('enter', { world: w, role });
       const roomId = 'world-' + w.slug;
       const url = host() + '/party/' + encodeURIComponent(roomId) + '?_pk=' + encodeURIComponent(connToken());
@@ -246,7 +263,12 @@
         if (stateTimer) clearTimeout(stateTimer);
         stateTimer = setTimeout(() => { if (!sawWorldState) { toast(T('worlds.serverOld')); WS.leaveRoom(); } }, 4000);
       });
-      socket.addEventListener('close', () => { connected = false; emit('status', { connected: false }); });
+      socket.addEventListener('close', () => {
+        connected = false; emit('status', { connected: false });
+        // A passive close (network drop / server restart) sends no entity active:false,
+        // so clear peer flight ghosts here or they freeze in the scene for the session.
+        _clearFlightGhosts(); flyingById.clear();
+      });
       socket.addEventListener('message', (e) => { const d = safeParse(e.data); if (d) onMessage(d); });
       bindInput();
       showMinimap();
@@ -269,8 +291,11 @@
       // socket so the server and peers get the active:false entity message.
       try { if (window.__flightActive && typeof window.exitFlight === 'function') window.exitFlight(); } catch (_) {}
       _selfFlying = false;
-      // Restore previous __tinyworldMultiplayer (may be from 38-multiplayer-partykit).
-      window.__tinyworldMultiplayer = _prevMultiplayer; _prevMultiplayer = null;
+      // Restore previous __tinyworldMultiplayer (may be from 38-multiplayer-partykit),
+      // but ONLY if our stub is the one currently installed. enterRoom() calls leaveRoom()
+      // first as a reset; without this guard that call would null the builder's live 38
+      // instance before it was ever saved, silently killing builder flight + air combat.
+      if (_mpInstalled) { window.__tinyworldMultiplayer = _prevMultiplayer; _prevMultiplayer = null; _mpInstalled = false; }
       // Clear all flight ghosts from the scene.
       _clearFlightGhosts();
       flyingById.clear();
@@ -370,6 +395,9 @@
         case 'leave': {
           if (peersSeeded && knownPeerIds.has(d.id)) notify('leave', peerNames.get(d.id) || '', null);
           peers.delete(d.id); knownPeerIds.delete(d.id); peerNames.delete(d.id);
+          // A departing/kicked peer who was flying sends no entity active:false, so drop
+          // their flight ghost + flying flag here or it lingers frozen mid-air.
+          if (flyingById.delete(d.id)) { _removeFlightGhost(d.id); emit('flight', {}); }
           emit('peers', Array.from(peers.values())); updatePeerAvatars(); drawMinimap(); break;
         }
         case 'node.update': if (d.node && d.node.id) { if (d.node.gone) delete nodes[d.node.id]; else nodes[d.node.id] = d.node; emit('nodes', nodes); drawMinimap(); } break;
@@ -478,11 +506,13 @@
       if (id === myId) return;
       if (msg.active === false) {
         _removeFlightGhost(id);
-        flyingById.delete(id);
+        if (flyingById.delete(id)) emit('flight', {});   // notify chat list of the change
         _renderWorldRoster();
         return;
       }
+      const wasFlying = flyingById.has(id);
       flyingById.add(id);
+      if (!wasFlying) emit('flight', {});                // new flyer -> refresh chat badges
       let ghost = flightGhosts.get(id);
       if (!ghost) {
         const model = _buildWorldFlightGhostModel();
@@ -520,13 +550,13 @@
     function _broadcastFlightWorld(active) {
       if (!connected) return;
       if (active === false) {
-        if (_selfFlying) { _selfFlying = false; _renderWorldRoster(); }
+        if (_selfFlying) { _selfFlying = false; _renderWorldRoster(); emit('flight', {}); }
         send({ type: 'entity', kind: 'plane', active: false, p: { x: 0, y: 0, z: 0 }, r: { x: 0, y: 0, z: 0 } });
         return;
       }
       const jet = window.__flightJet;
       if (!jet || !_flBcPos || !_flBcEuler || !_flBcQuat) return;
-      if (!_selfFlying) { _selfFlying = true; _renderWorldRoster(); }
+      if (!_selfFlying) { _selfFlying = true; _renderWorldRoster(); emit('flight', {}); }
       const now = Date.now();
       if (now - _lastFlightSent < 66) return;   // ~15/s
       _lastFlightSent = now;
@@ -2915,7 +2945,14 @@
       // Drop ghost peers that stopped heartbeating (missed 'leave', hard refresh, or a
       // stale server session) so the player never sees phantom duplicate avatars.
       const nowMs = Date.now();
-      peers.forEach((p, id) => { if (p && p._t && nowMs - p._t > STALE_PEER_MS) peers.delete(id); });
+      peers.forEach((p, id) => {
+        if (p && p._t && nowMs - p._t > STALE_PEER_MS) {
+          peers.delete(id);
+          // A stale flyer (hard refresh / lost connection, no 'leave') leaks its ghost
+          // and flying flag unless swept alongside the avatar prune.
+          if (flyingById.delete(id)) { _removeFlightGhost(id); _renderWorldRoster(); emit('flight', {}); }
+        }
+      });
       const seen = new Set();
       peers.forEach((p) => {
         if (!p || p.id == null || isSelfPresence(p)) return;   // never draw yourself as a peer

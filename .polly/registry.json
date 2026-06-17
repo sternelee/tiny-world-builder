@@ -16,7 +16,8 @@
       "gates": "check + smoke + test:unit(129) + i18n:check green; implementer browser-verified",
       "preview": "https://deploy-preview-48--tiny-world-builder.netlify.app",
       "review_conv_id": "conv_1c389a6ce8654feca33ff1f125f279d0",
-      "status": "in-review"
+      "review": "2 BLOCKING found+fixed (commit 698ef8f: paste predicates now gate on mpEditAllowed; voxel dispatch toasts on false). Browser-verified, gates green. Re-review conv_9b477394d3ff44ba897dd50a59abadba in flight.",
+      "status": "re-review"
     },
     {
       "id": "w1-layers",
@@ -50,6 +51,11 @@
       "status": "READY-FOR-HUMAN-MERGE"
     }
   ],
+  "WARNING_local_main": {
+    "issue": "Local main (21f7a4b) has auto-merged all 3 polly branches (efd8413 layers, 54026ad props, 21f7a4b coach) — known auto-commit-to-main behavior. NOT pushed: origin/main still c3711b7 (clean).",
+    "risk": "props merge 54026ad is the PRE-FIX buggy version (f523dd7), not fixed 698ef8f. Per project memory main auto-pushes -> Netlify prod, which would ship unreviewed/buggy props.",
+    "action": "Flagged to human; no history op taken (needs permission). Canonical path = GitHub PRs #46/#47/#48 off clean origin/main."
+  },
   "netlify": {
     "site": "tiny-world-builder (tinyworld.build)",
     "site_id": "f2255f9a-69eb-470c-8273-c12e4b4f70c3",

@@ -840,6 +840,11 @@
       renderPlayers(null);
     });
 
+    // Flight state changed (self or a peer took off / landed / left mid-flight). 47
+    // emits 'flight' on every transition; re-render so the per-row plane badge tracks
+    // it instead of only updating by coincidence on the next peers/you event.
+    on('flight', () => renderPlayers(null));
+
     on('chat', (d) => {
       addMessage(d);
     });

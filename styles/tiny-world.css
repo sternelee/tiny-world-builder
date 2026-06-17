@@ -598,6 +598,11 @@
     pointer-events: none;
   }
   .multiplayer-roster.visible { display: inline-flex; }
+  /* Inside a tinyverse world room the world-room (47) roster pill — tagged
+     .tw-worlds-roster — owns the top-center slot. The shared-build (38) roster stays
+     connected/visible in the builder, so hide it here or the two pills stack at the
+     identical fixed position. */
+  body.tw-worlds-play .multiplayer-roster:not(.tw-worlds-roster) { display: none !important; }
   .multiplayer-roster .mp-count {
     display: inline-flex;
     align-items: center;
