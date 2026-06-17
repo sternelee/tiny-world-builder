@@ -76,7 +76,13 @@
   const flightCtl = { pitch: 0, roll: 0, yaw: 0, throttleUp: 0, throttleDown: 0 };
   let flightActive = false;
   let flightCam = null;
+  let flightDroneCam = null;
+  let flightCockpitCam = null;
   let flightPrevCamera = null;
+  let flightMainView = 'drone';
+  let flightInsetView = 'chase';
+  let flightDroneZoom = 1;
+  let flightDroneAnchorReady = false;
   let flightCell = null;            // { x, z } of the parked plane
   let flightJet = null;             // the cell object group being flown
   let flightProps = [];             // named propeller meshes to spin
@@ -452,19 +458,52 @@
   const _flcamPlanePos = new THREE.Vector3();        // plane position in scene space
   const _flcamPlaneQuat = new THREE.Quaternion();
   const _flcamFwd = new THREE.Vector3();
+  const _flcamRight = new THREE.Vector3();
   const _flcamUp = new THREE.Vector3();
   const _flcamDesired = new THREE.Vector3();
   const _flcamLook = new THREE.Vector3();
+  const _flDroneAnchor = new THREE.Vector3();
+  const _flDroneLook = new THREE.Vector3();
+  const _flDroneLookTarget = new THREE.Vector3();
+  const _flCockpitPos = new THREE.Vector3();
+  const _flCockpitLook = new THREE.Vector3();
 
-  function updateFlightCamera(dt) {
+  function flightUpdateAspectForCamera(cam, aspect) {
+    if (!cam || !(aspect > 0)) return;
+    if (Math.abs(cam.aspect - aspect) < 0.0001) return;
+    cam.aspect = aspect;
+    cam.updateProjectionMatrix();
+  }
+
+  function ensureFlightCameras() {
+    if (!flightCam) flightCam = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.05, 600);
+    if (!flightDroneCam) flightDroneCam = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.05, 800);
+    if (!flightCockpitCam) flightCockpitCam = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.035, 600);
+    flightUpdateAspectForCamera(flightCam, window.innerWidth / window.innerHeight);
+    flightUpdateAspectForCamera(flightDroneCam, window.innerWidth / window.innerHeight);
+    flightUpdateAspectForCamera(flightCockpitCam, window.innerWidth / window.innerHeight);
+  }
+
+  function flightCameraForView(view) {
+    return view === 'drone' ? flightDroneCam : (view === 'cockpit' ? flightCockpitCam : flightCam);
+  }
+
+  function flightApplyMainCamera() {
+    const next = flightCameraForView(flightMainView);
+    if (next) camera = next;
+  }
+
+  function updateFlightCameras(dt) {
     const p = flightPlane;
     // plane transform in SCENE space
     flightSimToScene(_flcamPlanePos, p.pos);
     _flcamPlaneQuat.copy(flightYawQuat).multiply(p.quat);
-    if (!_flCamInit) { _flCamSceneQuat.copy(_flcamPlaneQuat); _flCamInit = true; }
+    const firstFrame = !_flCamInit;
+    if (firstFrame) { _flCamSceneQuat.copy(_flcamPlaneQuat); _flCamInit = true; }
     const catchup = 1 - Math.exp(-(p.onGround ? 14.0 : 8.5) * dt);
     _flCamSceneQuat.slerp(_flcamPlaneQuat, catchup);
     const fwd = _flcamFwd.set(0, 0, -1).applyQuaternion(_flCamSceneQuat).normalize();
+    const right = _flcamRight.set(1, 0, 0).applyQuaternion(_flCamSceneQuat).normalize();
     const speedKts = p.vel.length() * 1.94;
     // Scene-unit framing: close chase view; the plane is roughly 1.35 units wide.
     const backDist = 3.35 + flightClamp01((speedKts - 40) / 200) * 2.2;
@@ -476,7 +515,144 @@
     // look slightly above + ahead of the plane so it sits low-centre in frame
     _flcamLook.copy(_flcamPlanePos).addScaledVector(fwd, 1.15).add(_flcamUp.set(0, 0.36, 0));
     flightCam.lookAt(_flcamLook);
+    flightCam.updateMatrixWorld();
+
+    // LOS drone view: a fixed observer position, like a camera operator standing
+    // on an island ridge / remote platform and filming the plane. It tracks by
+    // panning and lens zoom only; it is not another chase camera.
+    if (!flightDroneAnchorReady) {
+      _flDroneAnchor.copy(flightSceneOrigin)
+        .addScaledVector(fwd, -9.0)
+        .addScaledVector(right, 4.2)
+        .add(_flcamUp.set(0, 5.8, 0));
+      _flDroneLook.copy(_flcamPlanePos);
+      flightDroneAnchorReady = true;
+    }
+    flightDroneCam.position.copy(_flDroneAnchor);
+    flightDroneCam.up.set(0, 1, 0);
+    _flDroneLookTarget.copy(_flcamPlanePos).addScaledVector(fwd, 1.4).add(_flcamUp.set(0, 0.45, 0));
+    _flDroneLook.lerp(_flDroneLookTarget, firstFrame ? 1 : (1 - Math.exp(-4.2 * dt)));
+    const droneDist = Math.max(1, flightDroneCam.position.distanceTo(_flDroneLook));
+    const filmedFov = Math.max(24, Math.min(62, 26 + droneDist * 2.6)) / flightDroneZoom;
+    flightDroneCam.fov += (filmedFov - flightDroneCam.fov) * (firstFrame ? 1 : (1 - Math.exp(-3.6 * dt)));
+    flightDroneCam.updateProjectionMatrix();
+    flightDroneCam.lookAt(_flDroneLook);
+    flightDroneCam.updateMatrixWorld();
+
+    // Cockpit/behind feed: a close over-nose camera. It is available in the map
+    // panel and can be swapped into the main canvas with the map toggle.
+    _flCockpitPos.copy(_flcamPlanePos).addScaledVector(fwd, 0.62).add(_flcamUp.set(0, 0.38, 0));
+    _flCockpitLook.copy(_flCockpitPos).addScaledVector(fwd, 9.0);
+    flightCockpitCam.position.copy(_flCockpitPos);
+    flightCockpitCam.up.set(0, 1, 0);
+    flightCockpitCam.lookAt(_flCockpitLook);
+    flightCockpitCam.updateMatrixWorld();
+    flightApplyMainCamera();
   }
+
+  // -------- flight map / secondary view --------
+  let _flViewWrap = null;
+  let _flViewRenderer = null;
+  let _flViewTitle = null;
+  let _flViewToggle = null;
+  let _flViewPrevMap = null;
+
+  function flightViewLabel(view) {
+    return view === 'drone' ? 'Drone LOS' : (view === 'cockpit' ? 'Cockpit' : 'Behind Plane');
+  }
+
+  function ensureFlightViewPanel() {
+    if (_flViewWrap) return;
+    _flViewPrevMap = null;
+    const worldsMap = document.querySelector('.tw-worlds-map');
+    if (worldsMap) {
+      _flViewPrevMap = {
+        display: worldsMap.style.display,
+        left: worldsMap.style.left,
+        top: worldsMap.style.top,
+        right: worldsMap.style.right,
+        bottom: worldsMap.style.bottom,
+      };
+      worldsMap.style.display = 'none';
+    }
+    _flViewWrap = document.createElement('div');
+    _flViewWrap.className = 'flight-view-panel';
+    _flViewTitle = document.createElement('div');
+    _flViewTitle.className = 'flight-view-title';
+    _flViewToggle = document.createElement('button');
+    _flViewToggle.type = 'button';
+    _flViewToggle.className = 'flight-view-toggle';
+    _flViewToggle.addEventListener('click', () => {
+      const main = flightMainView;
+      flightMainView = flightInsetView;
+      flightInsetView = main;
+      flightApplyMainCamera();
+      updateFlightViewPanelLabel();
+    });
+    _flViewWrap.appendChild(_flViewTitle);
+    _flViewWrap.appendChild(_flViewToggle);
+    _flViewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    _flViewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    _flViewRenderer.outputEncoding = THREE.sRGBEncoding;
+    _flViewRenderer.shadowMap.enabled = false;
+    _flViewRenderer.domElement.className = 'flight-view-canvas';
+    _flViewRenderer.domElement.addEventListener('wheel', e => {
+      if (flightInsetView !== 'drone') return;
+      const dir = e.deltaY > 0 ? -1 : 1;
+      flightDroneZoom = Math.max(0.65, Math.min(2.4, flightDroneZoom * (dir > 0 ? 1.08 : 0.92)));
+      updateFlightViewPanelLabel();
+      e.preventDefault();
+      e.stopPropagation();
+    }, { passive: false });
+    _flViewWrap.appendChild(_flViewRenderer.domElement);
+    document.body.appendChild(_flViewWrap);
+    updateFlightViewPanelLabel();
+  }
+
+  function updateFlightViewPanelLabel() {
+    if (_flViewTitle) {
+      _flViewTitle.textContent = flightViewLabel(flightInsetView)
+        + (flightInsetView === 'drone' ? ' ' + Math.round(flightDroneZoom * 100) + '%' : '');
+    }
+    if (_flViewToggle) _flViewToggle.textContent = 'Swap to main';
+  }
+
+  function hideFlightViewPanel() {
+    if (_flViewRenderer) {
+      _flViewRenderer.dispose();
+      if (_flViewRenderer.domElement && _flViewRenderer.domElement.parentNode) {
+        _flViewRenderer.domElement.parentNode.removeChild(_flViewRenderer.domElement);
+      }
+      _flViewRenderer = null;
+    }
+    if (_flViewWrap) { _flViewWrap.remove(); _flViewWrap = null; }
+    _flViewTitle = null;
+    _flViewToggle = null;
+    const worldsMap = document.querySelector('.tw-worlds-map');
+    if (worldsMap && _flViewPrevMap) {
+      worldsMap.style.display = _flViewPrevMap.display || 'block';
+      worldsMap.style.left = _flViewPrevMap.left || worldsMap.style.left;
+      worldsMap.style.top = _flViewPrevMap.top || worldsMap.style.top;
+      worldsMap.style.right = _flViewPrevMap.right || worldsMap.style.right;
+      worldsMap.style.bottom = _flViewPrevMap.bottom || worldsMap.style.bottom;
+    }
+    _flViewPrevMap = null;
+  }
+
+  function renderFlightInsetView() {
+    if (!flightActive || !_flViewRenderer || !_flViewWrap) return;
+    const cam = flightCameraForView(flightInsetView);
+    if (!cam || typeof scene === 'undefined') return;
+    const rect = _flViewRenderer.domElement.getBoundingClientRect();
+    const w = Math.max(2, Math.round(rect.width || 280));
+    const h = Math.max(2, Math.round(rect.height || 190));
+    if (_flViewRenderer.domElement.width !== w || _flViewRenderer.domElement.height !== h) {
+      _flViewRenderer.setSize(w, h, false);
+    }
+    flightUpdateAspectForCamera(cam, w / h);
+    _flViewRenderer.render(scene, cam);
+  }
+  window.__renderFlightInsetView = renderFlightInsetView;
 
   // -------- Dusty-style propeller spin / strobe disc --------
   const _flpropBox = new THREE.Box3();
@@ -628,7 +804,7 @@
       flightJet.quaternion.copy(_fljetQuat.copy(flightYawQuat).multiply(flightPlane.quat).multiply(FLIGHT_MODEL_FWD_FIX));
       updateFlightPropellers(dt);
     }
-    updateFlightCamera(dt);
+    updateFlightCameras(dt);
     // Multiplayer: broadcast the live plane transform so peers see a ghost. The
     // hook self-throttles (~15/s) and reads __flightJet itself; guarded so
     // single-player / un-upgraded multiplayer simply no-ops.
@@ -716,13 +892,17 @@
     flightCtl.throttleUp = flightCtl.throttleDown = 0;
     for (const key in flightKeys) flightKeys[key] = false;
     _flCamInit = false;
+    flightDroneAnchorReady = false;
 
-    // dedicated chase camera, swap the render camera
-    if (!flightCam) flightCam = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.05, 600);
-    flightCam.aspect = window.innerWidth / window.innerHeight;
-    flightCam.updateProjectionMatrix();
+    // Dedicated flight cameras. Default main view is a drone-like line-of-sight
+    // camera; the enlarged map panel carries the close cockpit/behind view.
+    ensureFlightCameras();
+    flightMainView = 'drone';
+    flightInsetView = 'chase';
+    flightDroneZoom = 1;
     flightPrevCamera = camera;
-    camera = flightCam;
+    flightApplyMainCamera();
+    ensureFlightViewPanel();
 
     document.body.classList.add('flight-active');
     window.__flightActive = true;
@@ -755,6 +935,7 @@
       window.__flightCombat.onExit();
     }
     showFlightHud(false);
+    hideFlightViewPanel();
     // restore the parked plane to its resting transform
     if (flightCell && typeof renderCellObject === 'function') {
       renderCellObject(flightCell.x, flightCell.z, { animate: false, impactDust: false });
@@ -866,7 +1047,9 @@
   }, true);
 
   window.addEventListener('resize', () => {
-    if (flightCam) { flightCam.aspect = window.innerWidth / window.innerHeight; flightCam.updateProjectionMatrix(); }
+    if (flightCam) flightUpdateAspectForCamera(flightCam, window.innerWidth / window.innerHeight);
+    if (flightDroneCam) flightUpdateAspectForCamera(flightDroneCam, window.innerWidth / window.innerHeight);
+    if (flightCockpitCam) flightUpdateAspectForCamera(flightCockpitCam, window.innerWidth / window.innerHeight);
   });
 
   // track last pointer position so the Select-mode Fly menu can anchor to it

@@ -2320,6 +2320,7 @@
     let _camFollowLastX = null, _camFollowLastZ = null;
     function updateAvatarCameraOrbit(dt) {
       if (!selfEnt || !selfEnt.sprite) return;
+      if (window.__flightActive) return;
       // Freefall: hand the camera to the 3rd-person chase rig (behind + above the avatar).
       if (selfEnt._skyfall) {
         if (typeof target !== 'undefined' && target) {     // keep the orbit target sane for landing

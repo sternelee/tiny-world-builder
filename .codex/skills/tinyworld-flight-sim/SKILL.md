@@ -11,7 +11,7 @@ Do not reintroduce a separate `plane` tool/kind — that was a wrong turn. Fligh
 attaches to whatever model-stamp the player already placed, detected by signature.
 
 ## Where it lives
-- `engine/world/34-flight-sim.js` — the whole system: trimmed physics, chase cam,
+- `engine/world/34-flight-sim.js` — the whole system: trimmed physics, flight cameras,
   `enterFlight`/`exitFlight`, `tickFlight`, HUD, Enter/Fly menu, key capture, and
   `isFlyableStampCell(cell)` (the detector). Loaded between `33-radial-menu.js`
   and `99-late-boot.js`.
@@ -59,6 +59,10 @@ stamp at `enterFlight`. Ground is a flat sim plane at spawn height.
   `flightActive` is true. Missile hits and destruction should use the pooled
   flight explosion sprites (`tw_flight_explosions`) plus smoke trails rather
   than adding DOM effects or build-mode controls.
+- Default view while flying is the LOS drone camera, not the chase camera. It
+  captures a fixed observer anchor near the launch/island position and then pans
+  and adjusts FOV to keep filming the plane. The enlarged map panel carries the
+  close chase/cockpit feed, and the swap button can make either feed primary.
 - `Escape` → `exitFlight()`: restores the previous camera, calls `updateCamera()`,
   re-renders the cell to re-park the stamp.
 

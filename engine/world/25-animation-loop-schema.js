@@ -177,6 +177,7 @@
     } else {
       renderScene();
     }
+    if (window.__renderFlightInsetView) window.__renderFlightInsetView();
   }
 
   // -------- resize --------
