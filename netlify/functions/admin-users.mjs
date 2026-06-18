@@ -1,7 +1,7 @@
 import { requireAuthUser } from './lib/auth.mjs';
 import { getSql, isDatabaseUnavailable } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
-import { ensureProfile, normalizeProfileHandle, normalizeUsername, profileDto } from './lib/profiles.mjs';
+import { ensureProfile, normalizeProfileHandle, normalizeProfileImageUrl, normalizeUsername, profileDto } from './lib/profiles.mjs';
 import { isWorldAdminEmail, worldAdminEmails } from './lib/worlds.mjs';
 
 export const config = { path: '/api/admin-users' };
@@ -45,7 +45,7 @@ function validateAdminEdit(body) {
   const username = normalizeUsername(body && body.username);
   const displayName = cleanText(body && body.displayName, 80);
   const about = cleanText(body && body.about, 1000);
-  const image = cleanText(body && body.image, 2048);
+  const image = normalizeProfileImageUrl(body && body.image);
   const email = cleanEmail(body && body.email);
   const twitter = normalizeProfileHandle(body && body.twitter);
   const github = normalizeProfileHandle(body && body.github);

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { requireAuthUser } from './lib/auth.mjs';
 import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
-import { ensureProfile, profileDto } from './lib/profiles.mjs';
+import { ensureProfile, normalizeProfileImageUrl, profileDto } from './lib/profiles.mjs';
 import { emitCommunityEvent, screenMessage, suspendMember, activeSuspension, ensureSuspensionTable, unsuspendMember, deleteMessage, hideMessage, unhideMessage, SUSPENSION_HOURS, POLICY_NOTICE } from './lib/community-moderation.mjs';
 import { issueChallenge, verifySubmission, HONEYPOT_FIELD } from './lib/human-verification.mjs';
 
@@ -127,13 +127,13 @@ export function isValidTwitter(handle) { return TWITTER_RE.test(String(handle ||
 export function isValidGithub(handle) { return GITHUB_RE.test(String(handle || '')); }
 
 // -------- preset avatars (allowlist; no user uploads => no NSFW image risk) --------
-// Keys map to same-origin PNGs under assets/avatars/. Editing the profile can
-// only ever select one of these — arbitrary image URLs are rejected.
+// Keys map to canonical site PNGs under assets/avatars/. Editing the profile can
+// only ever select one of these; arbitrary image URLs are rejected.
 export const AVATAR_KEYS = ['knight', 'wizard', 'builder', 'explorer', 'knave', 'robot', 'fox', 'cat'];
 const AVATAR_BASE = '/assets/avatars/';
 export function avatarUrlForKey(key) {
   const k = String(key || '').trim().toLowerCase();
-  return AVATAR_KEYS.includes(k) ? AVATAR_BASE + k + '.png' : '';
+  return AVATAR_KEYS.includes(k) ? normalizeProfileImageUrl(AVATAR_BASE + k + '.png') : '';
 }
 // Reverse-map a stored image URL back to a preset key (for pre-selecting in UI).
 export function avatarKeyForUrl(url) {
