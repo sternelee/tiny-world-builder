@@ -334,6 +334,7 @@
     'props.gate.nothingCopied': 'Aún no has copiado nada',
     'props.gate.noTemplate': 'Aún no hay plantilla guardada',
     'props.gate.voxelOnly': 'Solo piezas vóxel',
+    'props.gate.emptyTemplate': 'La plantilla está vacía',
     'props.action.failed': 'No hay nada que hacer aquí',
   };
 }());

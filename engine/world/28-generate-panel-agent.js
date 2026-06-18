@@ -1764,7 +1764,8 @@
         // nothing, so tell the user why (feedback #5). Chips are also gated off in
         // the panel, but a keyboard/route can still reach a failing action.
         if (ok === false && typeof twToast === 'function') {
-          const reason = value === 'apply-tool' ? window.t('props.gate.needTool')
+          const reason = value === 'apply-tool'
+              ? ((typeof selectedTool !== 'undefined' && selectedTool && selectedTool.kind === 'asset-template') ? window.t('props.gate.emptyTemplate') : window.t('props.gate.needTool'))
             : value === 'paste' ? window.t('props.gate.nothingCopied')
             : value === 'paste-template' ? window.t('props.gate.noTemplate')
             : window.t('props.action.failed');
@@ -2130,9 +2131,15 @@
       const applyToolDisabled = typeof canApplySelectedToolToSelection === 'function' && !canApplySelectedToolToSelection();
       const pasteDisabled = typeof clipboardHasContent === 'function' && !clipboardHasContent();
       const pasteTemplateDisabled = typeof latestTemplateAvailable === 'function' && !latestTemplateAvailable();
+      // An asset-template tool with no/invalid template is disabled for a
+      // different reason than "no placeable tool selected" — show the matching
+      // precondition. (read-only check of the active tool kind)
+      const applyToolReason = (typeof selectedTool !== 'undefined' && selectedTool && selectedTool.kind === 'asset-template')
+        ? window.t('props.gate.emptyTemplate')
+        : window.t('props.gate.needTool');
       addRows('Edit', [
         { key: 'selectionAction', label: 'Tool', control: 'actions', options: [
-          { label: 'Apply tool', value: 'apply-tool', disabled: applyToolDisabled, disabledReason: window.t('props.gate.needTool') },
+          { label: 'Apply tool', value: 'apply-tool', disabled: applyToolDisabled, disabledReason: applyToolReason },
           { label: 'Delete', value: 'delete' },
         ] },
         { key: 'selectionAction', label: 'Clipboard', control: 'actions', options: [

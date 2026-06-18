@@ -365,6 +365,7 @@
     'props.gate.nothingCopied': 'Nothing copied yet',
     'props.gate.noTemplate': 'No saved template yet',
     'props.gate.voxelOnly': 'Voxel parts only',
+    'props.gate.emptyTemplate': 'Template is empty',
     'props.action.failed': 'Nothing to do here',
   };
 }());
