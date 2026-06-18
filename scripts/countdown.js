@@ -139,13 +139,14 @@
   }
 
   function ensureBuilderBrandMount() {
+    if (!document.getElementById('app')) return;
     const brand = document.querySelector('.brand');
     if (!brand || brand.querySelector('.brand-countdown')) return;
     const el = document.createElement('div');
     el.className = 'brand-countdown';
     el.setAttribute('data-countdown-mount', '');
     el.setAttribute('data-countdown-skin', 'app');
-    el.setAttribute('data-countdown-tick', 'raf');
+    el.setAttribute('data-countdown-tick', 'interval');
     el.setAttribute('aria-live', 'polite');
     el.textContent = 'WAVE1 in';
     brand.appendChild(el);
