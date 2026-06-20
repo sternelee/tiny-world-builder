@@ -213,3 +213,15 @@ Commits after each burst. Small slices.
 - Existing migrations in `netlify/database/migrations/`
 
 This plan is the deliverable from the review. Execute in bursts; update this file with progress markers.
+
+## Workflow Loop Status (2026-06-20)
+**Completed in loop so far:**
+- Tax cap enforcement (20%) live in authoritative party + cleanTaxPercent (real harvests respect guide)
+- gold_ledger_events migration created
+- /api/me/gold now uses reduceGoldLedger against real table
+- Harvest awards 10 GOLD via createGoldLedgerEvent (persisted on flush)
+- Client fetch + HUD display wired
+- Full verification script passes using live package functions
+- All bursts committed locally
+
+**Next in loop:** Interest snapshots + cooldown + full end-to-end with local PartyKit + netlify dev smoke.
