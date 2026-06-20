@@ -1139,13 +1139,21 @@ export default class TinyWorldParty {
       // so the lobby always renders a visible player avatar immediately.
       const av = cleanAvatar(data.avatar);
       p.avatar = av || p.avatar || defaultAvatarForId(profileId || id);
+      // Weekly payout based on token holding (called on join)
+      const held = Number(data.tinyworldHeld) || 0;
+      if (role === "play" && profileId) {
+        this.grantWeeklyGoldPayout(profileId, held, 1); // 1 island demo
+      }
       const spawn = this.safeSpawn();
       p.x = spawn.x; p.z = spawn.z;
       this.presence.set(id, this.presenceFor(id));
       this.sendTo(id, this.worldSnapshotFor(id));
       this.broadcastToAdmitted({ type: 'presence', presence: this.presenceFor(id) }, id);
       this.scheduleTick();
-    try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(id); } catch(e){}
+    // Interest tick: push scoped updates to all admitted (mmo-core buildInterestSnapshot)
+    for (const pid of this.players.keys()) {
+      try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(pid); } catch(e){}
+    }
       return;
     }
 
@@ -1398,7 +1406,10 @@ export default class TinyWorldParty {
       cooldownMs: ACTION_COOLDOWN_MS, hearts: p.hearts,
     });
     this.scheduleTick();
-    try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(id); } catch(e){}
+    // Interest tick: push scoped updates to all admitted (mmo-core buildInterestSnapshot)
+    for (const pid of this.players.keys()) {
+      try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(pid); } catch(e){}
+    }
   }
 
   accrueResource(profileId, resource, milli) {
@@ -1537,7 +1548,10 @@ export default class TinyWorldParty {
     await this.flushPending();
     // Keep ticking while anyone is connected.
     if (this.presence.size > 0) this.scheduleTick();
-    try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(id); } catch(e){}
+    // Interest tick: push scoped updates to all admitted (mmo-core buildInterestSnapshot)
+    for (const pid of this.players.keys()) {
+      try { if (typeof this.sendInterestUpdate === "function") this.sendInterestUpdate(pid); } catch(e){}
+    }
   }
 
   onError(conn) {
