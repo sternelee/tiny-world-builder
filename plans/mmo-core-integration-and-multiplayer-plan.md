@@ -299,3 +299,8 @@ All previous features (interest scoping, GOLD accrual on harvest, weekly payouts
 - Then test the mmo-preview URL with those accounts. Profile flags are in the shared DB.
 - For most email-verified accounts, `accountMeetsCriteria(user)` already grants lobby access automatically (no toggle needed).
 - Local full admin testing: `tools/db-local.sh` then `NETLIFY_DATABASE_URL=... netlify dev`.
+
+**Admin page now has a visible banner** on the preview explaining to use the main production site for god-admin grants.
+
+
+**mmo-burst-3 (tax cooldown) completed on code side** — full server enforcement + DB state + client visibility (cards, manage dialog, HUD timer, in-room role label). Admin tool DB limitation is a platform constraint (documented above and in the page banner).
