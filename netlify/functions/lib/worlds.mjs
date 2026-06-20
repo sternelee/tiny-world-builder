@@ -37,7 +37,9 @@ export function cleanWorldName(value) {
   return String(value == null ? '' : value).trim().slice(0, MAX_WORLD_NAME);
 }
 
-export function cleanTaxPercent(value) {
+export function cleanTaxPercent(value, worldId = null) {
+  if (worldId && !canChangeTax(worldId)) return null; // cooldown active
+
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return null;
   // Use mmo-core policy: max 20%, default 5%. Accepts percent or decimal.
@@ -209,4 +211,16 @@ export function worldDto(row, { includeData = false } = {}) {
   };
   if (includeData) out.data = row.data;
   return out;
+}
+
+
+// Tax change cooldown (guide: 24h). Simple in-memory + DB hook for now.
+const TAX_CHANGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const lastTaxChange = new Map(); // worldId -> timestamp (demo; use DB in prod)
+export function canChangeTax(worldId, now = Date.now()) {
+  const last = lastTaxChange.get(String(worldId)) || 0;
+  return (now - last) > TAX_CHANGE_COOLDOWN_MS;
+}
+export function recordTaxChange(worldId, now = Date.now()) {
+  lastTaxChange.set(String(worldId), now);
 }
