@@ -334,6 +334,20 @@ All previous features (interest scoping, GOLD accrual on harvest, weekly payouts
 We have started wiring comfort/modifiers into deriveWorldState and node rates. Next: make comfort boost GOLD interest and expose it nicely in the Chrome test plan.
 
 
+
+## Hub + Stargate Traversal (Valheim portal networks + our lobby/stargate tech)
+
+- Added "tinyverse-nexus" as central rich hub in the seed (published).
+- Stargate cells (kind:"stargate", dest:"slug") placed in hub pointing to rich islands, and return gates on islands (at ~0,0).
+- 47-worlds-room tryEnterGate now detects current cell as stargate+dest and calls window.__tinyworldWorlds.enterPublished({slug}) to switch rooms (signed join flow preserved).
+- Gate flash for visual.
+- Generator logic + migration data updated.
+- Pulls: Valheim "step through portal to farm on another island / return to hub" using our existing 55/56 stargate visuals + 56 lobby travel + 47 gate detection + worlds join.
+
+Test in Chrome preview: enter a rich island or the nexus, step onto a stargate cell (e.g. near 2,2 in hub), it should switch you to the dest island. Harvest there, step return gate.
+
+Also continued pulling: comfort/modifiers affect rates, settlements on rich islands, artifacts in data.
+
 ## Chrome End-to-End Test Plan for mmo-preview (as of 2026-06-20)
 
 **Goal**: Manually smoke the current MMO features in a real browser (Chrome) against the live preview alias. Covers tax cooldown, GOLD, HUD indicators, harvest, interest effects, and lobby access.
