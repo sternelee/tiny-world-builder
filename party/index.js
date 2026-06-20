@@ -1141,7 +1141,7 @@ export default class TinyWorldParty {
       p.avatar = av || p.avatar || defaultAvatarForId(profileId || id);
       // Weekly payout based on token holding (called on join)
       const held = Number(data.tinyworldHeld) || 0;
-      if (role === "play" && profileId) {
+      if (role === "play" && profileId && typeof this.grantWeeklyGoldPayout === "function") {
         this.grantWeeklyGoldPayout(profileId, held, 1); // 1 island demo
       }
       const spawn = this.safeSpawn();
@@ -1550,7 +1550,7 @@ export default class TinyWorldParty {
     if (this.presence.size > 0) this.scheduleTick();
     // demo weekly payout tick for all (real cycle check inside grant)
     for (const [pid, seat] of this.admitted) {
-      if (seat.profileId) this.grantWeeklyGoldPayout(seat.profileId, 10000, 1);
+      if (seat.profileId && typeof this.grantWeeklyGoldPayout === "function") this.grantWeeklyGoldPayout(seat.profileId, 10000, 1);
     }
     // Interest tick: push scoped updates to all admitted (mmo-core buildInterestSnapshot)
     for (const pid of this.players.keys()) {
