@@ -533,6 +533,7 @@ export default class TinyWorldParty {
   constructor(room) {
     this.room = room;
     this.presence = new Map();
+    this.interestVisible = new Map(); // connId -> Set of visible peer ids (for buildInterestSnapshot)
     // sender.id -> Map(type -> token bucket). Per-connection rate limit state.
     this.rateLimits = new Map();
     // The first connection becomes host. Only host messages (admit/decline/
@@ -1024,6 +1025,34 @@ export default class TinyWorldParty {
     return p;
   }
 
+  
+// Interest-scoped peers using mmo-core (ClaudeCraft pattern starter)
+  interestPeersFor(viewerId) {
+    const viewer = this.getPlayer(viewerId);
+    if (!viewer) return [];
+    const entities = Array.from(this.players.entries()).map(([id, p]) => ({
+      id,
+      x: p.x, z: p.z,
+      identity: { kind: "player", name: p.name || "", role: p.role },
+      dynamic: { x: p.x, z: p.z }
+    }));
+    const prev = this.interestVisible.get(viewerId) || new Set();
+    const hashes = new Map(); // simple for first pass
+    try {
+      const snap = buildInterestSnapshot({
+        viewer: { id: viewerId, x: viewer.x, z: viewer.z },
+        entities,
+        previousVisibleIds: prev,
+        config: { visibleRadius: 18, dropRadius: 22 }
+      });
+      this.interestVisible.set(viewerId, snap.nextVisibleIds || new Set());
+      return snap.entities || [];
+    } catch (e) {
+      // fallback to full list
+      return entities.map(e => ({ id: e.id, x: e.x, z: e.z }));
+    }
+  }
+
   presenceFor(id) {
     const p = this.getPlayer(id);
     return { id, name: p.name, color: p.color, cursor: { x: p.x, y: 0, z: p.z }, hearts: p.hearts, role: p.role, avatar: p.avatar || null };
@@ -1046,7 +1075,7 @@ export default class TinyWorldParty {
       you: { x: p.x, z: p.z, hearts: p.hearts, role: p.role, avatar: p.avatar || null },
       nodes,
       animals: this.animals,
-      peers: Array.from(this.presence.values()).filter(pr => pr.id !== id),
+      peers: this.interestPeersFor(id),
       // Standable cells, so any joiner (incl. the AI bot-runner) knows where it can
       // walk without trial-and-error against the move validator. Bounded by grid size.
       grassCells: this.worldState ? this.worldState.grassCells : [],
@@ -1478,6 +1507,16 @@ export default class TinyWorldParty {
     const animal = { id, x, z };
     this.animals.push(animal);
     this.broadcastToAdmitted({ type: 'animal.spawn', animal });
+  }
+
+  
+  sendInterestUpdate(toId) {
+    try {
+      const scoped = this.interestPeersFor(toId);
+      if (scoped && scoped.length) {
+        this.sendTo(toId, { type: "world.interest", peers: scoped });
+      }
+    } catch (e) {}
   }
 
   scheduleTick() {

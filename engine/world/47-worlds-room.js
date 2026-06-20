@@ -80,6 +80,7 @@
     // Expose emit so sibling modules (e.g. 64-lobby-chat-bridge) can inject
     // synthetic events like a bridged 'chat' line into the same render path.
     WS.__emit = emit;
+  WS.getInterestPeers = () => Array.from(peers.values());
 
 // ---- real GOLD via mmo-core backend (Phase 2 starter) ----
   let currentGold = { available: 0, totalAllowance: 0, tier: "none" };
