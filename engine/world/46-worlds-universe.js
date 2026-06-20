@@ -211,7 +211,7 @@
       const meta = el('div', { class: 'tw-worlds-meta' }, [
         el('div', {}, [el('b', { text: T('worlds.tiles') + ': ' }), document.createTextNode(String(w.tileCount))]),
         el('div', {}, [el('b', { text: T('worlds.players') + ': ' }), document.createTextNode(String(w.activePlayers || 0))]),
-        el('div', {}, [el('b', { text: T('worlds.tax') + ': ' }), document.createTextNode(w.taxPercent + '%')]),
+        el('div', {}, [el('b', { text: T('worlds.tax') + ': ' }), document.createTextNode(w.taxPercent + '%')]), (w.taxCooldown && !w.taxCooldown.canChange) ? el('span', { style: 'font-size:10px;color:#f66;margin-left:6px', text: '(CD)' }) : null,
         el('div', {}, [el('b', { text: T('worlds.owner') + ': ' }), document.createTextNode(w.ownerName || '—')]),
       ]);
       const actions = el('div', { class: 'tw-worlds-actions' });

@@ -257,3 +257,6 @@ To test: load the alias → pick a published world → join as Play. The new bot
 - Preview marker + full stack (Netlify + PartyKit) live for testing
 
 Next suggested: surface cooldown in world cards + full client-side block before save, or run smoke verify on preview.
+
+
+**Client tax cooldown UX complete (manage dialog blocks + HUD timer) + redeployed to alias.**
