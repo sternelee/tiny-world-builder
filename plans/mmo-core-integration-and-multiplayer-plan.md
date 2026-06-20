@@ -335,6 +335,12 @@ We have started wiring comfort/modifiers into deriveWorldState and node rates. N
 
 
 
+
+**DB seeding to live (2026-06-20):**  
+Run `./tools/apply-rich-islands-to-live.sh` (paste prod connection string from Netlify dashboard).  
+This seeds Tinyverse Nexus (hub) + all rich islands with stargates into the live DB.  
+Then test traversal from https://mmo-preview--tiny-world-builder.netlify.app (grants still done on prod).
+
 ## Hub + Stargate Traversal (Valheim portal networks + our lobby/stargate tech)
 
 - Added "tinyverse-nexus" as central rich hub in the seed (published).
