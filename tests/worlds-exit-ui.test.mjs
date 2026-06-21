@@ -91,6 +91,7 @@ test('world room avatars use the room grid size and solid-by-default walkability
   assert.match(roomJs, /function isWorldRoomStandableKind\(kind\)/);
   assert.match(roomJs, /return !kind \|\| STANDABLE_OBJECT_KINDS\.has\(kind\)/);
   assert.match(roomJs, /!isWorldRoomStandableKind\(k\)\) blocked\.add/);
+  assert.doesNotMatch(roomJs, /ter === 'stone'/);
   assert.doesNotMatch(roomJs, /const p = tilePos\(ent\.x, ent\.z\)/);
 });
 

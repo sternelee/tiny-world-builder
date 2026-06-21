@@ -384,7 +384,7 @@ test('nodeActionForCell maps top tile to its harvest action', () => {
   assert.equal(nodeActionForCell('grass', null), null);
 });
 
-test('deriveWorldState: connected water => one shared fish body, ore/plant nodes, standable grass', () => {
+test('deriveWorldState: connected water => one shared fish body, ore/plant nodes, standable terrain', () => {
   const state = deriveWorldState({
     v: 4, gridSize: 8,
     cells: [
@@ -409,8 +409,9 @@ test('deriveWorldState: connected water => one shared fish body, ore/plant nodes
   assert.equal(state.nodes[state.cellIndex['5,5']].charges, 3, 'rng 0.9 => tier 3');
   assert.equal(state.nodes[state.cellIndex['4,2']].type, 'plant');
   assert.equal(state.stoneCount, 1);
-  assert.equal(state.grassCells.indexOf('5,5'), -1, 'stone is not standable');
-  assert.ok(state.grassCells.indexOf('1,1') >= 0, 'water is standable');
+  assert.equal(state.grassCells.indexOf('5,5'), -1, 'stone stays out of legacy grass spawn cells');
+  assert.ok(state.standableCells.indexOf('5,5') >= 0, 'stone is standable');
+  assert.ok(state.standableCells.indexOf('1,1') >= 0, 'water is standable');
   assert.equal(state.grassCells.indexOf('3,3'), -1, 'tree blocks standing');
   assert.equal(state.grassCells.indexOf('3,4'), -1, 'buildings block standing');
   assert.equal(state.grassCells.indexOf('3,5'), -1, 'unknown object kinds are solid by default');
@@ -664,6 +665,10 @@ test('movement is one standable cell at a time and locked during a harvest', () 
   party.getPlayer('p1').x = 0; party.getPlayer('p1').z = 1;
   party.handleMove('p1', { x: 1, z: 1 });
   assert.deepEqual({ x: party.getPlayer('p1').x, z: party.getPlayer('p1').z }, { x: 1, z: 1 }, 'water is standable');
+  // Stone is also walkable terrain; solid objects on stone still block via kind.
+  party.getPlayer('p1').x = 5; party.getPlayer('p1').z = 4;
+  party.handleMove('p1', { x: 5, z: 5 });
+  assert.deepEqual({ x: party.getPlayer('p1').x, z: party.getPlayer('p1').z }, { x: 5, z: 5 }, 'stone is standable');
 });
 
 test('observe role can move; play-without-profile cannot', () => {

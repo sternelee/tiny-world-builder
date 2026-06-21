@@ -425,7 +425,7 @@ function isStandableObjectKind(kind) {
   return kind === 'bush' || kind === 'flower' || kind === 'tuft';
 }
 
-// Build the authoritative world state (node map + water bodies + standable grass)
+// Build the authoritative world state (node map + water bodies + standable terrain)
 // from a world.schema.json v4 cells array. `rng` lets tests make ore tiers
 // deterministic. Empty cells (the default grid) are walkable grass.
 function deriveWorldState(data, rng = Math.random) {
@@ -486,24 +486,28 @@ function deriveWorldState(data, rng = Math.random) {
     }
   }
 
-  // Standable grass: any in-bounds cell that is not water/stone and carries no
-  // blocking object. Default (absent) cells are grass. Unknown object kinds are
-  // solid by default so new buildings/models do not become walk-through props.
+  // Standable terrain: any in-bounds cell that is not lava and carries no blocking
+  // object. Default (absent) cells are grass. Unknown object kinds are solid by
+  // default so new buildings/models do not become walk-through props.
+  // `grassCells` is a legacy non-stone spawn/economy list; movement validates
+  // against `standableCells` so stone walkways can be walked on.
   const grassCells = [];
+  const standableCells = [];
   for (let x = 0; x < gridSize; x++) {
     for (let z = 0; z < gridSize; z++) {
       const c = byXZ.get(x + ',' + z);
       const terrain = c ? cellTerrain(c) : 'grass';
       const kind = c ? cellKind(c) : null;
-      if (terrain === 'lava' || terrain === 'stone') continue;   // water is now walkable (players cross it)
+      if (terrain === 'lava') continue;   // water/stone are walkable surfaces
       if (!isStandableObjectKind(kind)) continue;
-      grassCells.push(x + ',' + z);
+      standableCells.push(x + ',' + z);
+      if (terrain !== 'stone') grassCells.push(x + ',' + z);
     }
   }
   const grassCount = grassCells.length;
   const comfort = data && data.comfort ? data.comfort : Math.round(10 + (stoneCount * 0.6) + (grassCount / 12));
   const modifiers = data && data.modifiers ? data.modifiers : { fishing:1, mining:1, artifacts:1, comfortBonus:1 };
-  return { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells, comfort, modifiers, spawnCell };
+  return { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells, standableCells, comfort, modifiers, spawnCell };
 }
 
 // ---- signed join token verification (Web Crypto HMAC-SHA256) ----
@@ -567,7 +571,7 @@ export default class TinyWorldParty {
     this.isWorldRoom = String((room && room.id) || '').startsWith(WORLD_ROOM_PREFIX);
     this.env = (room && room.env) || {};
     this.world = null;            // { id, taxPercent, ownerProfileId, ... } durable meta
-    this.worldState = null;       // { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells }
+    this.worldState = null;       // { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells, standableCells }
     this.worldLoading = null;     // in-flight load promise (load-once)
     this.players = new Map();     // id -> { x, z, hearts, lastRegenAt, cooldowns, profileId, role, name, busyUntil, busyNode }
     this.animals = [];            // [{ id, x, z }]
@@ -1030,10 +1034,10 @@ export default class TinyWorldParty {
 
   safeSpawn() {
     const spawn = this.worldState && this.worldState.spawnCell;
-    if (spawn && this.worldState.grassCells && this.worldState.grassCells.indexOf(spawn.x + ',' + spawn.z) >= 0) {
+    if (spawn && this.worldState.standableCells && this.worldState.standableCells.indexOf(spawn.x + ',' + spawn.z) >= 0) {
       return { x: spawn.x, z: spawn.z };
     }
-    const cells = this.worldState && this.worldState.grassCells;
+    const cells = this.worldState && (this.worldState.standableCells || this.worldState.grassCells);
     if (cells && cells.length) {
       const k = cells[Math.floor(Math.random() * cells.length)];
       const [x, z] = k.split(',').map(Number);
@@ -1110,6 +1114,7 @@ export default class TinyWorldParty {
       // Standable cells, so any joiner (incl. the AI bot-runner) knows where it can
       // walk without trial-and-error against the move validator. Bounded by grid size.
       grassCells: this.worldState ? this.worldState.grassCells : [],
+      standableCells: this.worldState ? (this.worldState.standableCells || this.worldState.grassCells) : [],
     };
   }
 
@@ -1277,7 +1282,8 @@ export default class TinyWorldParty {
     if (!Number.isFinite(to.x) || !Number.isFinite(to.z)) return;
     if (to.x < 0 || to.z < 0 || to.x >= this.worldState.gridSize || to.z >= this.worldState.gridSize) return;
     if (!isAdjacentStep({ x: p.x, z: p.z }, to)) return;        // one cell at a time
-    if (this.worldState.grassCells.indexOf(to.x + ',' + to.z) < 0) return; // standable only
+    const standableCells = this.worldState.standableCells || this.worldState.grassCells;
+    if (standableCells.indexOf(to.x + ',' + to.z) < 0) return; // standable only
     p.x = to.x; p.z = to.z;
     this.presence.set(id, this.presenceFor(id));
     this.broadcastToAdmitted({ type: 'presence', presence: this.presenceFor(id) }, id);

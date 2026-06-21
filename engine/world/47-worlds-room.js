@@ -792,7 +792,7 @@ function computeTaxCooldown(lastTaxChangeAt) {
         const x = Array.isArray(c) ? c[0] : c.x, z = Array.isArray(c) ? c[1] : c.z;
         if (x == null || z == null) continue;
         const ter = Array.isArray(c) ? c[2] : c.terrain, k = Array.isArray(c) ? c[3] : c.kind;
-        if (ter === 'lava' || ter === 'stone' || !isWorldRoomStandableKind(k)) blocked.add(x + ',' + z);   // water walkable
+        if (ter === 'lava' || !isWorldRoomStandableKind(k)) blocked.add(x + ',' + z);   // water/stone walkable
       }
     }
     function standable(x, z) { return x >= 0 && z >= 0 && x < gridSize && z < gridSize && !blocked.has(x + ',' + z); }
