@@ -240,6 +240,42 @@
         const portal = SG.build();
         mesh = portal.group;
         mesh.userData = Object.assign({}, mesh.userData, { kind: 'stargate', dest: cell.dest || null, isStargate: true });
+        // Floating name label above the portal (cell.label).
+        try {
+          const labelText = cell.label || (cell.dest ? String(cell.dest).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '');
+          if (labelText) {
+            const cv = document.createElement('canvas');
+            const pad = 24, fontPx = 64;
+            const cx = cv.getContext('2d');
+            cx.font = '700 ' + fontPx + "px 'Pixelify Sans', ui-monospace, monospace";
+            const tw = Math.ceil(cx.measureText(labelText).width);
+            cv.width = tw + pad * 2; cv.height = fontPx + pad * 2;
+            const g = cv.getContext('2d');
+            g.font = '700 ' + fontPx + "px 'Pixelify Sans', ui-monospace, monospace";
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            // pill background
+            g.fillStyle = 'rgba(8,12,28,0.82)';
+            const r = 28; const w = cv.width, h = cv.height;
+            g.beginPath();
+            g.moveTo(r, 0); g.lineTo(w - r, 0); g.arcTo(w, 0, w, r, r);
+            g.lineTo(w, h - r); g.arcTo(w, h, w - r, h, r);
+            g.lineTo(r, h); g.arcTo(0, h, 0, h - r, r);
+            g.lineTo(0, r); g.arcTo(0, 0, r, 0, r); g.closePath(); g.fill();
+            g.lineWidth = 4; g.strokeStyle = 'rgba(120,200,255,0.55)'; g.stroke();
+            // text
+            g.fillStyle = '#dff1ff';
+            g.fillText(labelText, w / 2, h / 2 + 2);
+            const tex = new THREE.CanvasTexture(cv);
+            tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+            const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+            const aspect = cv.width / cv.height;
+            const labelH = 0.42;
+            spr.scale.set(labelH * aspect, labelH, 1);
+            spr.position.set(0, (portal.centerY || 0.9) + 0.95, 0);
+            spr.renderOrder = 999;
+            mesh.add(spr);
+          }
+        } catch (_) {}
         try {
           const reg = (window.__twStargateAnimated = window.__twStargateAnimated || []);
           reg.push(portal);
@@ -548,7 +584,7 @@
   }
 
   function setCellImpl(x, z, opts) {
-    const { terrain, terrainFloors, kind = null, floors, buildingType, fenceSide, tileDelay = 0, objectDelay = 0, animate = true, impactDust = true, forceTile = false, rotationY, offsetX, offsetY, offsetZ, appearance, waterFlow } = opts;
+    const { terrain, terrainFloors, kind = null, floors, buildingType, fenceSide, tileDelay = 0, objectDelay = 0, animate = true, impactDust = true, forceTile = false, rotationY, offsetX, offsetY, offsetZ, appearance, waterFlow, dest, label } = opts;
     const historyStart = repaintProfileBegin();
     pushWorldHistorySnapshot();
     repaintProfileEnd('state.history', historyStart);
@@ -612,6 +648,10 @@
     const waterFlowChanged = normalizeWaterFlow(prev.waterFlow) !== newWaterFlow;
     const userEdited = !!(prev.userEdited || (opts && opts.userEdited));
     world[x][z] = { terrain: nextTerrain, terrainFloors: newTerrainFloors, kind: nextKind, floors: newFloors, buildingType: newBType, fenceSide: newFenceSide, extras: carriedExtras, rotationY: newRotationY, offsetX: newOffsetX, offsetY: newOffsetY, offsetZ: newOffsetZ, appearance: newAppearance, waterFlow: newWaterFlow };
+    if (nextKind === 'stargate') {
+      if (dest != null) world[x][z].dest = dest;
+      if (label != null) world[x][z].label = label;
+    }
     if (userEdited) world[x][z].userEdited = true;
     const vehicleDrivableChanged = prevVehicleDrivable !== isVehicleDrivableCell(world[x][z]);
     if (vehicleDrivableChanged) refreshVehiclesForWorldObstacleChange(x, z);

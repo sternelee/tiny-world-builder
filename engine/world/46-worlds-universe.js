@@ -537,7 +537,12 @@
     WS.open = openOverlay;
     WS.close = closeOverlay;
     WS.refresh = loadWorlds;
-    WS.enterPublished = enterWorld;
+    // enterPublished accepts a world row ({id,...}) OR a slug-only object ({slug}).
+    // Stargate travel (47) passes { slug }, so route by slug when no id is present.
+    WS.enterPublished = function (w) {
+      if (w && w.slug && (w.id == null)) return enterBySlug(w.slug);
+      return enterWorld(w);
+    };
     WS.enterBySlug = enterBySlug;
     WS.ready = true;
     window.__tinyworldWorldsReady = Promise.resolve(WS);

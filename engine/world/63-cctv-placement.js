@@ -255,7 +255,7 @@
 
     if (typeof WS.on === 'function') {
       // Build slightly after enter so the lobby screen + world cells exist.
-      WS.on('enter', () => { setTimeout(() => { try { setup(); } catch (_) {} }, 350); });
+      WS.on('enter', (d) => { if (d && d.world && d.world.slug === 'tinyverse-nexus') { try { teardown(); } catch (_) {} return; } setTimeout(() => { try { setup(); } catch (_) {} }, 350); });
       WS.on('leave', () => { try { teardown(); } catch (_) {} });
     }
 

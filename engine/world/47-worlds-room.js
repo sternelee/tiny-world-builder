@@ -241,6 +241,8 @@ function computeTaxCooldown(lastTaxChangeAt) {
       world = w; token = joinToken || ''; role = joinRole || 'play';
       try { if (typeof WS.seedDemoResources === 'function') WS.seedDemoResources(w); } catch (_) {}
       try { window.__tinyworldInWorldRoom = true; } catch (_) {}   // relax camera pan clamp (02) for island exploration
+      try { window.__tinyworldCurrentWorldSlug = (w && w.slug) || null; } catch (_) {}
+      try { window.__tinyworldIsHubWorld = (w && w.slug === 'tinyverse-nexus'); } catch (_) {}
       gridSize = w.gridSize || 8; taxPercent = w.taxPercent != null ? w.taxPercent : null;
       taxCooldown = w.taxCooldown || (w.lastTaxChange ? computeTaxCooldown(w.lastTaxChange) : null);
       cells = w.data && Array.isArray(w.data.cells) ? w.data.cells : [];

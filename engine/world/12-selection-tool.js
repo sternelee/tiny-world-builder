@@ -573,6 +573,10 @@
       appearance: normalizeAppearance(src && src.appearance),
       waterFlow: normalizeWaterFlow(src && src.waterFlow),
     };
+    if (cell.kind === 'stargate') {
+      if (src && src.dest != null) cell.dest = src.dest;
+      if (src && src.label != null) cell.label = src.label;
+    }
     if (cell.kind !== 'house') cell.buildingType = null;
     if (cell.kind !== 'fence') cell.fenceSide = null;
     if (userEdited || (src && src.userEdited)) cell.userEdited = true;

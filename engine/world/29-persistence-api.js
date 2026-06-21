@@ -348,12 +348,12 @@
       // Accept either tuple form [x,z,terrain,kind,floors,buildingType,terrainFloors,fenceSide]
       // (storage / export) or object form {x,z,terrain,kind,floors,buildingType,terrainFloors,fenceSide}
       // (canonical schema, AI generation output).
-      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance, waterFlow;
+      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance, waterFlow, dest, label;
       if (Array.isArray(entry)) {
         if (entry.length < 4) continue;
         [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance, waterFlow] = entry;
       } else if (entry && typeof entry === 'object') {
-        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance, waterFlow } = entry);
+        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance, waterFlow, dest, label } = entry);
       } else {
         continue;
       }
@@ -415,6 +415,8 @@
         rotationY, offsetX, offsetY, offsetZ,
         appearance: normalizeAppearance(appearance),
         waterFlow: normalizeWaterFlow(waterFlow),
+        dest: (normalizedKind === 'stargate' && dest != null) ? dest : undefined,
+        label: (normalizedKind === 'stargate' && label != null) ? label : undefined,
         __outOfHome: x < 0 || x >= GRID || z < 0 || z >= GRID,
         __x: x,
         __z: z,
@@ -442,6 +444,8 @@
           offsetY: o.offsetY,
           offsetZ: o.offsetZ,
           appearance: o.appearance,
+          dest: o.dest,
+          label: o.label,
           userEdited: true,
           animate: false,
           forceTile: true,

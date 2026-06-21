@@ -530,7 +530,7 @@
     }
 
     if (typeof WS.on === 'function') {
-      WS.on('enter', () => { try { show(); } catch (_) {} });
+      WS.on('enter', (d) => { try { if (d && d.world && d.world.slug === 'tinyverse-nexus') { hide(); return; } show(); } catch (_) {} });
       WS.on('leave', () => { try { hide(); } catch (_) {} });
       // Synced slide from the room (server echo of any presenter's advance) -> apply
       // locally WITHOUT rebroadcasting, so all clients converge without a feedback loop.

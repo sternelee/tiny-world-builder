@@ -66,19 +66,20 @@ function buildRichWorld(a) {
   const occupied = new Set();
   const cells = [];
 
-  // The Nexus is a pure through-port: a clean grass platform with ONLY
-  // stargates to every other island. No water/stone/crops/trees/artifacts.
+  // The Nexus is a pure through-port: a clean grass platform with stargates
+  // arranged evenly around the PERIMETER edges, each labelled with its island.
   if (a.isHub) {
-    const dests = ARCHETYPES.filter(x => !x.isHub).map(x => x.slug);
-    const cols = [3, 8, 11, 16];
-    const rows = [1, 4, 7, 10, 13, 16, 19];
-    let i = 0;
-    for (const z of rows) {
-      for (const x of cols) {
-        if (i >= dests.length) break;
-        cells.push({ x, z, terrain: 'grass', kind: 'stargate', dest: dests[i] });
-        i++;
-      }
+    const dests = ARCHETYPES.filter(x => !x.isHub).map(x => ({ slug: x.slug, name: x.name }));
+    const inset = 2, lo = inset, hi = g - 1 - inset;
+    const ring = [];
+    for (let x = lo; x <= hi; x++) ring.push([x, lo]);
+    for (let z = lo + 1; z <= hi; z++) ring.push([hi, z]);
+    for (let x = hi - 1; x >= lo; x--) ring.push([x, hi]);
+    for (let z = hi - 1; z > lo; z--) ring.push([lo, z]);
+    const perim = ring.length, n = dests.length;
+    for (let i = 0; i < n; i++) {
+      const [x, z] = ring[Math.round(i * perim / n) % perim];
+      cells.push({ x, z, terrain: 'grass', kind: 'stargate', dest: dests[i].slug, label: dests[i].name });
     }
     const tile = g * g;
     return {
