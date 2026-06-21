@@ -439,6 +439,7 @@ function deriveWorldState(data, rng = Math.random) {
   }
   const nodes = {};
   const cellIndex = {};   // 'x,z' -> nodeId (for fish this is the water body id)
+  const animalCells = [];
   let stoneCount = 0;
   let spawnCell = null;
 
@@ -474,6 +475,11 @@ function deriveWorldState(data, rng = Math.random) {
       const z = Math.round(cellZ(c));
       if (Number.isFinite(x) && Number.isFinite(z)) spawnCell = { x, z };
     }
+    if (ANIMAL_KINDS.has(kind)) {
+      const x = Math.round(cellX(c));
+      const z = Math.round(cellZ(c));
+      if (Number.isFinite(x) && Number.isFinite(z)) animalCells.push({ x, z, kind });
+    }
     if (terrain === 'stone') {
       stoneCount++;
       const r = rng();
@@ -507,7 +513,7 @@ function deriveWorldState(data, rng = Math.random) {
   const grassCount = grassCells.length;
   const comfort = data && data.comfort ? data.comfort : Math.round(10 + (stoneCount * 0.6) + (grassCount / 12));
   const modifiers = data && data.modifiers ? data.modifiers : { fishing:1, mining:1, artifacts:1, comfortBonus:1 };
-  return { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells, standableCells, comfort, modifiers, spawnCell };
+  return { gridSize, nodes, cellIndex, stoneCount, grassCount, grassCells, standableCells, animalCells, comfort, modifiers, spawnCell };
 }
 
 // ---- signed join token verification (Web Crypto HMAC-SHA256) ----
@@ -1013,6 +1019,7 @@ export default class TinyWorldParty {
       }
       this.worldState = deriveWorldState(data);
       this.lastTickAt = Date.now();
+      this.seedWorldAnimals();
       this.maintainAnimals();
       return this.worldState;
     })();
@@ -1028,6 +1035,7 @@ export default class TinyWorldParty {
       this.worldModifiers = this.worldState.modifiers || {};
       this.hasSettlement = (data && data.cells && data.cells.some(c => ["house","fence"].includes(c.kind))) || false;
     this.lastTickAt = Date.now();
+    this.seedWorldAnimals();
     this.maintainAnimals();
     return this.worldState;
   }
@@ -1516,6 +1524,15 @@ export default class TinyWorldParty {
     while (this.animals.length < ANIMAL_MIN) this.spawnAnimal();
     // Opportunistically top up toward the max; never exceed it.
     if (this.animals.length < ANIMAL_MAX && Math.random() < 0.5) this.spawnAnimal();
+  }
+
+  seedWorldAnimals() {
+    if (!this.worldState || this.animals.length) return;
+    const seeded = Array.isArray(this.worldState.animalCells) ? this.worldState.animalCells : [];
+    for (const cell of seeded.slice(0, ANIMAL_MAX)) {
+      const id = 'an' + (++this.animalSeq);
+      this.animals.push({ id, x: cell.x, z: cell.z, kind: cell.kind });
+    }
   }
 
   spawnAnimal() {

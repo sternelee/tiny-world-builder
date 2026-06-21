@@ -115,6 +115,7 @@
       moorings: serializeMooringCables(),
       cells,
       voxelBuildStamps: referencedVoxelBuildStamps(cells),
+      droppedModelStamps: referencedDroppedModelStamps(cells),
       cameraMode,
       toolId: selectedTool && selectedTool.id,
       useLandscapeEngine,
@@ -241,6 +242,18 @@
     if (added && typeof saveCustomVoxelBuildStamps === 'function') { try { saveCustomVoxelBuildStamps(); } catch (_) {} }
   }
 
+  // Saved/shared worlds also carry dropped model-stamp source records when the
+  // world references them. Without this, a second browser only sees a model id
+  // and renders the generic placeholder/artifact instead of the imported GLB.
+  function registerEmbeddedDroppedModelStamps(data) {
+    const records = data && data.droppedModelStamps;
+    if (!Array.isArray(records) || !records.length) return;
+    const bridge = window.__tinyworldDroppedModelStamps;
+    if (bridge && typeof bridge.apply === 'function') {
+      try { bridge.apply(records); } catch (err) { console.warn('[model-stamp] embedded restore failed:', err); }
+    }
+  }
+
   // Collect the CUSTOM voxel-build stamp definitions referenced by a serialized
   // cell list, so they can be embedded in the saved world. Built-in stamps are
   // omitted (they resolve from code). Returns undefined when there are none, so
@@ -270,9 +283,17 @@
   // Cross-module access (server-build + named-slot saves live in module 30).
   window.referencedVoxelBuildStamps = referencedVoxelBuildStamps;
 
+  function referencedDroppedModelStamps(cells) {
+    const bridge = window.__tinyworldDroppedModelStamps;
+    if (!bridge || typeof bridge.referenced !== 'function') return undefined;
+    try { return bridge.referenced(cells); } catch (_) { return undefined; }
+  }
+  window.referencedDroppedModelStamps = referencedDroppedModelStamps;
+
   function applyState(data, opts = {}) {
     if (!data || !Array.isArray(data.cells)) return false;
     registerEmbeddedVoxelBuildStamps(data);
+    registerEmbeddedDroppedModelStamps(data);
     materializeCustomPartCells(data);
     normalizeWorldCells(data);
     const err = validateWorld(data);

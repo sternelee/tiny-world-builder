@@ -6,7 +6,8 @@ import { ensureProfile } from './lib/profiles.mjs';
 export const config = { path: '/api/builds' };
 
 // Per-profile ceiling on stored cloud worlds. Each row is already size-capped
-// (~2 MB) but row count was unbounded; reject new inserts past this limit.
+// (~20 MB, to allow portable dropped-model records) but row count was unbounded;
+// reject new inserts past this limit.
 const MAX_BUILDS_PER_PROFILE = 500;
 
 function buildDto(row, includeData = false) {
@@ -33,7 +34,7 @@ function validateBuildPayload(body) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.cells)) {
     return { error: 'World JSON must include a cells array' };
   }
-  if (JSON.stringify(data).length > 2_000_000) {
+  if (JSON.stringify(data).length > 20_000_000) {
     return { error: 'World JSON is too large' };
   }
   return { name, data };

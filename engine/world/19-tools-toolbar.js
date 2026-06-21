@@ -455,10 +455,13 @@
     { id: 'terrain', label: 'Terrain' },
     { id: 'vehicles', label: 'Vehicles' },
     { id: 'detected', label: 'Detected' },
+    { id: 'hidden', label: 'Hidden' },
     { id: 'other', label: 'Other' },
   ];
   const STAMP_BUILDER_CATEGORY_IDS = new Set(STAMP_BUILDER_CATEGORY_DEFS.map(c => c.id));
+  const STAMP_BUILDER_HIDDEN_LS = 'tinyworld:stamp-builder-hidden.v1';
   let activeStampBuilderCategory = 'all';
+  let stampBuilderManageMode = false;
 
   function rebuildVoxelStampRender() {
     for (const key in cellMeshes) {
@@ -511,6 +514,103 @@
     } catch (_) {}
   }
 
+  function normalizeStampBuilderHiddenKeys(value) {
+    const raw = Array.isArray(value)
+      ? value
+      : value && typeof value === 'object' && Array.isArray(value.keys)
+        ? value.keys
+        : [];
+    const out = [];
+    const seen = new Set();
+    raw.forEach(item => {
+      const key = String(item || '').trim().slice(0, 140);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(key);
+    });
+    return out;
+  }
+
+  function loadStampBuilderHiddenKeys() {
+    try {
+      return normalizeStampBuilderHiddenKeys(JSON.parse(localStorage.getItem(STAMP_BUILDER_HIDDEN_LS) || '[]'));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveStampBuilderHiddenKeys(keys, opts = {}) {
+    const clean = normalizeStampBuilderHiddenKeys(keys);
+    try { localStorage.setItem(STAMP_BUILDER_HIDDEN_LS, JSON.stringify(clean)); } catch (_) {}
+    if (opts.sync !== false && typeof window.__tinyworldSyncAssetsToCloud === 'function') window.__tinyworldSyncAssetsToCloud();
+    return clean;
+  }
+
+  function stampBuilderHiddenKeySet() {
+    return new Set(loadStampBuilderHiddenKeys());
+  }
+
+  function stampBuilderToolHidden(tool) {
+    const key = stampBuilderSelectionKey(tool);
+    return !!key && stampBuilderHiddenKeySet().has(key);
+  }
+
+  function setStampBuilderToolHidden(tool, hidden) {
+    const key = stampBuilderSelectionKey(tool);
+    if (!key) return false;
+    const keys = stampBuilderHiddenKeySet();
+    const wasHidden = keys.has(key);
+    if (hidden) keys.add(key);
+    else keys.delete(key);
+    if (hidden) removeRecentStampKey(key);
+    saveStampBuilderHiddenKeys(Array.from(keys));
+    renderStampBuilderCards();
+    const status = document.getElementById('stamp-builder-status');
+    if (status) status.textContent = (hidden ? 'Hidden from build mode: ' : 'Restored to build mode: ') + (tool.label || key);
+    if (typeof buildToolbar === 'function') {
+      try { buildToolbar(); } catch (_) {}
+    }
+    return wasHidden !== hidden;
+  }
+
+  function applyStampBuilderHiddenKeys(keys) {
+    const clean = saveStampBuilderHiddenKeys(keys, { sync: false });
+    if (typeof buildToolbar === 'function') {
+      try { buildToolbar(); } catch (_) {}
+    }
+    refreshOpenStampBuilderCards();
+    return clean.length;
+  }
+
+  window.__tinyworldStampBuilderHidden = {
+    collect() { return loadStampBuilderHiddenKeys(); },
+    apply(keys) { return applyStampBuilderHiddenKeys(keys); },
+  };
+
+  function syncStampBuilderManageButton() {
+    const btn = document.getElementById('stamp-builder-manage');
+    if (!btn) return;
+    btn.classList.toggle('active', stampBuilderManageMode);
+    btn.setAttribute('aria-pressed', stampBuilderManageMode ? 'true' : 'false');
+    btn.textContent = stampBuilderManageMode ? 'Done managing' : 'Manage library';
+  }
+
+  function setStampBuilderManageMode(on) {
+    stampBuilderManageMode = !!on;
+    syncStampBuilderManageButton();
+    renderStampBuilderCards();
+    const status = document.getElementById('stamp-builder-status');
+    if (status && stampBuilderManageMode) status.textContent = 'Manage mode: hide built-ins or remove user assets.';
+    return stampBuilderManageMode;
+  }
+
+  window.__tinyworldStampBuilderManage = {
+    isActive() { return stampBuilderManageMode; },
+    set(on) { return setStampBuilderManageMode(on); },
+    toggle() { return setStampBuilderManageMode(!stampBuilderManageMode); },
+    sync() { syncStampBuilderManageButton(); },
+  };
+
   function rememberRecentStampTool(tool) {
     const key = stampBuilderSelectionKey(tool);
     if (!key) return;
@@ -527,6 +627,7 @@
 
   function canRememberRecentStampTool(tool) {
     if (!tool || tool.select || tool.erase || tool.auto || tool.hidden) return false;
+    if (stampBuilderToolHidden(tool)) return false;
     if (tool.assetTemplateId || tool.modelStampId || tool.voxelBuildId) return true;
     return !!(tool.terrain || tool.kind);
   }
@@ -664,6 +765,7 @@
       selectTool(DEFAULT_TOOL);
     }
     removeRecentStampKey('asset-template:' + id);
+    setStampBuilderToolHidden({ assetTemplateId: id }, false);
     renderStampBuilderCards();
     const status = document.getElementById('stamp-builder-status');
     if (status) status.textContent = 'Deleted template: ' + (removed.name || id);
@@ -786,6 +888,9 @@
   }
 
   function stampBuilderToolMatchesCategory(tool, category) {
+    const isHidden = stampBuilderToolHidden(tool);
+    if (category === 'hidden') return isHidden;
+    if (isHidden) return false;
     if (category === 'all') return true;
     return !!(tool && tool.stampCategories && tool.stampCategories.includes(category));
   }
@@ -884,6 +989,10 @@
     const counts = { all: 0 };
     for (const tool of tools) {
       if (!stampBuilderToolMatchesSearch(tool, q)) continue;
+      if (stampBuilderToolHidden(tool)) {
+        counts.hidden = (counts.hidden || 0) + 1;
+        continue;
+      }
       counts.all++;
       for (const id of tool.stampCategories || []) {
         counts[id] = (counts[id] || 0) + 1;
@@ -1053,7 +1162,93 @@
     return chip;
   }
 
+  function stampBuilderToolCanRemove(tool) {
+    if (!tool) return false;
+    if (tool.isAssetTemplate && tool.assetTemplateId) return true;
+    if (tool.isVoxelBuild && tool.voxelBuildId) {
+      const stamp = tool.voxelStamp || getVoxelBuildStamp(tool.voxelBuildId);
+      return !!(stamp && stamp.custom && typeof window.__tinyworldDeleteCustomVoxelBuildStamp === 'function');
+    }
+    if (tool.isModelStamp && tool.modelStampId) {
+      const asset = tool.modelAsset || getModelStamp(tool.modelStampId);
+      return !!(asset && asset.dropped && typeof window.__tinyworldDeleteDroppedModelStamp === 'function');
+    }
+    return false;
+  }
+
+  async function removeStampBuilderTool(tool) {
+    const key = stampBuilderSelectionKey(tool);
+    if (!tool || !key || !stampBuilderToolCanRemove(tool)) return false;
+    const label = tool.label || key;
+    const confirmed = await window.twConfirm({
+      title: 'Remove asset?',
+      message: 'Remove "' + label + '" from your asset library?',
+      details: 'Built-in assets can be hidden instead. User imports and templates are removed from this browser and synced asset library.',
+      confirmLabel: 'Remove',
+      intent: 'danger',
+    });
+    if (!confirmed) return false;
+    let removed = false;
+    if (tool.isAssetTemplate) {
+      removed = deleteAssetTemplate(tool.assetTemplateId);
+    } else if (tool.isVoxelBuild) {
+      removed = !!window.__tinyworldDeleteCustomVoxelBuildStamp(tool.voxelBuildId);
+    } else if (tool.isModelStamp) {
+      removed = !!(await window.__tinyworldDeleteDroppedModelStamp(tool.modelStampId));
+    }
+    if (!removed) return false;
+    removeRecentStampKey(key);
+    setStampBuilderToolHidden(tool, false);
+    if (selectedTool && currentStampBuilderSelectionKey() === key) selectTool(DEFAULT_TOOL);
+    if (tool.isVoxelBuild) {
+      invalidateThumbCache();
+      scheduleVoxelStampRefresh();
+    }
+    renderStampBuilderCards();
+    const status = document.getElementById('stamp-builder-status');
+    if (status) status.textContent = 'Removed asset: ' + label;
+    return true;
+  }
+
+  function addStampBuilderManageActions(card, tool, key, isHidden) {
+    if (!card || !tool || !key) return;
+    const actions = document.createElement('div');
+    actions.className = 'stamp-card-actions';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'stamp-card-action';
+    toggleBtn.textContent = isHidden ? 'Show' : 'Hide';
+    toggleBtn.setAttribute('aria-label', (isHidden ? 'Show ' : 'Hide ') + (tool.label || key));
+    toggleBtn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      setStampBuilderToolHidden(tool, !isHidden);
+    });
+    actions.appendChild(toggleBtn);
+    if (stampBuilderToolCanRemove(tool)) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'stamp-card-action danger';
+      removeBtn.textContent = 'Remove';
+      removeBtn.setAttribute('aria-label', 'Remove ' + (tool.label || key));
+      removeBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        removeStampBuilderTool(tool);
+      });
+      actions.appendChild(removeBtn);
+    }
+    card.appendChild(actions);
+  }
+
   function selectStampToolFromCard(tool) {
+    if (stampBuilderManageMode || stampBuilderToolHidden(tool)) {
+      const status = document.getElementById('stamp-builder-status');
+      if (status) status.textContent = stampBuilderToolHidden(tool)
+        ? 'This stamp is hidden. Use Show to restore it to build mode.'
+        : 'Manage mode is for hiding or removing assets.';
+      return;
+    }
     if (tool.isAssetTemplate) {
       const template = tool.assetTemplate;
       const clipboard = normalizeClipboardPayload(template && template.clipboard);
@@ -1119,14 +1314,18 @@
       const category = normalizeStampBuilderCategory(activeStampBuilderCategory);
       const scope = category === 'all' ? '' : ' in ' + stampBuilderCategoryLabel(category).toLowerCase();
       const matchText = q ? ' matching "' + q + '"' : '';
-      status.textContent = 'Showing ' + tools.length + ' stamp' + (tools.length === 1 ? '' : 's') + scope + matchText;
+      const manageText = stampBuilderManageMode ? ' · Manage mode' : '';
+      status.textContent = 'Showing ' + tools.length + ' stamp' + (tools.length === 1 ? '' : 's') + scope + matchText + manageText;
     }
+    syncStampBuilderManageButton();
     const selectedKey = currentStampBuilderSelectionKey();
     if (!tools.length) {
       const empty = document.createElement('div');
       empty.className = 'stamp-builder-empty';
       empty.textContent = stampBuilderSearchQuery()
         ? 'No stamps match that search.'
+        : activeStampBuilderCategory === 'hidden'
+          ? 'No hidden stamps. Use Manage library to hide assets from build mode.'
         : activeStampBuilderCategory !== 'all'
           ? 'No stamps in this category yet.'
           : 'No stamps yet. Drop GLB/GLTF/OBJ/FBX/VOX/VDB files into models/ or import a voxel build JSON.';
@@ -1137,12 +1336,15 @@
       const card = document.createElement('div');
       const key = stampBuilderSelectionKey(tool);
       const unsupported = tool.isModelStamp && tool.supported === false;
-      card.className = 'stamp-card' + (key === selectedKey ? ' selected' : '') + (unsupported ? ' unsupported' : '');
+      const isHidden = stampBuilderToolHidden(tool);
+      const isManageCard = stampBuilderManageMode || isHidden;
+      card.className = 'stamp-card' + (key === selectedKey ? ' selected' : '') + (unsupported ? ' unsupported' : '') + (isHidden ? ' hidden' : '') + (stampBuilderManageMode ? ' manage' : '');
       card.setAttribute('role', 'button');
       card.tabIndex = 0;
       card.dataset.stampKey = key;
       card.setAttribute('aria-pressed', key === selectedKey ? 'true' : 'false');
-      if (tool.isAssetTemplate) {
+      if (isManageCard) card.setAttribute('aria-disabled', 'true');
+      if (tool.isAssetTemplate && !stampBuilderManageMode) {
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'stamp-card-delete';
@@ -1199,6 +1401,7 @@
         selectStampTool();
       });
       card.append(canvas, title, meta);
+      if (isManageCard) addStampBuilderManageActions(card, tool, key, isHidden);
       grid.appendChild(card);
       scheduleStampBuilderThumb(tool, canvas, key);
     }
@@ -1437,6 +1640,7 @@
       id: tool.id + '-' + variant.id,
       label: variant.label,
       activeVariant: variant,
+      baseTool: tool,
     });
     const btn = buildToolButton(previewTool, { flyout: true, noClick: true });
     btn.dataset.id = tool.id;
@@ -1652,9 +1856,18 @@
       // Castle / High-rise), so no feature disappeared when the toolbar
       // was grouped.
       if (((group.id === 'build' && tool.id === 'house') || (group.id === 'infra' && tool.id === 'fence')) && tool.variants) {
-        tool.variants.forEach(v => el.appendChild(buildVariantToolButton(tool, v)));
+        tool.variants.forEach(v => {
+          const previewTool = Object.assign({}, tool, {
+            id: tool.id + ':' + v.id,
+            label: v.label,
+            activeVariant: v,
+            baseTool: tool,
+          });
+          if (!stampBuilderToolHidden(previewTool)) el.appendChild(buildVariantToolButton(tool, v));
+        });
         return;
       }
+      if (stampBuilderToolHidden(tool)) return;
       el.appendChild(buildToolButton(tool, { flyout: true }));
     });
     // Lay the popout out as a compact 2-row block: columns = ceil(n / 2) so

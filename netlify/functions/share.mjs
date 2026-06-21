@@ -7,7 +7,8 @@ import { ensureProfile } from './lib/profiles.mjs';
 export const config = { path: '/api/share' };
 
 // Per-profile ceiling on stored public share records to bound authenticated
-// storage growth; each row is already size-capped (~2 MB).
+// storage growth; each row is already size-capped (~20 MB, to allow portable
+// dropped-model records for shared builds).
 const MAX_SHARES_PER_PROFILE = 500;
 
 function makeShareId() {
@@ -20,7 +21,7 @@ function validShareId(id) {
 
 function validateWorldData(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.cells)) return 'World JSON must include a cells array';
-  if (JSON.stringify(data).length > 2_000_000) return 'World JSON is too large';
+  if (JSON.stringify(data).length > 20_000_000) return 'World JSON is too large';
   return '';
 }
 

@@ -1928,7 +1928,8 @@ function tryEnterGate() {
           + '.tw-worlds-map.dragging h4{cursor:grabbing}'
           + '.tw-worlds-map canvas{display:block;border-radius:8px;cursor:pointer;background:#0a1428;image-rendering:pixelated}'
           + '.tw-worlds-map .tw-map-resize{position:absolute;right:3px;bottom:3px;width:17px;height:17px;border-radius:6px 0 11px 0;cursor:nwse-resize;background:linear-gradient(135deg,transparent 0 45%,rgba(205,225,255,.20) 46% 58%,transparent 59%),linear-gradient(135deg,transparent 0 62%,rgba(205,225,255,.34) 63% 76%,transparent 77%);opacity:.82}'
-          + '.tw-worlds-map .tw-map-resize:hover{opacity:1;background-color:rgba(120,160,255,.08)}';
+          + '.tw-worlds-map .tw-map-resize:hover{opacity:1;background-color:rgba(120,160,255,.08)}'
+          + '@media (max-width:700px){.tw-worlds-map{right:8px;top:54px;padding:6px;border-radius:10px}.tw-worlds-map h4{font-size:9px;margin-bottom:4px}.tw-worlds-map .tw-map-scale{display:none}.tw-worlds-map .tw-map-resize{display:none}}';
         document.head.appendChild(Object.assign(document.createElement('style'), { id: 'tw-worlds-map-style', textContent: css }));
       }
       mapWrap = document.createElement('div'); mapWrap.className = 'tw-worlds-map';
@@ -1952,13 +1953,26 @@ function tryEnterGate() {
     }
     function hideMinimap() { if (mapWrap) mapWrap.style.display = 'none'; }
 
+    window.addEventListener('resize', () => {
+      if (canvas) applyMapScale();
+    });
+
     function clampMapScale(v) {
       v = Number(v);
       if (!Number.isFinite(v)) v = 1;
       return Math.max(MAP_MIN_SCALE, Math.min(MAP_MAX_SCALE, v));
     }
+    function smallMapScreen() {
+      try { return !!(window.matchMedia && window.matchMedia('(max-width:700px)').matches); } catch (_) { return false; }
+    }
+    function defaultMapScale() {
+      return smallMapScreen() ? 0.58 : 1;
+    }
     function readMapScale() {
-      try { return clampMapScale(localStorage.getItem(MAP_SCALE_LS) || 1); } catch (_) { return 1; }
+      try {
+        const stored = localStorage.getItem(MAP_SCALE_LS);
+        return clampMapScale(stored == null || stored === '' ? defaultMapScale() : stored);
+      } catch (_) { return defaultMapScale(); }
     }
     function writeMapScale(v) {
       mapScale = clampMapScale(v);
@@ -1968,10 +1982,12 @@ function tryEnterGate() {
     function applyMapScale() {
       if (!canvas) return;
       const base = Math.max(1, gridSize * CELL);
-      const px = Math.max(1, Math.round(base * clampMapScale(mapScale)));
+      const rawPx = Math.max(1, Math.round(base * clampMapScale(mapScale)));
+      const mobileMax = smallMapScreen() ? Math.max(96, Math.min(136, Math.round(window.innerWidth * 0.34))) : rawPx;
+      const px = Math.min(rawPx, mobileMax);
       canvas.style.width = px + 'px';
       canvas.style.height = px + 'px';
-      if (mapScaleBadge) mapScaleBadge.textContent = Math.round(clampMapScale(mapScale) * 100) + '%';
+      if (mapScaleBadge) mapScaleBadge.textContent = Math.round((px / base) * 100) + '%';
     }
     function makeMapResizable(handle) {
       if (!handle || !mapWrap) return;

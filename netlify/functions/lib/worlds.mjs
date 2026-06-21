@@ -16,6 +16,12 @@ const WORLD_SELECTION_GATE_DEST = '__world-picker';
 const WORLD_RESOURCE_PLANT_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
 const WORLD_RESOURCE_ANIMAL_KINDS = new Set(['cow', 'sheep']);
 const WORLD_RESOURCE_ANIMAL_MIN = 2;
+export const WORLD_RESOURCE_PRICE_WEIGHTS = Object.freeze({
+  fish: 0.35,
+  ore: 0.08,
+  plants: 0.04,
+  meat: 0.12,
+});
 
 function worldCellX(cell) { return Array.isArray(cell) ? cell[0] : (cell && cell.x); }
 function worldCellZ(cell) { return Array.isArray(cell) ? cell[1] : (cell && cell.z); }
@@ -74,7 +80,7 @@ export function normalizeWorldSelectionGateData(data, gridSizeHint) {
 // EMAIL so it follows the person, not a browser or a draft's ownership row.
 // Mirrors the client allowlist in engine/world/30-ui-boot-wiring.js.
 // Extra admins can be added via a comma-separated TINYWORLD_WORLD_ADMIN_EMAILS env.
-const WORLD_ADMIN_DEFAULT_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com'];
+const WORLD_ADMIN_DEFAULT_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
 export function worldAdminEmails() {
   const extra = String(process.env.TINYWORLD_WORLD_ADMIN_EMAILS || '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -120,6 +126,36 @@ export function computeWorldPrice(tileCount, economy) {
   const price = perTileRate(economy) * tiles;
   // 6dp matches the NUMERIC(20,6) price columns.
   return Math.round(price * 1e6) / 1e6;
+}
+
+function roundUsdc(value) {
+  return Math.round(Math.max(0, Number(value) || 0) * 1e6) / 1e6;
+}
+
+export function computeWorldResourceValue(resourceStats) {
+  const stats = resourceStats || {};
+  let total = 0;
+  for (const resource of WORLD_RESOURCES) {
+    const count = Math.max(0, Math.round(Number(stats[resource]) || 0));
+    total += count * (WORLD_RESOURCE_PRICE_WEIGHTS[resource] || 0);
+  }
+  return roundUsdc(total);
+}
+
+export function computeWorldPriceBreakdown(tileCount, economy, resourceStats) {
+  const land = computeWorldPrice(tileCount, economy);
+  const resources = computeWorldResourceValue(resourceStats);
+  const total = roundUsdc(land + resources);
+  return {
+    landUsdc: String(land),
+    resourcesUsdc: String(resources),
+    totalUsdc: String(total),
+    formula: 'land + fish*0.35 + ore*0.08 + plants*0.04 + meat*0.12',
+  };
+}
+
+export function computeWorldPurchasePrice(tileCount, economy, resourceStats) {
+  return Number(computeWorldPriceBreakdown(tileCount, economy, resourceStats).totalUsdc);
 }
 
 // Derive tile/terrain counts from a world.schema.json v4 cells array so pricing

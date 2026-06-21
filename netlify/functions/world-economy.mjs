@@ -1,6 +1,6 @@
 import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse } from './lib/http.mjs';
-import { computeWorldPrice, perTileRate } from './lib/worlds.mjs';
+import { computeWorldPriceBreakdown, deriveResourceStats, perTileRate } from './lib/worlds.mjs';
 
 export const config = { path: '/api/worlds/economy' };
 
@@ -27,15 +27,19 @@ export default async function worldEconomyFunction(request) {
     };
 
     if (Number.isInteger(id) && id > 0) {
-      const rows = await sql`SELECT id, slug, status, tile_count FROM worlds WHERE id = ${id} LIMIT 1`;
+      const rows = await sql`SELECT id, slug, status, tile_count, grid_size, data FROM worlds WHERE id = ${id} LIMIT 1`;
       if (!rows.length) return errorResponse('World not found', 404, origin);
       const world = rows[0];
+      const resourceStats = deriveResourceStats(world.data, world.grid_size);
+      const priceBreakdown = computeWorldPriceBreakdown(world.tile_count, economy, resourceStats);
       body.world = {
         id: Number(world.id),
         slug: world.slug,
         status: world.status,
         tileCount: Number(world.tile_count),
-        priceUsdc: String(computeWorldPrice(world.tile_count, economy)),
+        priceUsdc: priceBreakdown.totalUsdc,
+        resourceStats,
+        priceBreakdown,
         forSale: world.status === 'unclaimed',
       };
     }

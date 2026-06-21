@@ -108,6 +108,15 @@ Stamps panel:
 - Stamps card thumbnail rendering should stay responsive: draw cheap fallback thumbnails immediately, cancel stale thumbnail queues on re-render, and build expensive 3D card thumbs in small requestAnimationFrame batches.
 - The `Recent` stamps category is derived from `tinyworld:stamp-builder-recent.v1` and should use the same `stampBuilderSelectionKey()` values as selected-card state. Keep it ordered by most recent selection and remove deleted template keys.
 - Toolbar, flyout, and keyboard selections that correspond to stamp-builder tools should update `Recent`; ignore Select, Erase, Auto, hidden tools, and other non-stamps so stale keys do not crowd out real stamps.
+- The Stamps panel has a Manage library mode. Hidden asset keys live in
+  `tinyworld:stamp-builder-hidden.v1`, normal category/recent/flyout rendering
+  must exclude hidden tools, and the `Hidden` category is the only normal place
+  to show them again. Manage cards can hide/unhide removable tools and delete
+  local templates, voxel-build stamps, and dropped model stamps.
+- File import/export, voxel JSON import, agent file attachments, and GLB/GLTF
+  drag/drop imports are owner-only. Gate new file surfaces through
+  `window.__tinyworldOwnerToolsAllowed()` so non-owner builders can still use
+  the shared asset library without importing arbitrary local files.
 - Model-stamp categories are inferred from labels, paths, formats, URLs, and sidecars. Do not add generator manifest fields unless a durable category contract is explicitly needed.
 - Model-stamp OBJ/MTL support must preserve filenames with spaces in `mtllib` and `map_Kd` lines. VoxEdit-style `Tr 1.000000` should not make a textured model fully transparent; treat it as opaque unless a `d` dissolve value says otherwise.
 - Rigged GLTF/GLB model stamps need a skinned-mesh-aware clone path. Plain `clone(true)` can leave skeletons tied to the cached source scene when multiple stamps are placed.
@@ -128,10 +137,11 @@ Stamps panel:
   before calling `setCell()`. If the GLB/GLTF fails, show the loader error and
   do not stamp the placeholder into the world.
 - Dropped model stamps must persist their source files outside the world JSON
-  (currently IndexedDB) and restore them into the model-stamp registry on boot.
-  Saved cells may keep only `appearance.modelStampId`, but that id must resolve
-  after reload and schedule a model-stamp refresh instead of staying on the
-  generic placeholder.
+  (currently IndexedDB plus portable data-url records for dropped models) and
+  restore them into the model-stamp registry on boot. Saved cells may keep only
+  `appearance.modelStampId`, but shared/exported world JSON must embed the
+  referenced `droppedModelStamps` records so another browser can resolve the
+  same model id instead of rendering the generic placeholder.
 
 Validation:
 

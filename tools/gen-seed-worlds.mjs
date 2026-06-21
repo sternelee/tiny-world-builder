@@ -58,13 +58,55 @@ function emptyGrassCell(occupied, g, rng) {
 }
 
 const PLANTS = ['corn', 'wheat', 'carrot', 'sunflower', 'pumpkin'];
+const ANIMALS = ['cow', 'sheep'];
 const ARTIFACT_KINDS = ['artifact', 'relic', 'crystal', 'totem', 'ruins'];
+const WORLD_SELECTION_GATE_DEST = '__world-picker';
+const RESOURCE_PRICE_WEIGHTS = { fish: 0.35, ore: 0.08, plants: 0.04, meat: 0.12 };
+
+function roundUsdc(value) {
+  return Math.round(Math.max(0, Number(value) || 0) * 1e6) / 1e6;
+}
+
+function resourcePrice(stats) {
+  return roundUsdc(
+    (stats.fish || 0) * RESOURCE_PRICE_WEIGHTS.fish
+    + (stats.ore || 0) * RESOURCE_PRICE_WEIGHTS.ore
+    + (stats.plants || 0) * RESOURCE_PRICE_WEIGHTS.plants
+    + (stats.meat || 0) * RESOURCE_PRICE_WEIGHTS.meat
+  );
+}
+
+function connectedWaterBodies(cells) {
+  const water = new Set(cells.filter(c => c.terrain === 'water').map(c => c.x + ',' + c.z));
+  const seen = new Set();
+  let bodies = 0;
+  for (const key of water) {
+    if (seen.has(key)) continue;
+    bodies++;
+    const stack = [key];
+    while (stack.length) {
+      const k = stack.pop();
+      if (seen.has(k) || !water.has(k)) continue;
+      seen.add(k);
+      const [x, z] = k.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nk = (x + dx) + ',' + (z + dz);
+        if (!seen.has(nk) && water.has(nk)) stack.push(nk);
+      }
+    }
+  }
+  return bodies;
+}
 
 function buildRichWorld(a) {
   const g = a.grid;
   const rng = mulberry32(hashSeed(a.slug));
   const occupied = new Set();
   const cells = [];
+  const gateX = Math.floor(g / 2);
+  const gateZ = Math.floor(g / 2);
+  occupied.add(gateX + ',' + gateZ);
+  cells.push({ x: gateX, z: gateZ, terrain: 'grass', kind: 'stargate', dest: WORLD_SELECTION_GATE_DEST });
 
   // Big water bodies for fishing (rich)
   for (const size of a.water) {
@@ -86,6 +128,14 @@ function buildRichWorld(a) {
   for (let i = 0; i < a.crops; i++) {
     const c = emptyGrassCell(occupied, g, rng); if (!c) break;
     cells.push({ x: c[0], z: c[1], terrain: 'grass', kind: PLANTS[Math.floor(rng() * PLANTS.length)] });
+  }
+
+  // Huntable animals are explicit so every world has visible hunting targets;
+  // PartyKit also maintains transient animals at runtime for regrowth.
+  const animalCount = Math.max(4, Math.round(a.animals || (g / 3)));
+  for (let i = 0; i < animalCount; i++) {
+    const c = emptyGrassCell(occupied, g, rng); if (!c) break;
+    cells.push({ x: c[0], z: c[1], terrain: 'grass', kind: ANIMALS[i % ANIMALS.length] });
   }
 
   // Some decorative trees
@@ -118,6 +168,14 @@ function buildRichWorld(a) {
   const stone = cells.filter(c => c.terrain === 'stone').length;
   const tile = g * g;
   const grass = tile - water - stone;
+  const stats = {
+    fish: connectedWaterBodies(cells),
+    ore: stone,
+    plants: cells.filter(c => PLANTS.includes(c.kind)).length,
+    meat: cells.filter(c => ANIMALS.includes(c.kind)).length,
+  };
+  const land = roundUsdc(tile * 0.01);
+  const resources = resourcePrice(stats);
 
   return {
     slug: a.slug,
@@ -129,7 +187,9 @@ function buildRichWorld(a) {
     stone,
     grass,
     water,
-    price: 0,
+    resources,
+    price: roundUsdc(land + resources),
+    resourceStats: stats,
     data: { v: 4, gridSize: g, cells },
   };
 }
@@ -194,8 +254,7 @@ function main() {
   lines.push('-- Perfect for testing harvest, GOLD, tax, interest, and artifact recovery.');
   lines.push('');
 
-  lines.push('-- Remove previous seed islands (owner-less starters).');
-  lines.push("DELETE FROM worlds WHERE owner_profile_id IS NULL AND kind = 'starter';");
+  lines.push('-- Upsert starter islands without changing existing owner_profile_id.');
   lines.push('');
 
   for (const w of worlds) {
@@ -216,13 +275,31 @@ function main() {
       sqlString(w.data) + '::jsonb',
       'NOW()'
     ].join(', ') + ')');
-    lines.push('ON CONFLICT (slug) DO NOTHING;');
+    lines.push('ON CONFLICT (slug) DO UPDATE SET');
+    lines.push('  kind = EXCLUDED.kind, status = EXCLUDED.status, name = EXCLUDED.name, tax_percent = EXCLUDED.tax_percent,');
+    lines.push('  grid_size = EXCLUDED.grid_size, tile_count = EXCLUDED.tile_count,');
+    lines.push('  stone_tile_count = EXCLUDED.stone_tile_count, grass_tile_count = EXCLUDED.grass_tile_count, water_tile_count = EXCLUDED.water_tile_count,');
+    lines.push('  price_usdc = EXCLUDED.price_usdc, data = EXCLUDED.data,');
+    lines.push('  published_at = COALESCE(worlds.published_at, EXCLUDED.published_at), updated_at = NOW();');
     lines.push('');
   }
 
+  lines.push('WITH owner AS (');
+  lines.push("  SELECT id FROM profiles WHERE LOWER(COALESCE(email, '')) IN ('jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com')");
+  lines.push("  ORDER BY CASE LOWER(COALESCE(email, '')) WHEN 'jason@bouncingfish.com' THEN 0 WHEN 'jason.kneen@gmail.com' THEN 1 ELSE 2 END");
+  lines.push('  LIMIT 1');
+  lines.push(')');
+  lines.push('UPDATE worlds');
+  lines.push('SET owner_profile_id = owner.id, updated_at = NOW()');
+  lines.push('FROM owner');
+  lines.push("WHERE worlds.kind = 'starter'");
+  lines.push("  AND worlds.slug <> 'tinyverse-nexus'");
+  lines.push('  AND worlds.owner_profile_id IS DISTINCT FROM owner.id;');
+  lines.push('');
+
   process.stdout.write(lines.join('\n'));
 
-  const summary = worlds.map(w => `${w.slug}: ${w.grid}x${w.grid} fish≈${w.water} ore≈${w.stone} crops≈${w.grass} artifacts≈${w.data.cells.filter(c=>c.kind&&c.kind.includes('artifact')||['relic','crystal','totem','ruins'].includes(c.kind)).length} [${w.status}]`).join('\n');
+  const summary = worlds.map(w => `${w.slug}: ${w.grid}x${w.grid} fish=${w.resourceStats.fish} ore=${w.resourceStats.ore} crops=${w.resourceStats.plants} meat=${w.resourceStats.meat} price=${w.price} artifacts=${w.data.cells.filter(c=>c.kind&&c.kind.includes('artifact')||['relic','crystal','totem','ruins'].includes(c.kind)).length} [${w.status}]`).join('\n');
   process.stderr.write('\n' + summary + '\n');
 }
 

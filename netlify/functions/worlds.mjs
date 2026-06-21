@@ -6,7 +6,7 @@ import { ensureProfile, profileDto } from './lib/profiles.mjs';
 import { activeSuspension } from './lib/community-moderation.mjs';
 import { isTinyverseAccessEmail } from './lib/tinyverse-access.mjs';
 import {
-  cleanWorldName, cleanTaxPercent, computeWorldPrice, deriveTerrainCounts,
+  cleanWorldName, cleanTaxPercent, computeWorldPriceBreakdown, deriveResourceStats, deriveTerrainCounts,
   worldDto, worldPreview, signJoinToken, isWorldAdminEmail, getTaxCooldownInfo,
   normalizeWorldSelectionGateData, TINYVERSE_HUB_SLUG,
 } from './lib/worlds.mjs';
@@ -15,7 +15,11 @@ export const config = { path: '/api/worlds' };
 
 const WORLD_RELATIONS = ['worlds', 'world_economy_state', 'profiles'];
 const isMissingWorldSchema = (err) => isMissingRelations(err, WORLD_RELATIONS);
-const TINYVERSE_OWNER_EMAIL = 'jason@bouncingfish.com';
+const TINYVERSE_OWNER_EMAILS = new Set([
+  'jason@bouncingfish.com',
+  'jason.kneen@bouncingfish.com',
+  'jason.kneen@gmail.com',
+]);
 
 function joinSecret() {
   return process.env.WORLDS_JOIN_SECRET || process.env.WORLDS_SERVICE_TOKEN || '';
@@ -38,12 +42,14 @@ async function loadEconomy(sql) {
   return rows[0] || {};
 }
 
-// Unclaimed worlds show the LIVE price (size x current per-tile rate); owned
-// worlds keep their stored record. This avoids rewriting old purchase history
-// while making scarcity visible as supply disappears.
+// Cards show a live market value, and unclaimed worlds buy at that same value.
+// The formula is land value plus weighted fish/ore/plants/meat availability.
 function withLivePrice(dto, economy) {
+  const breakdown = computeWorldPriceBreakdown(dto.tileCount, economy, dto.resourceStats);
+  dto.priceBreakdown = breakdown;
+  dto.marketValueUsdc = breakdown.totalUsdc;
   if (dto.status === 'unclaimed') {
-    dto.priceUsdc = String(computeWorldPrice(dto.tileCount, economy));
+    dto.priceUsdc = breakdown.totalUsdc;
   }
   return dto;
 }
@@ -63,7 +69,7 @@ function slugFromRequest(request) {
 }
 
 function isTinyverseOwnerProfile(profile) {
-  return String((profile && profile.email) || '').trim().toLowerCase() === TINYVERSE_OWNER_EMAIL;
+  return TINYVERSE_OWNER_EMAILS.has(String((profile && profile.email) || '').trim().toLowerCase());
 }
 
 async function ensureTinyverseStarterOwnership(sql, profile) {
@@ -237,15 +243,17 @@ export default async function worldsFunction(request) {
         if (!data || typeof data !== 'object' || !Array.isArray(data.cells)) {
           return errorResponse('World JSON must include a cells array', 400, origin);
         }
-        if (JSON.stringify(data).length > 2_000_000) return errorResponse('World JSON is too large', 400, origin);
+        if (JSON.stringify(data).length > 20_000_000) return errorResponse('World JSON is too large', 400, origin);
         const owned = await sql`SELECT grid_size FROM worlds WHERE id = ${worldId} AND owner_profile_id = ${profile.id} AND status = 'draft' LIMIT 1`;
         if (!owned.length) return errorResponse('World not editable (must be your draft)', 409, origin);
         const counts = deriveTerrainCounts(data, owned[0].grid_size);
+        const resourceStats = deriveResourceStats(data, owned[0].grid_size);
+        const priceBreakdown = computeWorldPriceBreakdown(counts.tileCount, economy, resourceStats);
         const rows = await sql`
           UPDATE worlds
           SET data = ${sql.json(data)}, tile_count = ${counts.tileCount},
               stone_tile_count = ${counts.stone}, grass_tile_count = ${counts.grass},
-              water_tile_count = ${counts.water}, updated_at = NOW()
+              water_tile_count = ${counts.water}, price_usdc = ${priceBreakdown.totalUsdc}, updated_at = NOW()
           WHERE id = ${worldId} AND owner_profile_id = ${profile.id} AND status = 'draft'
           RETURNING *
         `;

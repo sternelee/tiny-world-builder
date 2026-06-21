@@ -2067,6 +2067,7 @@
     const closeBtn = document.getElementById('stamp-builder-close');
     const rebuildBtn = document.getElementById('stamp-builder-rebuild');
     const modelRefreshBtn = document.getElementById('model-stamp-refresh');
+    const manageBtn = document.getElementById('stamp-builder-manage');
     const searchInput = document.getElementById('stamp-builder-search');
     const importBtn = document.getElementById('voxel-build-import');
     const importFile = document.getElementById('voxel-build-import-file');
@@ -2080,6 +2081,14 @@
     const PANEL_POS_KEY = 'tinyworld:stamp-panel-pos';
     let panelDrag = null;
     if (!panel || !openBtn || !closeBtn) return;
+
+    function voxelImportAllowed() {
+      return !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
+    }
+
+    function voxelImportDenied() {
+      if (typeof twToast === 'function') twToast('Voxel JSON import is limited to the owner account.', 'err');
+    }
 
     function clampStampPanel(left, top) {
       const w = panel.offsetWidth || 350;
@@ -2102,6 +2111,7 @@
     function open() {
       renderStampBuilderCards();
       updateStampBuilderSummary();
+      if (window.__tinyworldStampBuilderManage && window.__tinyworldStampBuilderManage.sync) window.__tinyworldStampBuilderManage.sync();
       panel.hidden = false;
       const grid = document.getElementById('stamp-builder-grid');
       if (grid) grid.scrollTop = 0;
@@ -2113,7 +2123,7 @@
     function close() { panel.hidden = true; }
 
     function firstSelectableStampCard() {
-      return panel.querySelector('.stamp-card:not(.unsupported)');
+      return panel.querySelector('.stamp-card:not(.unsupported):not(.hidden):not(.manage)');
     }
 
     function activateFirstSelectableStampCard() {
@@ -2152,6 +2162,13 @@
         await refreshModelStampManifest().catch(() => null);
         renderStampBuilderCards();
         if (status) status.textContent = modelStampScanMessage;
+      });
+    }
+    if (manageBtn) {
+      manageBtn.addEventListener('click', () => {
+        if (window.__tinyworldStampBuilderManage && window.__tinyworldStampBuilderManage.toggle) {
+          window.__tinyworldStampBuilderManage.toggle();
+        }
       });
     }
     if (searchInput) {
@@ -2199,11 +2216,15 @@
       });
     }
     if (importBtn && importFile) {
-      importBtn.addEventListener('click', () => importFile.click());
+      importBtn.addEventListener('click', () => {
+        if (!voxelImportAllowed()) { voxelImportDenied(); return; }
+        importFile.click();
+      });
       importFile.addEventListener('change', async () => {
         const file = importFile.files && importFile.files[0];
         importFile.value = '';
         if (!file) return;
+        if (!voxelImportAllowed()) { voxelImportDenied(); return; }
         try {
           const payload = JSON.parse(await file.text());
           const imported = importVoxelBuildPayload(payload, file.name.replace(/\.json$/i, ''));

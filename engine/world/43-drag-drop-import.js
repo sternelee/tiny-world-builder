@@ -15,6 +15,14 @@
       return Array.from((evt && evt.dataTransfer && evt.dataTransfer.files) || []);
     }
 
+    function ownerDropImportsAllowed() {
+      return !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
+    }
+
+    function ownerDropImportMessage() {
+      return 'File drops are limited to the owner account.';
+    }
+
     function modelFiles(files) {
       return (files || []).filter(file => MODEL_DROP_EXT_RE.test(file.name || ''));
     }
@@ -242,6 +250,7 @@
     }
 
     async function attachFilesToAgent(files) {
+      if (!ownerDropImportsAllowed()) throw new Error(ownerDropImportMessage());
       const models = registerDroppedModels(modelBundleFiles(files));
       models.forEach(asset => {
         preloadDroppedModel(asset);
@@ -277,6 +286,10 @@
       el.addEventListener('dragover', e => {
         if (!hasDropFiles(e, kind)) return;
         e.preventDefault();
+        if (!ownerDropImportsAllowed()) {
+          e.dataTransfer.dropEffect = 'none';
+          return;
+        }
         e.dataTransfer.dropEffect = opts && opts.effect || 'copy';
         el.classList.add('drop-hot');
       });
@@ -289,6 +302,10 @@
         if (!files.length || !hasDropFiles(e, kind)) return;
         e.preventDefault();
         el.classList.remove('drop-hot');
+        if (!ownerDropImportsAllowed()) {
+          showDropStatus(ownerDropImportMessage(), 'error');
+          return;
+        }
         opts.onDrop(files, e);
       });
     }

@@ -16,6 +16,8 @@
     const TINYVERSE_HUB_SLUG = 'tinyverse-nexus';
     const WORLD_SELECTION_GATE_DEST = '__world-picker';
     const ACTIVE_TINYVERSE_LS = 'tinyworld:worlds.activeTinyverse.v1';
+    const WORLD_CLAIM_START_LABEL = 'CLAIMS STARTS 23-JUN-26';
+    const WORLD_CLAIM_DEMO_SLUGS = new Set(['tidewater-bay', 'green-pastures']);
   
     function api(path, method, body) {
       if (typeof window.__tinyworldCloudApiCall === 'function') return window.__tinyworldCloudApiCall(path, method, body);
@@ -35,6 +37,15 @@
         const data = JSON.parse(raw);
         return validWorldSlug(data && data.slug);
       } catch (_) { return ''; }
+    }
+    function clearActiveTinyverseSession() {
+      try { localStorage.removeItem(ACTIVE_TINYVERSE_LS); } catch (_) {}
+    }
+    function isClaimDemoWorld(w) {
+      return WORLD_CLAIM_DEMO_SLUGS.has(validWorldSlug(w && w.slug));
+    }
+    function isClaimLockedWorld(w) {
+      return !!(w && !isClaimDemoWorld(w));
     }
     function worldSelectionGateCell(gridSize) {
       const center = Math.floor(Math.max(1, gridSize) / 2);
@@ -180,19 +191,19 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 8px -2px rgba(0,0,0,.35);transition:filter .08s}
   .tw-worlds-x:hover{filter:brightness(1.18)}
   .tw-worlds-x:active{transform:translateY(1px)}
-  .tw-worlds-stage{position:relative;width:100%;height:min(58vh,570px);min-height:500px;margin:24px auto 0;overflow:visible}
+  .tw-worlds-stage{position:relative;width:100%;height:min(58vh,570px);min-height:500px;margin:48px auto 0;overflow:visible}
   .tw-worlds-grid{position:absolute;inset:0;perspective:1000px}
   .tw-worlds-card{position:absolute;left:50%;top:50%;width:min(520px,calc(100vw - 72px));min-height:388px;box-sizing:border-box;
     background:linear-gradient(180deg,rgba(13,24,48,.88),rgba(5,10,22,.9));border:1px solid rgba(114,150,225,.34);border-radius:8px;padding:14px 14px 18px;display:flex;flex-direction:column;gap:10px;
     backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
     box-shadow:inset 0 1px 0 rgba(160,190,255,.18),0 28px 80px -24px rgba(0,0,0,.85),0 10px 24px -12px rgba(0,0,0,.62);
     transition:transform .34s cubic-bezier(.2,.72,.18,1),opacity .28s ease,filter .34s ease,box-shadow .34s ease;will-change:transform,opacity,filter;cursor:pointer}
-  .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(38px) scale(1);opacity:1;z-index:6;cursor:default;
+  .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(58px) scale(1);opacity:1;z-index:6;cursor:default;
     border-color:rgba(78,230,80,.68);box-shadow:inset 0 1px 0 rgba(214,255,218,.22),0 0 0 1px rgba(78,230,80,.28),0 0 34px rgba(52,225,88,.36),0 36px 92px -26px rgba(0,0,0,.9)}
-  .tw-worlds-card[data-offset="-1"]{transform:translate(-50%,-50%) translateX(-415px) translateY(80px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
-  .tw-worlds-card[data-offset="1"]{transform:translate(-50%,-50%) translateX(415px) translateY(80px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
-  .tw-worlds-card[data-offset="-2"]{transform:translate(-50%,-50%) translateX(-735px) translateY(110px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
-  .tw-worlds-card[data-offset="2"]{transform:translate(-50%,-50%) translateX(735px) translateY(110px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
+  .tw-worlds-card[data-offset="-1"]{transform:translate(-50%,-50%) translateX(-415px) translateY(100px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
+  .tw-worlds-card[data-offset="1"]{transform:translate(-50%,-50%) translateX(415px) translateY(100px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
+  .tw-worlds-card[data-offset="-2"]{transform:translate(-50%,-50%) translateX(-735px) translateY(130px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
+  .tw-worlds-card[data-offset="2"]{transform:translate(-50%,-50%) translateX(735px) translateY(130px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
   .tw-worlds-card[data-hidden="true"]{opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.45)}
   .tw-worlds-card[data-offset="0"]::before{content:"";position:absolute;left:50%;top:-145px;width:2px;height:138px;transform:translateX(-50%);
     background:linear-gradient(180deg,rgba(66,255,87,0),rgba(66,255,87,.94));box-shadow:0 0 18px rgba(66,255,87,.8)}
@@ -202,6 +213,14 @@
   .tw-worlds-card.tw-worlds-locked{opacity:.42;filter:grayscale(.85) brightness(.72)}
   .tw-worlds-card.tw-worlds-locked[data-offset="0"]{opacity:.74}
   .tw-worlds-card.tw-worlds-locked[data-hidden="true"]{opacity:0;pointer-events:none}
+  .tw-worlds-card.tw-worlds-claim-locked{filter:grayscale(.38) brightness(.78)}
+  .tw-worlds-card.tw-worlds-claim-locked[data-offset="0"]{opacity:.88}
+  .tw-worlds-claim-banner{position:absolute;left:14px;right:14px;top:18px;z-index:3;display:flex;align-items:center;justify-content:center;
+    min-height:34px;border-radius:7px;border:1px solid rgba(255,224,115,.7);
+    background:linear-gradient(180deg,rgba(46,37,15,.96),rgba(124,78,11,.94));color:#fff1a8;
+    font:800 14px/1 'Pixelify Sans',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;
+    box-shadow:0 0 22px rgba(255,204,67,.22),inset 0 1px 0 rgba(255,255,255,.22);pointer-events:none;text-align:center}
+  .tw-worlds-card:not([data-offset="0"]) .tw-worlds-claim-banner{font-size:11px;min-height:26px;top:12px}
   .tw-worlds-card h3{margin:0;font-size:23px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:center;align-items:center;gap:10px;text-align:center}
   .tw-worlds-card:not([data-offset="0"]) h3{font-size:19px}
   .tw-worlds-prev{width:100%;aspect-ratio:16/9;border-radius:5px;background:#05070e;image-rendering:pixelated;display:block;
@@ -254,9 +273,9 @@
     .tw-worlds-head-actions{right:14px;top:18px}
     .tw-worlds-title{font-size:19px}
     .tw-worlds-title::before,.tw-worlds-title::after{width:18px}
-    .tw-worlds-stage{min-height:450px;height:54vh;margin-top:24px}
+    .tw-worlds-stage{min-height:450px;height:54vh;margin-top:40px}
     .tw-worlds-card{width:min(420px,calc(100vw - 36px));min-height:352px}
-    .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(28px) scale(1)}
+    .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(44px) scale(1)}
     .tw-worlds-card[data-offset="-1"],.tw-worlds-card[data-offset="1"],.tw-worlds-card[data-offset="-2"],.tw-worlds-card[data-offset="2"]{opacity:0;pointer-events:none}
     .tw-worlds-card h3{font-size:18px}
     .tw-worlds-meta{gap:10px;font-size:12px}
@@ -365,6 +384,7 @@
         ]),
       ]);
       overlay = el('div', { class: 'tw-worlds-overlay' }, [el('div', { class: 'tw-worlds-wrap' }, [head, stage, dotsEl, controls])]);
+      overlay.addEventListener('wheel', handleWorldPickerWheel, { passive: false });
       document.body.appendChild(overlay);
       return overlay;
     }
@@ -398,7 +418,7 @@
 
     function worldTitle(w) {
       const baseTitle = w.name || (w.kind === 'starter' ? w.slug : T('worlds.statusUnclaimed'));
-      return baseTitle + (w.slug === 'tidewater-bay' ? ' (demo)' : '');
+      return baseTitle + (isClaimDemoWorld(w) ? ' (demo)' : '');
     }
 
     const RESOURCE_LABELS = [
@@ -415,6 +435,13 @@
         return value > 0 ? T(label) + ' ' + value : '';
       }).filter(Boolean);
       return parts.length ? parts.join(' · ') : T('worlds.noResources');
+    }
+
+    function worldValueText(w) {
+      const value = (w && (w.marketValueUsdc || (w.priceBreakdown && w.priceBreakdown.totalUsdc) || w.priceUsdc)) || '';
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return '—';
+      return (Math.round(n * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC';
     }
 
     function visibleWorlds() {
@@ -482,15 +509,16 @@
       const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
       if (!delta) return;
       e.preventDefault();
+      e.stopPropagation();
       wheelAccum += delta;
       clearTimeout(wheelResetTimer);
       wheelResetTimer = setTimeout(() => { wheelAccum = 0; }, 160);
-      const threshold = e.deltaMode === 1 ? 2 : 54;
+      const threshold = e.deltaMode === 1 ? 2 : 36;
       const now = (window.performance && performance.now) ? performance.now() : Date.now();
       if (Math.abs(wheelAccum) < threshold || now < wheelCooldownUntil) return;
       const step = wheelAccum > 0 ? 1 : -1;
       wheelAccum = 0;
-      wheelCooldownUntil = now + 170;
+      wheelCooldownUntil = now + 120;
       rotateWorldSelection(step);
     }
 
@@ -553,7 +581,7 @@
     }
 
     function isLockedWorld(w) {
-      return w && (w.status === 'unclaimed' || (w.status === 'draft' && !isMine(w)));
+      return w && ((isClaimLockedWorld(w) && !isMine(w)) || w.status === 'unclaimed' || (w.status === 'draft' && !isMine(w)));
     }
 
     function updateCardPosition(card, w, index, selectedIndex, count) {
@@ -566,13 +594,14 @@
       card.tabIndex = hidden ? -1 : 0;
       card.setAttribute('aria-selected', selected ? 'true' : 'false');
       card.classList.toggle('tw-worlds-locked', !!isLockedWorld(w));
+      card.classList.toggle('tw-worlds-claim-locked', !!isClaimLockedWorld(w));
     }
 
     function renderCard(w) {
-      // All PUBLISHED worlds are playable (rich starter islands + claimed worlds);
-      // unclaimed plots stay locked/greyed. Access to the whole Tinyverse is
-      // already gated to allowlisted accounts server-side.
+      // Demo worlds stay playable before claims open; the rest show the
+      // claim-start banner and refuse direct entry.
       const mine = isMine(w);
+      const claimLocked = isClaimLockedWorld(w);
       const locked = isLockedWorld(w);
       const resources = w.resourceStats || {};
       const meta = el('div', { class: 'tw-worlds-meta' }, [
@@ -580,12 +609,20 @@
         el('div', {}, [el('b', { text: T('worlds.players') + ': ' }), document.createTextNode(String(w.activePlayers || 0))]),
         el('div', {}, [el('b', { text: T('worlds.tax') + ': ' }), document.createTextNode(w.taxPercent + '%')]), (w.taxCooldown && !w.taxCooldown.canChange) ? el('span', { style: 'font-size:10px;color:#f66;margin-left:6px', text: '(CD)' }) : null,
         el('div', {}, [el('b', { text: T('worlds.owner') + ': ' }), document.createTextNode(w.ownerName || '—')]),
+        el('div', {}, [el('b', { text: 'Value: ' }), document.createTextNode(worldValueText(w))]),
         el('div', { class: 'tw-worlds-resources' }, [el('b', { text: T('worlds.resources') + ': ' }), document.createTextNode(resourceStatsText(resources))]),
         el('div', { class: 'tw-worlds-ready' }, [el('b', { text: T('worlds.ready') + ': ' }), document.createTextNode(String(Math.max(0, Math.round(Number(resources.ready) || 0))) + ' ' + T('worlds.nodes'))]),
       ]);
       const actions = el('div', { class: 'tw-worlds-actions' });
-      if (w.status === 'unclaimed') {
-        // Cost intentionally hidden.
+      if (claimLocked) {
+        actions.appendChild(el('button', { class: 'tw-btn alt', text: WORLD_CLAIM_START_LABEL, disabled: 'disabled' }));
+        if (mine && w.status === 'draft') {
+          actions.appendChild(el('button', { class: 'tw-btn', text: T('worlds.build'), onclick: (e) => { e.stopPropagation(); buildDraft(w); } }));
+          actions.appendChild(el('button', { class: 'tw-btn alt', text: T('worlds.manage'), onclick: (e) => { e.stopPropagation(); manageFlow(w); } }));
+        } else if (mine && w.status === 'published') {
+          actions.appendChild(el('button', { class: 'tw-btn alt', text: T('worlds.manage'), onclick: (e) => { e.stopPropagation(); manageFlow(w); } }));
+        }
+      } else if (w.status === 'unclaimed') {
         actions.appendChild(el('button', { class: 'tw-btn', text: T('worlds.buy'), onclick: (e) => { e.stopPropagation(); buyFlow(w); } }));
       } else if (w.status === 'published') {
         actions.appendChild(el('button', { class: 'tw-btn go', text: T('worlds.enter'), onclick: (e) => { e.stopPropagation(); enterWorld(w); } }));
@@ -595,7 +632,8 @@
         actions.appendChild(el('button', { class: 'tw-btn alt', text: T('worlds.manage'), onclick: (e) => { e.stopPropagation(); manageFlow(w); } }));
       }
       const prev = el('canvas', { class: 'tw-worlds-prev', width: '320', height: '200' });
-      const card = el('article', { class: 'tw-worlds-card' + (locked ? ' tw-worlds-locked' : ''), 'data-offset': '0', 'data-hidden': 'true' }, [
+      const card = el('article', { class: 'tw-worlds-card' + (locked ? ' tw-worlds-locked' : '') + (claimLocked ? ' tw-worlds-claim-locked' : ''), 'data-offset': '0', 'data-hidden': 'true' }, [
+        claimLocked ? el('div', { class: 'tw-worlds-claim-banner', text: WORLD_CLAIM_START_LABEL }) : null,
         prev,
         el('h3', {}, [document.createTextNode(worldTitle(w)), statusBadge(w.status)]), meta, actions,
       ]);
@@ -776,6 +814,7 @@
     // ---- enter a published world (hand off to the room client in 47) ----
     async function enterWorldFull(full) {
       if (!full || full.error || !full.world) { toast(full && full.error ? full.error : T('worlds.error')); return false; }
+      if (isClaimLockedWorld(full.world)) { toast(WORLD_CLAIM_START_LABEL); return false; }
       if (full.world.status !== 'published') { toast(T('worlds.error')); return false; }
       if (!validWorldSlug(full.world.slug)) { toast(T('worlds.error')); return false; }
       full = Object.assign({}, full, { world: normalizeWorldForEntry(full.world) });

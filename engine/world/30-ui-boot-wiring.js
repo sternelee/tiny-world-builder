@@ -34,6 +34,56 @@ function getTestUser() {
   } catch (_) { return null; }
 }
 
+const TINYWORLD_OWNER_TOOL_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
+let tinyworldOwnerToolEmail = '';
+function tinyworldOwnerToolEmailAllowed(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  return !!clean && TINYWORLD_OWNER_TOOL_EMAILS.indexOf(clean) !== -1;
+}
+function tinyworldOwnerToolsAllowed() {
+  const test = typeof getTestUser === 'function' ? getTestUser() : null;
+  if (test && test.loggedIn && (test.isAdmin || tinyworldOwnerToolEmailAllowed(test.email))) return true;
+  return tinyworldOwnerToolEmailAllowed(tinyworldOwnerToolEmail);
+}
+function syncTinyworldOwnerToolControls() {
+  const allowed = tinyworldOwnerToolsAllowed();
+  document.body.classList.toggle('tw-owner-tools-locked', !allowed);
+  ['import', 'export', 'voxel-build-import'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.hidden = !allowed;
+    el.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+  });
+  const ownerImportFile = document.getElementById('import-file');
+  if (ownerImportFile) ownerImportFile.disabled = !allowed;
+  const ownerVoxelImportFile = document.getElementById('voxel-build-import-file');
+  if (ownerVoxelImportFile) ownerVoxelImportFile.disabled = !allowed;
+  window.__tinyworldOwnerToolsAreAllowed = allowed;
+  return allowed;
+}
+async function refreshTinyworldOwnerToolGate() {
+  const test = typeof getTestUser === 'function' ? getTestUser() : null;
+  if (test && test.loggedIn) {
+    tinyworldOwnerToolEmail = String(test.email || '').trim().toLowerCase();
+    return syncTinyworldOwnerToolControls();
+  }
+  const A = window.TinyWorldAuth;
+  if (A && typeof A.getUser === 'function') {
+    try {
+      const u = await A.getUser();
+      tinyworldOwnerToolEmail = ((u && u.email) || '').trim().toLowerCase();
+    } catch (_) {
+      tinyworldOwnerToolEmail = '';
+    }
+  } else {
+    tinyworldOwnerToolEmail = '';
+  }
+  return syncTinyworldOwnerToolControls();
+}
+window.__tinyworldOwnerToolsAllowed = tinyworldOwnerToolsAllowed;
+window.__tinyworldRefreshOwnerToolGate = refreshTinyworldOwnerToolGate;
+syncTinyworldOwnerToolControls();
+
     const modal = document.getElementById('welcome-modal');
     if (!modal) return;
     const tinyverseBtn = document.getElementById('welcome-tinyverse');
@@ -856,6 +906,10 @@ function getTestUser() {
       assetTemplates: (typeof loadAssetTemplates === 'function') ? loadAssetTemplates() : [],
       modelStampDefaults: (window.__tinyworldModelStampDefaults && window.__tinyworldModelStampDefaults.collect)
         ? window.__tinyworldModelStampDefaults.collect() : {},
+      droppedModelStamps: (window.__tinyworldDroppedModelStamps && window.__tinyworldDroppedModelStamps.collect)
+        ? window.__tinyworldDroppedModelStamps.collect() : [],
+      hiddenAssetKeys: (window.__tinyworldStampBuilderHidden && window.__tinyworldStampBuilderHidden.collect)
+        ? window.__tinyworldStampBuilderHidden.collect() : [],
       updatedAt: new Date().toISOString(),
     };
   }
@@ -892,6 +946,16 @@ function getTestUser() {
       if (remoteDefaults && typeof remoteDefaults === 'object'
           && window.__tinyworldModelStampDefaults && window.__tinyworldModelStampDefaults.apply) {
         if (window.__tinyworldModelStampDefaults.apply(remoteDefaults)) changed = true;
+      }
+
+      if (Array.isArray(data.droppedModelStamps)
+          && window.__tinyworldDroppedModelStamps && window.__tinyworldDroppedModelStamps.apply) {
+        if (window.__tinyworldDroppedModelStamps.apply(data.droppedModelStamps)) changed = true;
+      }
+
+      if (Array.isArray(data.hiddenAssetKeys)
+          && window.__tinyworldStampBuilderHidden && window.__tinyworldStampBuilderHidden.apply) {
+        if (window.__tinyworldStampBuilderHidden.apply(data.hiddenAssetKeys)) changed = true;
       }
 
       if (changed && typeof buildToolbar === 'function') {
@@ -1440,6 +1504,7 @@ function getTestUser() {
         settingsBtn.setAttribute('data-tooltip', 'Settings');
       }
       bootApp();
+      if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
       return;
     }
 
@@ -1619,6 +1684,7 @@ function getTestUser() {
       if (generateBtn) {
         generateBtn.hidden = !isLoggedIn;
       }
+      if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
     }
 
     // AI interfaces are hidden on prod (the boot script adds html.ai-disabled
@@ -1667,6 +1733,7 @@ function getTestUser() {
       if (typeof window.__applyTinyverseGate === 'function') window.__applyTinyverseGate();  // refresh Tinyverse access once email is known
       applyAccountAiEntitlement();
       bootApp();
+      if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
       initAccountModal();
       twCloudBootstrapSync().catch(err => console.warn('[cloud-sync] bootstrap failed:', err));
       // Resume a pending Tinyverse entry that was waiting on login. Independent
@@ -1681,6 +1748,7 @@ function getTestUser() {
       closeTinyModal(modal);
       setLoggedInState(false);
       bootApp();
+      if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
     }
 
     // Login
@@ -3244,19 +3312,33 @@ function getTestUser() {
     }));
   }
   function exportAssetLibrary() {
+    if (!window.__tinyworldOwnerToolsAllowed || !window.__tinyworldOwnerToolsAllowed()) {
+      twToast('Asset export is limited to the owner account.', 'err');
+      return;
+    }
     const voxelBuilds = collectCustomVoxelBuilds();
     const assetTemplates = (typeof loadAssetTemplates === 'function') ? loadAssetTemplates() : [];
-    const count = voxelBuilds.length + assetTemplates.length;
+    const droppedModelStamps = (window.__tinyworldDroppedModelStamps && window.__tinyworldDroppedModelStamps.collect)
+      ? window.__tinyworldDroppedModelStamps.collect() : [];
+    const hiddenAssetKeys = (window.__tinyworldStampBuilderHidden && window.__tinyworldStampBuilderHidden.collect)
+      ? window.__tinyworldStampBuilderHidden.collect() : [];
+    const count = voxelBuilds.length + assetTemplates.length + droppedModelStamps.length + hiddenAssetKeys.length;
     if (!count) { twToast('No custom assets to export yet.', null); return; }
     twDownloadJSON('tinyworld-assets.json', {
       tinyworldAssets: 1,
       exportedAt: new Date().toISOString(),
       voxelBuilds,
       assetTemplates,
+      droppedModelStamps,
+      hiddenAssetKeys,
     });
     twToast('Exported ' + count + ' asset' + (count === 1 ? '' : 's') + ' → tinyworld-assets.json', 'ok');
   }
   function importAssetLibrary(bundle) {
+    if (!window.__tinyworldOwnerToolsAllowed || !window.__tinyworldOwnerToolsAllowed()) {
+      twToast('Asset import is limited to the owner account.', 'err');
+      return;
+    }
     if (!bundle || typeof bundle !== 'object') { twToast('Not a valid asset file.', 'err'); return; }
     const builds = Array.isArray(bundle.voxelBuilds) ? bundle.voxelBuilds
       : (Array.isArray(bundle.builds) ? bundle.builds : []);
@@ -3270,12 +3352,28 @@ function getTestUser() {
       saveAssetTemplates(bundle.assetTemplates.concat(loadAssetTemplates()));
       tplCount = bundle.assetTemplates.length;
     }
+    let modelCount = 0;
+    if (Array.isArray(bundle.droppedModelStamps)
+        && window.__tinyworldDroppedModelStamps && window.__tinyworldDroppedModelStamps.apply) {
+      modelCount = window.__tinyworldDroppedModelStamps.apply(bundle.droppedModelStamps) ? bundle.droppedModelStamps.length : 0;
+    }
+    let hiddenCount = 0;
+    if (Array.isArray(bundle.hiddenAssetKeys)
+        && window.__tinyworldStampBuilderHidden && window.__tinyworldStampBuilderHidden.apply) {
+      hiddenCount = window.__tinyworldStampBuilderHidden.apply(bundle.hiddenAssetKeys) ? bundle.hiddenAssetKeys.length : 0;
+    }
     if (typeof buildToolbar === 'function') { try { buildToolbar(); } catch (_) {} }
     twToast('Imported ' + voxelCount + ' build' + (voxelCount === 1 ? '' : 's')
-      + ' and ' + tplCount + ' template' + (tplCount === 1 ? '' : 's') + '.',
-      (voxelCount + tplCount) ? 'ok' : null);
+      + ', ' + tplCount + ' template' + (tplCount === 1 ? '' : 's')
+      + ', ' + modelCount + ' model' + (modelCount === 1 ? '' : 's')
+      + ', and ' + hiddenCount + ' hidden setting' + (hiddenCount === 1 ? '' : 's') + '.',
+      (voxelCount + tplCount + modelCount + hiddenCount) ? 'ok' : null);
   }
   async function importAssetLibraryViaPicker() {
+    if (!window.__tinyworldOwnerToolsAllowed || !window.__tinyworldOwnerToolsAllowed()) {
+      twToast('Asset import is limited to the owner account.', 'err');
+      return;
+    }
     const bundle = await twPickJSONFile();
     if (bundle) importAssetLibrary(bundle);
   }
@@ -3288,6 +3386,7 @@ function getTestUser() {
     const renameBtn = document.getElementById('world-menu-rename');
     const listEl = document.getElementById('world-menu-list');
     const emptyEl = document.getElementById('world-menu-empty');
+    const inviteTopBtn = document.getElementById('invite-top-btn');
     if (!trigger || !menu || !labelEl || !nameInput || !listEl) return;
     const manageBtn = menu.querySelector('[data-action="manage"]');
     const shareBtn = menu.querySelector('[data-action="share"]');
@@ -3531,14 +3630,15 @@ function getTestUser() {
       }
     }
 
-    async function shareCurrentWorld(options = {}) {
+    async function createCurrentWorldShare(options = {}) {
       if (!window.TinyWorldAuth || !window.__loggedIn) {
-        close();
+        if (!options.keepMenuOpen) close();
         if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to save and share worlds');
-        return;
+        return null;
       }
+      updateActiveSnapshot();
       const state = snapshotCurrentState();
-      if (!state) { twToast('Could not snapshot this world.', 'err'); return; }
+      if (!state) { twToast('Could not snapshot this world.', 'err'); return null; }
       const active = findMenuActiveWorld();
       const name = (nameInput.value.trim()) || (active && active.name) || 'Tiny World';
       try {
@@ -3548,9 +3648,21 @@ function getTestUser() {
             twCloudIsUnavailable(result) ? 'Cloud sharing is unavailable in this Netlify session.' : ((result && result.error) || 'Share failed.'),
             twCloudIsUnavailable(result) ? 'warn' : 'err'
           );
-          return;
+          return null;
         }
         const url = options.collaborate ? worldMenuCollaborateUrl(result) : worldMenuAbsoluteShareUrl(result);
+        return { result, url, name };
+      } catch (err) {
+        twToast((err && err.message) || 'Share failed.', 'err');
+        return null;
+      }
+    }
+
+    async function shareCurrentWorld(options = {}) {
+      const shared = await createCurrentWorldShare(options);
+      if (!shared || !shared.url) return;
+      try {
+        const url = shared.url;
         await copyWorldMenuShareUrl(url);
         if (options.collaborate) {
           twToast('Collaborate room starting...', 'ok');
@@ -3563,6 +3675,93 @@ function getTestUser() {
       } catch (err) {
         twToast((err && err.message) || 'Share failed.', 'err');
       }
+    }
+
+    function closeInviteDialog(back) {
+      if (back && back.parentNode) back.remove();
+    }
+
+    function openInviteDialog() {
+      if (!window.TinyWorldAuth || !window.__loggedIn) {
+        if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to invite collaborators');
+        return;
+      }
+      const back = document.createElement('div');
+      back.className = 'tw-invite-back';
+      const card = document.createElement('section');
+      card.className = 'tw-invite-card';
+      card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-modal', 'true');
+      card.setAttribute('aria-labelledby', 'tw-invite-title');
+      const head = document.createElement('div');
+      head.className = 'tw-invite-head';
+      const title = document.createElement('h3');
+      title.id = 'tw-invite-title';
+      title.textContent = 'Invite to world';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'tw-invite-close';
+      closeBtn.setAttribute('aria-label', 'Close invite dialog');
+      closeBtn.textContent = 'Close';
+      closeBtn.addEventListener('click', () => closeInviteDialog(back));
+      head.appendChild(title);
+      head.appendChild(closeBtn);
+
+      const status = document.createElement('p');
+      status.className = 'tw-invite-status';
+      status.textContent = 'Preparing a live collaboration link...';
+
+      const label = document.createElement('label');
+      label.className = 'tw-invite-link-row';
+      const labelText = document.createElement('span');
+      labelText.textContent = 'Share link';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.readOnly = true;
+      input.value = '';
+      input.placeholder = 'Creating link...';
+      label.appendChild(labelText);
+      label.appendChild(input);
+
+      const actions = document.createElement('div');
+      actions.className = 'tw-invite-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'btn';
+      copyBtn.disabled = true;
+      copyBtn.textContent = 'Copy link';
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.className = 'btn';
+      openBtn.disabled = true;
+      openBtn.textContent = 'Open room';
+      actions.appendChild(copyBtn);
+      actions.appendChild(openBtn);
+
+      card.appendChild(head);
+      card.appendChild(status);
+      card.appendChild(label);
+      card.appendChild(actions);
+      back.appendChild(card);
+      back.addEventListener('click', (e) => { if (e.target === back) closeInviteDialog(back); });
+      document.body.appendChild(back);
+
+      createCurrentWorldShare({ collaborate: true, keepMenuOpen: true }).then(shared => {
+        if (!shared || !shared.url) {
+          status.textContent = 'Could not create a share link.';
+          return;
+        }
+        input.value = shared.url;
+        status.textContent = 'Anyone with this link can join this world build.';
+        copyBtn.disabled = false;
+        openBtn.disabled = false;
+        copyBtn.addEventListener('click', async () => {
+          const copied = await copyWorldMenuShareUrl(shared.url);
+          twToast(copied ? 'Invite link copied.' : 'Copy the invite link from the dialog.', copied ? 'ok' : 'warn');
+        });
+        openBtn.addEventListener('click', () => { location.assign(shared.url); });
+        setTimeout(() => { input.select(); }, 0);
+      });
     }
 
     function updateActiveSnapshot() {
@@ -3663,6 +3862,13 @@ function getTestUser() {
     function toggle() { if (menu.hidden) open(); else close(); }
 
     trigger.addEventListener('click', e => { e.stopPropagation(); toggle(); });
+    if (inviteTopBtn) {
+      inviteTopBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        openInviteDialog();
+      });
+    }
+    window.__tinyworldOpenInviteDialog = openInviteDialog;
     menu.addEventListener('click', e => { e.stopPropagation(); });
     document.addEventListener('click', () => { if (!menu.hidden) close(); });
     window.addEventListener('keydown', e => {
@@ -3792,6 +3998,7 @@ function getTestUser() {
         if (typeof window.__adjustHoverTerrainHeight === 'function') window.__adjustHoverTerrainHeight(-1);
       } });
       // Scene
+      const ownerFileTools = !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
       items.push({ group: 'Scene', label: 'Time & weather…', hint: 'tint, season, weather', run: topBtnAction('time-weather') });
       items.push({ group: 'Scene', label: 'Toggle developer overlay', hint: 'FPS / draws / tris', kbd: '`', run: topBtnAction('dev-mode') });
       items.push({ group: 'World', label: 'Generate Canyon Landscape…', hint: 'infinite terraced canyon procedural mesh', run: () => {
@@ -3812,8 +4019,10 @@ function getTestUser() {
       } });
       items.push({ group: 'World', label: 'Reset world', hint: 'back to the starter scene', run: topBtnAction('reset') });
       items.push({ group: 'World', label: 'Clear to grass', hint: 'wipe to empty grass', run: topBtnAction('clear') });
-      items.push({ group: 'Assets', label: 'Export assets to file', hint: 'back up custom voxel builds + templates as JSON', run: () => exportAssetLibrary() });
-      items.push({ group: 'Assets', label: 'Import assets from file', hint: 'restore custom builds + templates from a .json', run: () => importAssetLibraryViaPicker() });
+      if (ownerFileTools) {
+        items.push({ group: 'Assets', label: 'Export assets to file', hint: 'back up custom voxel builds + templates as JSON', run: () => exportAssetLibrary() });
+        items.push({ group: 'Assets', label: 'Import assets from file', hint: 'restore custom builds + templates from a .json', run: () => importAssetLibraryViaPicker() });
+      }
       items.push({ group: 'World', label: 'Clear all sky-islands', hint: 'remove every editable island (keeps the home world)', run: () => {
         if (typeof clearEditableIslands === 'function') {
           clearEditableIslands();
@@ -3848,8 +4057,10 @@ function getTestUser() {
           console.info('[vehicle-demo] share URL', url);
         }
       } });
-      items.push({ group: 'World', label: 'Export world as JSON', run: topBtnAction('export') });
-      items.push({ group: 'World', label: 'Import world from JSON', run: topBtnAction('import') });
+      if (ownerFileTools) {
+        items.push({ group: 'World', label: 'Export world as JSON', run: topBtnAction('export') });
+        items.push({ group: 'World', label: 'Import world from JSON', run: topBtnAction('import') });
+      }
       items.push({ group: 'World', label: 'Start collaborate room', hint: 'shared PartyKit room link', run: () => {
         const btn = document.querySelector('#world-menu [data-action="collaborate"]');
         if (btn) btn.click();

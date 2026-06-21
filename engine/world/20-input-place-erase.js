@@ -1796,10 +1796,19 @@
   const perspBtn = document.getElementById('persp');
   perspBtn.addEventListener('click', togglePerspective);
 
+  function twOwnerFileToolsAllowed() {
+    return !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
+  }
+
+  function twOwnerFileToolsDenied() {
+    if (typeof twToast === 'function') twToast('File import/export is limited to the owner account.', 'err');
+  }
+
   // Export current world to a downloadable JSON file. Same schema as the
   // localStorage save, so an exported file can be re-imported on any
   // machine and re-rendered through whatever the current rules are.
   document.getElementById('export').addEventListener('click', () => {
+    if (!twOwnerFileToolsAllowed()) { twOwnerFileToolsDenied(); return; }
     const cells = [];
     for (const xKey of Object.keys(world)) {
       const x = parseInt(xKey, 10);
@@ -1825,6 +1834,7 @@
       moorings: serializeMooringCables(),
       cells,
       voxelBuildStamps: (typeof referencedVoxelBuildStamps === 'function') ? referencedVoxelBuildStamps(cells) : undefined,
+      droppedModelStamps: (typeof referencedDroppedModelStamps === 'function') ? referencedDroppedModelStamps(cells) : undefined,
       cameraMode,
       toolId: selectedTool && selectedTool.id,
       useLandscapeEngine,
@@ -1923,7 +1933,7 @@
 
   function twImportLooksLikeAssetLibrary(data) {
     return !!(data && typeof data === 'object' && !Array.isArray(data)
-      && (data.tinyworldAssets || Array.isArray(data.voxelBuilds) || Array.isArray(data.assetTemplates)));
+      && (data.tinyworldAssets || Array.isArray(data.voxelBuilds) || Array.isArray(data.assetTemplates) || Array.isArray(data.hiddenAssetKeys)));
   }
 
   function twImportStoreWorldEntries(entries) {
@@ -1976,6 +1986,7 @@
   const importButton = document.getElementById('import');
   function twOpenImportFilePicker() {
     if (!importFile) return;
+    if (!twOwnerFileToolsAllowed()) { twOwnerFileToolsDenied(); return; }
     importFile.value = '';
     try {
       if (typeof importFile.showPicker === 'function') {
@@ -1995,7 +2006,8 @@
       twOpenImportFilePicker();
     });
   }
-  importFile.addEventListener('change', async (e) => {
+  if (importFile) importFile.addEventListener('change', async (e) => {
+    if (!twOwnerFileToolsAllowed()) { twOwnerFileToolsDenied(); e.target.value = ''; return; }
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try {

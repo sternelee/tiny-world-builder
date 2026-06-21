@@ -3,7 +3,7 @@ import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs'
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
 import { ensureProfile } from './lib/profiles.mjs';
 import {
-  computeWorldPrice, worldDto, worldsUsdcMint, onchainVerificationRequired, verifyUsdcTransfer,
+  computeWorldPurchasePrice, deriveResourceStats, worldDto, worldsUsdcMint, onchainVerificationRequired, verifyUsdcTransfer,
 } from './lib/worlds.mjs';
 
 export const config = { path: '/api/worlds/claim' };
@@ -58,7 +58,8 @@ export default async function worldClaimFunction(request) {
     const worldRows = await sql`SELECT * FROM worlds WHERE id = ${worldId} LIMIT 1`;
     if (!worldRows.length) return errorResponse('World not found', 404, origin);
     const world = worldRows[0];
-    const price = computeWorldPrice(world.tile_count, economy);
+    const resourceStats = deriveResourceStats(world.data, world.grid_size);
+    const price = computeWorldPurchasePrice(world.tile_count, economy, resourceStats);
 
     if (action === 'quote') {
       if (world.status !== 'unclaimed') return errorResponse('World is not for sale', 409, origin);

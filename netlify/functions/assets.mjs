@@ -9,6 +9,10 @@ function normalizeAssetLibrary(body) {
   const data = body && body.data ? body.data : body;
   const voxelBuilds = Array.isArray(data && data.voxelBuilds) ? data.voxelBuilds.slice(0, 200) : [];
   const assetTemplates = Array.isArray(data && data.assetTemplates) ? data.assetTemplates.slice(0, 200) : [];
+  const droppedModelStamps = Array.isArray(data && data.droppedModelStamps) ? data.droppedModelStamps.slice(0, 80) : [];
+  const hiddenAssetKeys = Array.isArray(data && data.hiddenAssetKeys)
+    ? data.hiddenAssetKeys.map(key => String(key || '').slice(0, 180)).filter(Boolean).slice(0, 1000)
+    : [];
   // Per-model-stamp config (scale/offset/appearance tweaks), keyed by stamp id.
   // Small JSON; the 2MB cap below still guards the whole library.
   const rawDefaults = data && data.modelStampDefaults;
@@ -17,10 +21,12 @@ function normalizeAssetLibrary(body) {
     version: 1,
     voxelBuilds,
     assetTemplates,
+    droppedModelStamps,
+    hiddenAssetKeys,
     modelStampDefaults,
     updatedAt: new Date().toISOString(),
   };
-  if (JSON.stringify(out).length > 2_000_000) {
+  if (JSON.stringify(out).length > 20_000_000) {
     return { error: 'Asset library JSON is too large' };
   }
   return { data: out };
@@ -49,6 +55,8 @@ export default async function assetsFunction(request) {
           version: 1,
           voxelBuilds: [],
           assetTemplates: [],
+          droppedModelStamps: [],
+          hiddenAssetKeys: [],
           modelStampDefaults: {},
           createdAt: null,
           updatedAt: null,

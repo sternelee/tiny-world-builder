@@ -465,6 +465,16 @@
     if (typeof window.__tinyworldSyncAssetsToCloud === 'function') window.__tinyworldSyncAssetsToCloud();
   }
 
+  function deleteCustomVoxelBuildStamp(id) {
+    const stampId = String(id || '');
+    const index = VOXEL_BUILD_STAMPS.findIndex(s => s && s.id === stampId);
+    if (index < 0 || !VOXEL_BUILD_STAMPS[index].custom) return false;
+    VOXEL_BUILD_STAMPS.splice(index, 1);
+    saveCustomVoxelBuildStamps();
+    try { window.dispatchEvent(new CustomEvent('tinyworld:voxel-build-stamps-changed', { detail: { id: stampId, deleted: true } })); } catch (_) {}
+    return true;
+  }
+
   function importVoxelBuildPayload(payload, fallbackName = 'Imported Build') {
     const candidates = Array.isArray(payload)
       ? (payload.length && payload[0] && payload[0].voxels ? payload : [{ name: fallbackName, voxels: payload }])
@@ -491,3 +501,4 @@
   function getVoxelBuildStamp(id) {
     return VOXEL_BUILD_STAMPS.find(s => s.id === id) || null;
   }
+  window.__tinyworldDeleteCustomVoxelBuildStamp = deleteCustomVoxelBuildStamp;

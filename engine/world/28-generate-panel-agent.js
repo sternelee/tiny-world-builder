@@ -2785,15 +2785,23 @@
     attachInput.accept = '.glb,.gltf,.obj,.fbx,.vox,.vdb,.mtl,.png,.jpg,.jpeg,.webp,.gif,image/*';
     attachInput.hidden = true;
     form.appendChild(attachInput);
+    function agentFileAttachAllowed() {
+      return !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
+    }
+    function agentFileAttachDenied() {
+      if (typeof twToast === 'function') twToast('File attachments are limited to the owner account.', 'err');
+    }
     grip.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
+      if (!agentFileAttachAllowed()) { agentFileAttachDenied(); return; }
       attachInput.click();
     });
     attachInput.addEventListener('change', () => {
       const files = Array.from(attachInput.files || []);
       attachInput.value = '';
       if (!files.length) return;
+      if (!agentFileAttachAllowed()) { agentFileAttachDenied(); return; }
       const bridge = window.__tinyworldAgentDropAttachments;
       if (bridge && typeof bridge.addFiles === 'function') bridge.addFiles(files);
     });
