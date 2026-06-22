@@ -1,0 +1,39 @@
+.poc-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+
+.poc-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+.poc-status {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 16px;
+  font-family: 'Helvetica Neue', sans-serif;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.poc-hint {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-family: 'Helvetica Neue', sans-serif;
+  pointer-events: none;
+  z-index: 10;
+}

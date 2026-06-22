@@ -1,0 +1,35 @@
+.editor-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+
+.editor-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+.editor-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+}
+
+.editor-error {
+  position: absolute;
+  bottom: 100px;
+  left: 20px;
+  right: 20px;
+  padding: 12px;
+  background: rgba(255, 50, 50, 0.2);
+  border: 1px solid rgba(255, 50, 50, 0.4);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 13px;
+  word-break: break-all;
+}
