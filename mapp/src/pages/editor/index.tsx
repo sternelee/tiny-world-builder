@@ -95,6 +95,35 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.placeCamera(grid)
   }
 
+  private renderSelection(scene: THREE.Scene) {
+    const oldSel = scene.getObjectByName('selectionHighlight')
+    if (oldSel) scene.remove(oldSel)
+
+    const { selectedCell, grid } = this.props.store!.editorStore
+    if (!selectedCell) return
+
+    const wpos = this.cellToWorld(selectedCell.x, selectedCell.z)
+    const h = 0.02
+
+    const g = new THREE.Group()
+    g.name = 'selectionHighlight'
+
+    // 蓝色边框 (8 条线)
+    const mat = new THREE.LineBasicMaterial({ color: 0x3a72c8, transparent: true, opacity: 0.6 })
+    const s = 0.49
+    const corners = [
+      new THREE.Vector3(-s, h, -s), new THREE.Vector3(s, h, -s),
+      new THREE.Vector3(s, h, s), new THREE.Vector3(-s, h, s),
+      new THREE.Vector3(-s, h, -s),
+    ]
+    const geo = new THREE.BufferGeometry().setFromPoints(corners)
+    const line = new THREE.Line(geo, mat)
+    line.position.set(wpos.x, 0, wpos.z)
+    g.add(line)
+
+    scene.add(g)
+  }
+
   private placeCamera(grid: number) {
     const cam = this.sceneManager.camera3D
     if (!cam) return
@@ -194,22 +223,15 @@ class EditorPage extends Component<PageProps, EditorState> {
 
   private onRaise = () => {
     const { editorStore } = this.props.store!
-    const cam = this.sceneManager.camera3D
-    if (!cam) return
-    const scene = this.sceneManager.scene3D
-    if (!scene) return
-    // Raise at center of grid
-    const cx = Math.floor(editorStore.grid / 2)
-    const cz = Math.floor(editorStore.grid / 2)
-    editorStore.raiseTerrain(cx, cz)
+    const cell = editorStore.selectedCell ?? { x: Math.floor(editorStore.grid / 2), z: Math.floor(editorStore.grid / 2) }
+    editorStore.raiseTerrain(cell.x, cell.z)
     this.rebuildScene()
   }
 
   private onLower = () => {
     const { editorStore } = this.props.store!
-    const cx = Math.floor(editorStore.grid / 2)
-    const cz = Math.floor(editorStore.grid / 2)
-    editorStore.lowerTerrain(cx, cz)
+    const cell = editorStore.selectedCell ?? { x: Math.floor(editorStore.grid / 2), z: Math.floor(editorStore.grid / 2) }
+    editorStore.lowerTerrain(cell.x, cell.z)
     this.rebuildScene()
   }
 
@@ -274,11 +296,16 @@ class EditorPage extends Component<PageProps, EditorState> {
       return
     }
 
-    // Normal tool
-    const tool = editorStore.activeTool
-    if (!tool) return
+    // 有活动工具 → 放置/修改
+    if (editorStore.activeTool) {
+      const tool = editorStore.activeTool as any
+      editorStore.setCell(hit.x, hit.z, { terrain: tool.terrain || undefined, kind: tool.kind })
+      this.rebuildScene()
+      return
+    }
 
-    editorStore.setCell(hit.x, hit.z, { terrain: tool.terrain || undefined, kind: tool.kind })
+    // 无工具 → 选取格子
+    editorStore.setSelectedCell(hit)
     this.rebuildScene()
   }
 
