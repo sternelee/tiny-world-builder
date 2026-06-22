@@ -14,6 +14,7 @@ import { raycastCell } from '../../three/Raycaster'
 import { getWindowInfo } from '../../services/PlatformAdapter'
 import Toolbar from '../../components/Toolbar'
 import EditorHUD from '../../components/EditorHUD'
+import Minimap from '../../components/Minimap'
 
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
@@ -295,36 +296,99 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.rebuildScene()
   }
 
-  // ---- Touch 交互 ----
-  private touchStart = { x: 0, y: 0 }
+  // ---- Touch 交互（单指转动 + 双指缩放 + 长按菜单）----
+  private touchStart = { x: 0, y: 0, time: 0 }
   private touchMoved = false
+  private pinchDist = 0
+  private camDist = 0
+  private longPressTimer: any = null
 
   private onTouchStart = (e: any) => {
     const t = e.touches?.[0]
-    if (t) {
-      this.touchStart = { x: t.x || t.clientX || 0, y: t.y || t.clientY || 0 }
-      this.touchMoved = false
+    if (!t) return
+    this.touchStart = { x: t.x || t.clientX || 0, y: t.y || t.clientY || 0, time: Date.now() }
+    this.touchMoved = false
+    this.pinchDist = 0
+
+    // 双指：记录初始距离
+    if (e.touches.length === 2) {
+      const a = e.touches[0]; const b = e.touches[1]
+      this.pinchDist = Math.hypot(b.x - a.x, b.y - a.y)
+      const cam = this.sceneManager.camera3D
+      if (cam) this.camDist = cam.position.length()
+    }
+
+    // 单指：启动长按计时
+    if (e.touches.length === 1) {
+      clearTimeout(this.longPressTimer)
+      this.longPressTimer = setTimeout(() => {
+        if (!this.touchMoved) this.handleLongPress(e)
+      }, 600)
     }
   }
 
   private onTouchMove = (e: any) => {
     this.touchMoved = true
-    const t = e.touches?.[0]
-    if (!t || e.touches.length > 1) return
+    clearTimeout(this.longPressTimer)
     const cam = this.sceneManager.camera3D
     if (!cam) return
+
+    // 双指缩放
+    if (e.touches.length === 2 && this.pinchDist > 0) {
+      const a = e.touches[0]; const b = e.touches[1]
+      const dist = Math.hypot(b.x - a.x, b.y - a.y)
+      const ratio = this.pinchDist / Math.max(dist, 1)
+      const newDist = Math.max(0.5, Math.min(15, this.camDist * ratio))
+      const dir = cam.position.clone().normalize()
+      cam.position.copy(dir.multiplyScalar(newDist))
+      cam.lookAt(0, 0, 0)
+      this.camDist = newDist
+      this.pinchDist = dist
+      return
+    }
+
+    // 单指转动
+    const t = e.touches?.[0]
+    if (!t) return
     const x = t.x || t.clientX || 0
     const y = t.y || t.clientY || 0
     const dx = x - this.touchStart.x
     const dy = y - this.touchStart.y
-    this.touchStart = { x, y }
+    this.touchStart = { x, y, time: Date.now() }
 
     cam.position.x += dx * 0.008
     cam.position.z += dy * 0.008
     cam.lookAt(0, 0, 0)
   }
 
+  private handleLongPress(e: any) {
+    const t = e.changedTouches?.[0]
+    if (!t) return
+    const { editorStore } = this.props.store!
+    const cam = this.sceneManager.camera3D
+    const scene = this.sceneManager.scene3D
+    if (!cam || !scene) return
+
+    const hit = raycastCell(cam, t.x || t.clientX || 0, t.y || t.clientY || 0, this.win.width, this.win.height, scene, editorStore.grid)
+    if (!hit) return
+
+    // 长按：选中 + 显示动作菜单
+    editorStore.setSelectedCell(hit)
+    this.rebuildScene()
+    Taro.showActionSheet({
+      itemList: ['Raise terrain', 'Lower terrain', 'Delete object', 'Cancel'],
+      success: (res) => {
+        if (res.tapIndex === 0) editorStore.raiseTerrain(hit.x, hit.z)
+        else if (res.tapIndex === 1) editorStore.lowerTerrain(hit.x, hit.z)
+        else if (res.tapIndex === 2) editorStore.eraseCell(hit.x, hit.z)
+        else return
+        this.rebuildScene()
+      },
+    })
+  }
+
   private onTouchEnd = (e: any) => {
+    clearTimeout(this.longPressTimer)
     if (this.touchMoved) return
     const t = e.changedTouches?.[0]
     if (!t) return
@@ -387,6 +451,7 @@ class EditorPage extends Component<PageProps, EditorState> {
               onExport={this.onExport}
               onImport={this.onImport}
             />
+            <Minimap />
             {toolbarVisible && (
               <Toolbar
                 onEraser={this.onEraser}

@@ -219,6 +219,26 @@
   pointer-events: none;
 }
 
+/* ---- Minimap ---- */
+.minimap-wrap {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 80;
+  pointer-events: none;
+}
+
+.minimap-canvas {
+  width: 100px;
+  height: 100px;
+}
+
 .action-btn {
   width: 32px;
   height: 32px;
