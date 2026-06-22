@@ -1,10 +1,5 @@
 /**
- * 编辑器页面 — 主入口
- *
- * 1. 初始化 Taro Canvas (WebGL)
- * 2. 启动 Three.js 场景
- * 3. 挂载 MobX Store
- * 4. touch → raycaster 交互
+ * 编辑器页面 — 完整管线：Canvas → Three.js → Raycaster → ToolBar
  */
 import { Component, PropsWithChildren } from 'react'
 import { Canvas, View } from '@tarojs/components'
@@ -13,9 +8,15 @@ import { inject, observer } from 'mobx-react'
 
 import { EditorStore } from '../../store/editorStore'
 import { SceneManager } from '../../three/SceneManager'
+import { makeTile, makeObject, tileLevelForCell } from '../../three/TileRenderer'
+import { raycastCell } from '../../three/Raycaster'
 import { getWindowInfo } from '../../services/PlatformAdapter'
+import Toolbar from '../../components/Toolbar'
+
+import * as THREE from 'three'
 
 import './index.scss'
+import { ensureCell } from '../../core/world-data'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
@@ -31,6 +32,66 @@ interface EditorState {
 class EditorPage extends Component<PageProps, EditorState> {
   private sceneManager = new SceneManager()
   private canvas: any = null
+  private win = { width: 375, height: 667, dpr: 2 }
+
+  /** 格子到世界坐标 */
+  private cellToWorld(cx: number, cz: number) {
+    const g = this.props.store!.editorStore.grid
+    return {
+      x: cx - (g - 1) / 2,
+      z: cz - (g - 1) / 2,
+    }
+  }
+
+  /** 重建每个格子的 tile mesh */
+  private rebuildScene() {
+    const { editorStore } = this.props.store!
+    const grid = editorStore.grid
+    const scene = this.sceneManager.scene3D
+    if (!scene) return
+
+    // 清除旧 tile
+    const oldTileRoot = scene.getObjectByName('tileRoot')
+    if (oldTileRoot) scene.remove(oldTileRoot)
+
+    const tileRoot = new THREE.Group()
+    tileRoot.name = 'tileRoot'
+
+    for (let x = 0; x < grid; x++) {
+      for (let z = 0; z < grid; z++) {
+        const cell = ensureCell(editorStore.world, x, z)
+        const wpos = this.cellToWorld(x, z)
+
+        // 地形瓦片
+        const level = tileLevelForCell(cell)
+        const tile = makeTile(cell.terrain, level)
+        tile.position.set(wpos.x, 0, wpos.z)
+        tile.userData = { cellX: x, cellZ: z }
+        tileRoot.add(tile)
+
+        // 物体
+        if (cell.kind) {
+          const obj = makeObject(cell.kind, cell)
+          if (obj) {
+            obj.position.set(wpos.x, 0, wpos.z)
+            obj.userData = { cellX: x, cellZ: z, kind: cell.kind }
+            tileRoot.add(obj)
+          }
+        }
+      }
+    }
+
+    scene.add(tileRoot)
+    this.placeCamera(grid)
+  }
+
+  private placeCamera(grid: number) {
+    const cam = this.sceneManager.camera3D
+    if (!cam) return
+    const s = grid * 0.6
+    cam.position.set(s * 0.8, s * 0.6, s * 0.8)
+    cam.lookAt(0, 0, 0)
+  }
 
   state: EditorState = { status: 'loading', errorMsg: null }
 
@@ -44,24 +105,21 @@ class EditorPage extends Component<PageProps, EditorState> {
 
   private async init() {
     try {
-      // 1. 获取 canvas
       const canvas = await this.getCanvasNode()
       if (!canvas) {
         this.setState({ status: 'error', errorMsg: 'Canvas 获取失败' })
         return
       }
       this.canvas = canvas
+      this.win = getWindowInfo()
 
-      // 2. 获取窗口信息
-      const win = getWindowInfo()
-
-      // 3. 初始化场景
-      await this.sceneManager.init(canvas, win.width, win.height, win.dpr)
+      await this.sceneManager.init(canvas, this.win.width, this.win.height, this.win.dpr)
       this.sceneManager.start()
 
-      // 4. 标记就绪
       const { editorStore } = this.props.store!
       editorStore.ready = true
+
+      this.rebuildScene()
       this.setState({ status: 'ready' })
 
     } catch (err: any) {
@@ -83,22 +141,63 @@ class EditorPage extends Component<PageProps, EditorState> {
     })
   }
 
-  // ---- touch 交互 ----
-  private touchStart = { x: 0, y: 0 }
+  // ---- Touch 交互 ----
+  private touchStart = { x: 0, y: 0, time: 0 }
+  private touchMoved = false
 
   private onTouchStart = (e: any) => {
     const t = e.touches?.[0]
     if (t) {
-      this.touchStart = { x: t.clientX || t.x || 0, y: t.clientY || t.y || 0 }
+      this.touchStart = { x: t.x || t.clientX || 0, y: t.y || t.clientY || 0, time: Date.now() }
+      this.touchMoved = false
     }
   }
 
   private onTouchMove = (e: any) => {
-    // TODO: camera orbit / raycaster
+    this.touchMoved = true
+    // 单指旋转
+    const t = e.touches?.[0]
+    if (!t || e.touches.length > 1) return
+    const cam = this.sceneManager.camera3D
+    if (!cam) return
+    const x = t.x || t.clientX || 0
+    const y = t.y || t.clientY || 0
+    const dx = x - this.touchStart.x
+    const dy = y - this.touchStart.y
+    this.touchStart = { x, y, time: Date.now() }
+
+    // 简单 orbit：绕 Y 轴旋转
+    cam.position.x += dx * 0.008
+    cam.position.z += dy * 0.008
+    cam.lookAt(0, 0, 0)
   }
 
-  private onTouchEnd = () => {
-    // TODO: place/select
+  private onTouchEnd = (e: any) => {
+    if (this.touchMoved) return
+    // 点击 → 放置/选择
+    const t = e.changedTouches?.[0]
+    if (!t) return
+    const x = t.x || t.clientX || 0
+    const y = t.y || t.clientY || 0
+
+    const { editorStore } = this.props.store!
+    const cam = this.sceneManager.camera3D
+    const scene = this.sceneManager.scene3D
+    if (!cam || !scene) return
+
+    const hit = raycastCell(cam, x, y, this.win.width, this.win.height, scene, editorStore.grid)
+    if (!hit) return
+
+    const { x: cx, z: cz } = hit
+    const tool = editorStore.activeTool
+    if (!tool) return
+
+    // 放置
+    editorStore.setCell(cx, cz, {
+      terrain: tool.terrain || undefined,
+      kind: tool.kind,
+    })
+    this.rebuildScene()
   }
 
   render() {
@@ -117,11 +216,15 @@ class EditorPage extends Component<PageProps, EditorState> {
         />
 
         {status === 'loading' && (
-          <View className='editor-loading'>Loading Tiny World...</View>
+          <View className='editor-loading'>Loading...</View>
         )}
 
         {status === 'error' && (
           <View className='editor-error'>{errorMsg}</View>
+        )}
+
+        {status === 'ready' && (
+          <Toolbar />
         )}
       </View>
     )
