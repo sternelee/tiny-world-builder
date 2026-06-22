@@ -34,6 +34,92 @@
   word-break: break-all;
 }
 
+/* ---- HUD ---- */
+.editor-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px calc(12px + env(safe-area-inset-top));
+  background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 100%);
+  z-index: 90;
+  pointer-events: none;
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.hud-worldname {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  letter-spacing: -0.3px;
+}
+
+.hud-gridsize {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+}
+
+.hud-gridsize-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.hud-gridsize-arrow {
+  font-size: 8px;
+  color: rgba(255,255,255,0.5);
+}
+
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.hud-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
+}
+
+.hud-btn:active {
+  transform: scale(0.92);
+}
+
+.hud-btn-icon {
+  font-size: 18px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1;
+}
+
+.hud-btn-tools {
+  background: rgba(58, 114, 200, 0.3);
+  border-color: rgba(58, 114, 200, 0.4);
+}
+
 /* ---- Toolbar ---- */
 .toolbar {
   position: absolute;
