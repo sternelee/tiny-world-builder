@@ -1,7 +1,7 @@
 // -------- 底部工具栏 — 工具 + 动作按钮 --------
 
 import { Component, PropsWithChildren } from 'react'
-import { View, ScrollView, Text } from '@tarojs/components'
+import { CoverView, ScrollView, Text } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { ToolDef, getToolGroups } from '../core/constants'
@@ -34,64 +34,64 @@ class Toolbar extends Component<PageProps> {
     const activeId = editorStore.activeTool?.id
 
     return (
-      <View className='toolbar'>
+      <CoverView className='toolbar'>
         <ScrollView scrollX className='toolbar-scroll'>
           {/* 动作按钮组 */}
-          <View className='tool-group'>
-            <View
+          <CoverView className='tool-group'>
+            <CoverView
               className={`tool-btn action-btn ${activeId === '__eraser__' ? 'active danger' : ''}`}
               onClick={onEraser}
             >
               <Text className='tool-icon'>⊘</Text>
               <Text className='tool-label'>Erase</Text>
-            </View>
-            <View className='tool-btn action-btn' onClick={onRaise}>
+            </CoverView>
+            <CoverView className='tool-btn action-btn' onClick={onRaise}>
               <Text className='tool-icon'>↑</Text>
               <Text className='tool-label'>Raise</Text>
-            </View>
-            <View className='tool-btn action-btn' onClick={onLower}>
+            </CoverView>
+            <CoverView className='tool-btn action-btn' onClick={onLower}>
               <Text className='tool-icon'>↓</Text>
               <Text className='tool-label'>Lower</Text>
-            </View>
-            <View className='tool-sep' />
-            <View
+            </CoverView>
+            <CoverView className='tool-sep' />
+            <CoverView
               className={`tool-btn action-btn ${editorStore.canUndo ? '' : 'disabled'}`}
               onClick={editorStore.canUndo ? onUndo : undefined}
             >
               <Text className='tool-icon'>↩</Text>
               <Text className='tool-label'>Undo</Text>
-            </View>
-            <View
+            </CoverView>
+            <CoverView
               className={`tool-btn action-btn ${editorStore.canRedo ? '' : 'disabled'}`}
               onClick={editorStore.canRedo ? onRedo : undefined}
             >
               <Text className='tool-icon'>↪</Text>
               <Text className='tool-label'>Redo</Text>
-            </View>
-          </View>
+            </CoverView>
+          </CoverView>
 
-          <View className='tool-sep-v' />
+          <CoverView className='tool-sep-v' />
 
           {/* 工具分组 */}
           {Object.entries(groups).map(([groupName, tools]) => (
-            <View key={groupName} className='tool-group'>
+            <CoverView key={groupName} className='tool-group'>
               <Text className='tool-group-label'>{groupName}</Text>
-              <View className='tool-items'>
+              <CoverView className='tool-items'>
                 {tools.map(tool => (
-                  <View
+                  <CoverView
                     key={tool.id}
                     className={`tool-btn ${activeId === tool.id ? 'active' : ''}`}
                     onClick={() => this.selectTool(tool)}
                   >
                     <Text className='tool-icon'>{toolIcon(tool)}</Text>
                     <Text className='tool-label'>{tool.label}</Text>
-                  </View>
+                  </CoverView>
                 ))}
-              </View>
-            </View>
+              </CoverView>
+            </CoverView>
           ))}
         </ScrollView>
-      </View>
+      </CoverView>
     )
   }
 }

@@ -1,7 +1,7 @@
-// -------- 编辑器 HUD：世界名称 + 网格尺寸 + 快捷操作 --------
+// -------- 编辑器 HUD：CoverView 覆盖 WebGL Canvas --------
 
 import { Component, PropsWithChildren } from 'react'
-import { View, Text, Picker } from '@tarojs/components'
+import { CoverView, Text, Picker } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { HOME_GRID_OPTIONS } from '../core/constants'
@@ -35,9 +35,8 @@ class EditorHUD extends Component<PageProps> {
     const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport, onLoadPreset } = this.props
 
     return (
-      <View className='editor-hud'>
-        {/* 左: 世界名称 + 网格尺寸 */}
-        <View className='hud-left'>
+      <CoverView className='editor-hud'>
+        <CoverView className='hud-left'>
           <Text className='hud-worldname'>Tiny World</Text>
           <Picker
             mode='selector'
@@ -45,46 +44,27 @@ class EditorHUD extends Component<PageProps> {
             value={HOME_GRID_OPTIONS.indexOf(editorStore.grid)}
             onChange={this.onGridPickerChange}
           >
-            <View className='hud-gridsize'>
+            <CoverView className='hud-gridsize'>
               <Text className='hud-gridsize-label'>{editorStore.grid}×{editorStore.grid}</Text>
               <Text className='hud-gridsize-arrow'>▼</Text>
-            </View>
+            </CoverView>
           </Picker>
-        </View>
+        </CoverView>
 
-        {/* 右: 快捷按钮 */}
-        <View className='hud-right'>
-          <View className='hud-btn' onClick={onToggleCamera}>
-            <Text className='hud-btn-icon'>
-              {editorStore.cameraMode === 'isometric' ? '◇' : '◈'}
-            </Text>
-          </View>
-          <View className='hud-btn' onClick={onSave}>
-            <Text className='hud-btn-icon'>💾</Text>
-          </View>
-          <View className='hud-btn' onClick={onLoad}>
-            <Text className='hud-btn-icon'>📂</Text>
-          </View>
-          <View className='hud-btn' onClick={onExport}>
-            <Text className='hud-btn-icon'>📤</Text>
-          </View>
-          <View className='hud-btn' onClick={onImport}>
-            <Text className='hud-btn-icon'>📥</Text>
-          </View>
-          <View className='hud-btn' onClick={onClear}>
-            <Text className='hud-btn-icon'>⌫</Text>
-          </View>
-          <View className='hud-btn' onClick={onReset}>
-            <Text className='hud-btn-icon'>↺</Text>
-          </View>
-          <View className='hud-btn' onClick={onLoadPreset}>
-            <Text className='hud-btn-icon'>🏘</Text>
-          </View>
-          <View className='hud-btn hud-btn-tools' onClick={onToggleToolbar}>
-            <Text className='hud-btn-icon'>☰</Text>
-          </View>
-        </View>
-      </View>
+        <CoverView className='hud-right'>
+          <CoverView className='hud-btn' onClick={onToggleCamera}>
+            <Text className='hud-btn-icon'>{editorStore.cameraMode === 'isometric' ? '◇' : '◈'}</Text>
+          </CoverView>
+          <CoverView className='hud-btn' onClick={onSave}><Text className='hud-btn-icon'>💾</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onLoad}><Text className='hud-btn-icon'>📂</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onExport}><Text className='hud-btn-icon'>📤</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onImport}><Text className='hud-btn-icon'>📥</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onClear}><Text className='hud-btn-icon'>⌫</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onReset}><Text className='hud-btn-icon'>↺</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onLoadPreset}><Text className='hud-btn-icon'>🏘</Text></CoverView>
+          <CoverView className='hud-btn hud-btn-tools' onClick={onToggleToolbar}><Text className='hud-btn-icon'>☰</Text></CoverView>
+        </CoverView>
+      </CoverView>
     )
   }
 }
