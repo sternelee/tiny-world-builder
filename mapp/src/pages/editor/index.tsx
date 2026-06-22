@@ -252,6 +252,10 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.rebuildScene()
   }
 
+  private onLogin = () => {
+    Taro.showToast({ title: 'Login — coming soon', icon: 'none', duration: 1500 })
+  }
+
   private onSave = () => {
     const { editorStore } = this.props.store!
     saveWorld(editorStore)
@@ -472,15 +476,12 @@ class EditorPage extends Component<PageProps, EditorState> {
           <>
             <EditorHUD
               onGridChange={this.onGridChange}
-              onReset={this.onReset}
-              onClear={this.onClear}
               onToggleCamera={this.onToggleCamera}
-              onToggleToolbar={this.onToggleToolbar}
-              onLoadPreset={this.onLoadPreset}
               onSave={this.onSave}
               onLoad={this.onLoad}
-              onExport={this.onExport}
-              onImport={this.onImport}
+              onLoadPreset={this.onLoadPreset}
+              onNewProject={this.onClear}
+              onLogin={this.onLogin}
             />
             <Minimap />
             {toolbarVisible && (
