@@ -106,6 +106,21 @@
   z-index: 999;
 }
 
+/* 横屏：更紧凑的工具栏 */
+@media (orientation: landscape) {
+  .toolbar {
+    height: 56px;
+  }
+  .tb-row-1 { top: 2px; }
+  .tb-row-2 { top: 30px; }
+  .tb-btn {
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+  }
+  .tb-icon { font-size: 11px; }
+}
+
 .tb-row {
   position: absolute;
   left: 2px;

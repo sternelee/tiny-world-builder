@@ -137,10 +137,41 @@ class EditorPage extends Component<PageProps, EditorState> {
 
   componentDidMount() {
     Taro.nextTick(() => this.init())
+    // 横屏适配
+    Taro.onWindowResize?.(this.onWindowResize)
   }
 
   componentWillUnmount() {
+    Taro.offWindowResize?.(this.onWindowResize)
     this.sceneManager.dispose()
+  }
+
+  private onWindowResize = (res: any) => {
+    const { windowWidth, windowHeight } = res
+    if (!windowWidth || !windowHeight) return
+    this.win.width = windowWidth
+    this.win.height = windowHeight
+
+    // 更新 canvas DOM 尺寸
+    if (this.canvas) {
+      this.canvas.width = windowWidth * this.win.dpr
+      this.canvas.height = windowHeight * this.win.dpr
+      if (this.canvas.style) {
+        this.canvas.style.width = windowWidth + 'px'
+        this.canvas.style.height = windowHeight + 'px'
+      }
+    }
+
+    const renderer = this.sceneManager.renderer3D
+    const camera = this.sceneManager.camera3D
+    if (renderer) {
+      renderer.setSize(windowWidth, windowHeight)
+      renderer.setPixelRatio(Math.min(this.win.dpr, 2))
+    }
+    if (camera) {
+      camera.aspect = windowWidth / windowHeight
+      camera.updateProjectionMatrix()
+    }
   }
 
   private async init() {
