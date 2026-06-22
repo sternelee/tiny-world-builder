@@ -1,4 +1,4 @@
-// -------- 编辑器 HUD：CoverView 覆盖 WebGL Canvas --------
+// -------- 编辑器 HUD — 简化 CoverView 版 --------
 
 import { Component, PropsWithChildren } from 'react'
 import { CoverView, Text, Picker } from '@tarojs/components'
@@ -35,21 +35,19 @@ class EditorHUD extends Component<PageProps> {
     const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport, onLoadPreset } = this.props
 
     return (
-      <CoverView className='editor-hud'>
-        <CoverView className='hud-left'>
-          <Text className='hud-worldname'>Tiny World</Text>
-          <Picker
-            mode='selector'
-            range={HOME_GRID_OPTIONS.map(s => `${s}×${s}`)}
-            value={HOME_GRID_OPTIONS.indexOf(editorStore.grid)}
-            onChange={this.onGridPickerChange}
-          >
-            <CoverView className='hud-gridsize'>
-              <Text className='hud-gridsize-label'>{editorStore.grid}×{editorStore.grid}</Text>
-              <Text className='hud-gridsize-arrow'>▼</Text>
-            </CoverView>
-          </Picker>
-        </CoverView>
+      <CoverView>
+        <CoverView className='hud-topbar' />
+        <Text className='hud-title'>Tiny World</Text>
+        <Picker
+          mode='selector'
+          range={HOME_GRID_OPTIONS.map(s => `${s}×${s}`)}
+          value={HOME_GRID_OPTIONS.indexOf(editorStore.grid)}
+          onChange={this.onGridPickerChange}
+        >
+          <CoverView className='hud-gridsize'>
+            <Text className='hud-gridsize-label'>{editorStore.grid}×{editorStore.grid}</Text>
+          </CoverView>
+        </Picker>
 
         <CoverView className='hud-right'>
           <CoverView className='hud-btn' onClick={onToggleCamera}>
@@ -57,12 +55,7 @@ class EditorHUD extends Component<PageProps> {
           </CoverView>
           <CoverView className='hud-btn' onClick={onSave}><Text className='hud-btn-icon'>💾</Text></CoverView>
           <CoverView className='hud-btn' onClick={onLoad}><Text className='hud-btn-icon'>📂</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onExport}><Text className='hud-btn-icon'>📤</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onImport}><Text className='hud-btn-icon'>📥</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onClear}><Text className='hud-btn-icon'>⌫</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onReset}><Text className='hud-btn-icon'>↺</Text></CoverView>
           <CoverView className='hud-btn' onClick={onLoadPreset}><Text className='hud-btn-icon'>🏘</Text></CoverView>
-          <CoverView className='hud-btn hud-btn-tools' onClick={onToggleToolbar}><Text className='hud-btn-icon'>☰</Text></CoverView>
         </CoverView>
       </CoverView>
     )
