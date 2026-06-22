@@ -8,7 +8,7 @@ import { inject, observer } from 'mobx-react'
 
 import { EditorStore } from '../../store/editorStore'
 import { SceneManager } from '../../three/SceneManager'
-import { makeTile, makeObject, tileLevelForCell } from '../../three/TileRenderer'
+import { makeTile, makeObject, CellNeighbors, tileLevelForCell } from '../../three/TileRenderer'
 import { raycastCell } from '../../three/Raycaster'
 import { getWindowInfo } from '../../services/PlatformAdapter'
 import Toolbar from '../../components/Toolbar'
@@ -43,6 +43,21 @@ class EditorPage extends Component<PageProps, EditorState> {
     }
   }
 
+  /** 获取格子邻接信息 */
+  private getCellNeighbors(x: number, z: number, grid: number): CellNeighbors {
+    const { world } = this.props.store!.editorStore
+    const isKind = (cx: number, cz: number, kind: string) => {
+      if (cx < 0 || cx >= grid || cz < 0 || cz >= grid) return false
+      return ensureCell(world, cx, cz).kind === kind
+    }
+    return {
+      n: isKind(x, z - 1, 'fence') || isKind(x, z - 1, 'bridge'),
+      s: isKind(x, z + 1, 'fence') || isKind(x, z + 1, 'bridge'),
+      e: isKind(x + 1, z, 'fence') || isKind(x + 1, z, 'bridge'),
+      w: isKind(x - 1, z, 'fence') || isKind(x - 1, z, 'bridge'),
+    }
+  }
+
   /** 重建每个格子的 tile mesh */
   private rebuildScene() {
     const { editorStore } = this.props.store!
@@ -69,9 +84,10 @@ class EditorPage extends Component<PageProps, EditorState> {
         tile.userData = { cellX: x, cellZ: z }
         tileRoot.add(tile)
 
-        // 物体
+        // 物体（含邻接信息）
         if (cell.kind) {
-          const obj = makeObject(cell.kind, cell)
+          const neighbors = this.getCellNeighbors(x, z, grid)
+          const obj = makeObject(cell.kind, cell, neighbors)
           if (obj) {
             obj.position.set(wpos.x, 0, wpos.z)
             obj.userData = { cellX: x, cellZ: z, kind: cell.kind }

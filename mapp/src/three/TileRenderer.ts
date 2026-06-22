@@ -71,8 +71,15 @@ function addDecal(group: THREE.Group, mat: THREE.Material, ox: number, size: num
   group.add(d)
 }
 
-/** 生成物体 Mesh */
-export function makeObject(kind: string, _cell?: CellState): THREE.Group | null {
+/** 邻接信息 */
+export interface CellNeighbors {
+  n: boolean; s: boolean; e: boolean; w: boolean
+}
+
+/** 生成物体 Mesh — 支持邻接感知 */
+export function makeObject(
+  kind: string, _cell?: CellState, neighbors?: CellNeighbors,
+): THREE.Group | null {
   const group = new THREE.Group()
 
   switch (kind) {
@@ -80,14 +87,10 @@ export function makeObject(kind: string, _cell?: CellState): THREE.Group | null 
       return makeTree(group)
     case 'rock':
       return makeRock(group)
-    case 'fence': {
-      const g = makeFencePost()
-      g.position.y = 0
-      group.add(g)
-      return group
-    }
+    case 'fence':
+      return makeFenceWithNeighbors(neighbors ?? { n: false, s: false, e: false, w: false })
     case 'bridge':
-      return makeBridge(group)
+      return makeBridgeWithNeighbors(group, neighbors ?? { n: false, s: false, e: false, w: false })
     case 'house':
       return makeHouse(group)
     case 'tuft':
@@ -152,34 +155,104 @@ function makeRock(g: THREE.Group): THREE.Group {
   return g
 }
 
-function makeFencePost(): THREE.Group {
+/** 围栏渲染 — 邻接感知：只渲染与邻居连接的段和角柱 */
+function makeFenceWithNeighbors(n: { n: boolean; s: boolean; e: boolean; w: boolean }): THREE.Group {
   const g = new THREE.Group()
-  const post = new THREE.Mesh(getBoxGeometry(0.06, 0.35, 0.06), M.fencePost)
-  post.position.y = 0.175
-  g.add(post)
-  // rail
-  const rail = new THREE.Mesh(getBoxGeometry(0.85, 0.04, 0.04), M.fenceRail)
-  rail.position.y = 0.22
-  g.add(rail)
-  const rail2 = new THREE.Mesh(getBoxGeometry(0.85, 0.03, 0.03), M.fenceRail)
-  rail2.position.y = 0.10
-  g.add(rail2)
+  const postMat = M.fencePost
+  const railMat = M.fenceRail
+  const postW = 0.06; const postH = 0.35; const postD = 0.06
+
+  // 在格子的 4 个角渲染柱子
+  const corners: Array<{ x: number; z: number; sides: [boolean, boolean] }> = [
+    { x: -0.43, z: -0.43, sides: [n.n, n.w] },  // NW corner (touches N and W edges)
+    { x: 0.43, z: -0.43, sides: [n.n, n.e] },   // NE corner
+    { x: -0.43, z: 0.43, sides: [n.s, n.w] },   // SW corner
+    { x: 0.43, z: 0.43, sides: [n.s, n.e] },    // SE corner
+  ]
+
+  for (const c of corners) {
+    // 如果两邻接面都有围栏 → corner post
+    // 如果只有一面有 → T-junction post
+    // 如果都没 → standalone post
+    const post = new THREE.Mesh(getBoxGeometry(postW, postH, postD), postMat)
+    post.position.set(c.x, postH / 2, c.z)
+    g.add(post)
+  }
+
+  // 沿有邻接的边渲染横栏
+  const railH = 0.04; const railD = 0.04
+  if (n.n) {
+    const r1 = new THREE.Mesh(getBoxGeometry(0.86, railH, railD), railMat)
+    r1.position.set(0, 0.24, -0.43)
+    g.add(r1)
+    const r2 = new THREE.Mesh(getBoxGeometry(0.86, 0.03, railD), railMat)
+    r2.position.set(0, 0.12, -0.43)
+    g.add(r2)
+  }
+  if (n.s) {
+    const r1 = new THREE.Mesh(getBoxGeometry(0.86, railH, railD), railMat)
+    r1.position.set(0, 0.24, 0.43)
+    g.add(r1)
+    const r2 = new THREE.Mesh(getBoxGeometry(0.86, 0.03, railD), railMat)
+    r2.position.set(0, 0.12, 0.43)
+    g.add(r2)
+  }
+  if (n.e) {
+    const r1 = new THREE.Mesh(getBoxGeometry(railD, railH, 0.86), railMat)
+    r1.position.set(0.43, 0.24, 0)
+    g.add(r1)
+    const r2 = new THREE.Mesh(getBoxGeometry(railD, 0.03, 0.86), railMat)
+    r2.position.set(0.43, 0.12, 0)
+    g.add(r2)
+  }
+  if (n.w) {
+    const r1 = new THREE.Mesh(getBoxGeometry(railD, railH, 0.86), railMat)
+    r1.position.set(-0.43, 0.24, 0)
+    g.add(r1)
+    const r2 = new THREE.Mesh(getBoxGeometry(railD, 0.03, 0.86), railMat)
+    r2.position.set(-0.43, 0.12, 0)
+    g.add(r2)
+  }
+
   return g
 }
 
-function makeBridge(g: THREE.Group): THREE.Group {
-  // Planks
-  for (let i = -3; i <= 3; i++) {
-    const plank = new THREE.Mesh(getBoxGeometry(0.10, 0.04, 0.80), M.bridgeWood)
-    plank.position.set(i * 0.12, 0.08, 0)
+/** 桥梁渲染 — 沿 connect 方向排列木板 */
+function makeBridgeWithNeighbors(g: THREE.Group, n: { n: boolean; s: boolean; e: boolean; w: boolean }): THREE.Group {
+  // 检测路径连接方向：优先 N-S，次选 E-W
+  const ns = n.n || n.s
+  const ew = n.e || n.w
+  const alongX = ns && !ew  // N-S 路径 → 桥沿 X 轴铺
+    ? true
+    : ew && !ns
+      ? false  // E-W 路径 → 桥沿 Z 轴铺
+      : true   // 默认 X 轴
+
+  const count = 7; const spacing = 0.12
+  const start = -(count - 1) * spacing / 2
+
+  for (let i = 0; i < count; i++) {
+    const pos = start + i * spacing
+    const plank = new THREE.Mesh(
+      getBoxGeometry(alongX ? 0.10 : 0.80, 0.04, alongX ? 0.80 : 0.10),
+      M.bridgeWood,
+    )
+    if (alongX) plank.position.set(pos, 0.08, 0)
+    else plank.position.set(0, 0.08, pos)
     g.add(plank)
   }
-  // Side rails
+
+  // 护栏
   for (const side of [-1, 1]) {
-    const rail = new THREE.Mesh(getBoxGeometry(0.80, 0.08, 0.04), M.bridgeWoodD)
-    rail.position.set(0, 0.14, side * 0.38)
+    const rail = new THREE.Mesh(
+      getBoxGeometry(alongX ? 0.80 : 0.04, 0.08, alongX ? 0.04 : 0.80),
+      M.bridgeWoodD,
+    )
+    if (alongX) rail.position.set(0, 0.14, side * 0.38)
+    else rail.position.set(side * 0.38, 0.14, 0)
     g.add(rail)
   }
+
   return g
 }
 
