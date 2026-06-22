@@ -17,6 +17,7 @@ import EditorHUD from '../../components/EditorHUD'
 
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
+import { applyPreset } from '../../core/presets'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
@@ -211,6 +212,13 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.setState(s => ({ toolbarVisible: !s.toolbarVisible }))
   }
 
+  private onLoadPreset = () => {
+    const { editorStore } = this.props.store!
+    applyPreset(editorStore)
+    editorStore.setSelectedCell(null)
+    this.rebuildScene()
+  }
+
   // ---- Toolbar 动作 ----
   private onEraser = () => {
     const { editorStore } = this.props.store!
@@ -333,6 +341,7 @@ class EditorPage extends Component<PageProps, EditorState> {
               onClear={this.onClear}
               onToggleCamera={this.onToggleCamera}
               onToggleToolbar={this.onToggleToolbar}
+              onLoadPreset={this.onLoadPreset}
             />
             {toolbarVisible && (
               <Toolbar

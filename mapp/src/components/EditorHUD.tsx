@@ -13,6 +13,7 @@ type PageProps = PropsWithChildren & {
   onClear?: () => void
   onToggleCamera?: () => void
   onToggleToolbar?: () => void
+  onLoadPreset?: () => void
 }
 
 @inject('store')
@@ -59,6 +60,9 @@ class EditorHUD extends Component<PageProps> {
           </View>
           <View className='hud-btn' onClick={onReset}>
             <Text className='hud-btn-icon'>↺</Text>
+          </View>
+          <View className='hud-btn' onClick={onLoadPreset}>
+            <Text className='hud-btn-icon'>🏘</Text>
           </View>
           <View className='hud-btn hud-btn-tools' onClick={onToggleToolbar}>
             <Text className='hud-btn-icon'>☰</Text>
