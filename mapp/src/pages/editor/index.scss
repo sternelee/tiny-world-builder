@@ -31,7 +31,7 @@
   z-index: 999;
 }
 
-/* ---- HUD bar ---- */
+/* ---- HUD ---- */
 .hud-bar {
   position: fixed;
   top: 40px;
@@ -49,17 +49,18 @@
   font-size: 15px;
   font-weight: 700;
   color: #fff;
+  z-index: 999;
 }
 
-.hud-picker-wrap {
+.hud-gridsize {
   position: fixed;
   top: 44px;
   left: 105px;
-  z-index: 999;
   padding: 3px 8px;
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 6px;
+  z-index: 999;
 }
 
 .hud-gridsize-label {
@@ -111,13 +112,8 @@
   height: 30px;
 }
 
-.tb-row-1 {
-  top: 3px;
-}
-
-.tb-row-2 {
-  top: 36px;
-}
+.tb-row-1 { top: 3px; }
+.tb-row-2 { top: 36px; }
 
 .tb-btn {
   width: 28px;
@@ -137,9 +133,7 @@
   border-color: rgba(58, 114, 200, 0.6);
 }
 
-.tb-btn.disabled {
-  opacity: 0.2;
-}
+.tb-btn.disabled { opacity: 0.2; }
 
 .tb-icon {
   font-size: 12px;
@@ -156,7 +150,7 @@
   background: rgba(255,255,255,0.12);
 }
 
-/* ---- Minimap (2D canvas, direct siblings) ---- */
+/* ---- Minimap ---- */
 .minimap-wrap {
   position: fixed;
   top: 80px;
