@@ -18,6 +18,7 @@ import EditorHUD from '../../components/EditorHUD'
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
 import { applyPreset } from '../../core/presets'
+import { saveWorld, loadWorld, exportWorldToFile, importWorldFromFile } from '../../services/WorldPersistence'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
@@ -219,6 +220,45 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.rebuildScene()
   }
 
+  private onSave = () => {
+    const { editorStore } = this.props.store!
+    saveWorld(editorStore)
+    Taro.showToast({ title: 'Saved', icon: 'success', duration: 1500 })
+  }
+
+  private onLoad = () => {
+    const { editorStore } = this.props.store!
+    if (loadWorld(editorStore)) {
+      editorStore.setSelectedCell(null)
+      this.rebuildScene()
+      Taro.showToast({ title: 'Loaded', icon: 'success', duration: 1500 })
+    } else {
+      Taro.showToast({ title: 'No save found', icon: 'none', duration: 1500 })
+    }
+  }
+
+  private onExport = async () => {
+    const { editorStore } = this.props.store!
+    try {
+      const path = await exportWorldToFile(editorStore)
+      Taro.showToast({ title: `Exported: ${path.slice(-30)}`, icon: 'none', duration: 2000 })
+    } catch (e) {
+      Taro.showToast({ title: 'Export failed', icon: 'none', duration: 1500 })
+    }
+  }
+
+  private onImport = async () => {
+    const { editorStore } = this.props.store!
+    const ok = await importWorldFromFile(editorStore)
+    if (ok) {
+      editorStore.setSelectedCell(null)
+      this.rebuildScene()
+      Taro.showToast({ title: 'Imported', icon: 'success', duration: 1500 })
+    } else {
+      Taro.showToast({ title: 'Import failed', icon: 'none', duration: 1500 })
+    }
+  }
+
   // ---- Toolbar 动作 ----
   private onEraser = () => {
     const { editorStore } = this.props.store!
@@ -342,6 +382,10 @@ class EditorPage extends Component<PageProps, EditorState> {
               onToggleCamera={this.onToggleCamera}
               onToggleToolbar={this.onToggleToolbar}
               onLoadPreset={this.onLoadPreset}
+              onSave={this.onSave}
+              onLoad={this.onLoad}
+              onExport={this.onExport}
+              onImport={this.onImport}
             />
             {toolbarVisible && (
               <Toolbar

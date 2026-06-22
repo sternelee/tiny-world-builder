@@ -14,6 +14,10 @@ type PageProps = PropsWithChildren & {
   onToggleCamera?: () => void
   onToggleToolbar?: () => void
   onLoadPreset?: () => void
+  onSave?: () => void
+  onLoad?: () => void
+  onExport?: () => void
+  onImport?: () => void
 }
 
 @inject('store')
@@ -28,7 +32,7 @@ class EditorHUD extends Component<PageProps> {
 
   render() {
     const { editorStore } = this.props.store!
-    const { onReset, onClear, onToggleCamera, onToggleToolbar } = this.props
+    const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport } = this.props
 
     return (
       <View className='editor-hud'>
@@ -54,6 +58,18 @@ class EditorHUD extends Component<PageProps> {
             <Text className='hud-btn-icon'>
               {editorStore.cameraMode === 'isometric' ? '◇' : '◈'}
             </Text>
+          </View>
+          <View className='hud-btn' onClick={onSave}>
+            <Text className='hud-btn-icon'>💾</Text>
+          </View>
+          <View className='hud-btn' onClick={onLoad}>
+            <Text className='hud-btn-icon'>📂</Text>
+          </View>
+          <View className='hud-btn' onClick={onExport}>
+            <Text className='hud-btn-icon'>📤</Text>
+          </View>
+          <View className='hud-btn' onClick={onImport}>
+            <Text className='hud-btn-icon'>📥</Text>
           </View>
           <View className='hud-btn' onClick={onClear}>
             <Text className='hud-btn-icon'>⌫</Text>
