@@ -32,7 +32,7 @@ class EditorHUD extends Component<PageProps> {
 
   render() {
     const { editorStore } = this.props.store!
-    const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport } = this.props
+    const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport, onLoadPreset } = this.props
 
     return (
       <View className='editor-hud'>
