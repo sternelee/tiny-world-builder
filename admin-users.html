@@ -52,6 +52,23 @@
     </section>
 
     <section class="admin-users-shell" aria-label="User administration">
+      <form class="admin-users-auth" id="admin-users-auth" hidden>
+        <div>
+          <strong>Admin sign in</strong>
+          <span>Use a world-admin account to manage user access.</span>
+        </div>
+        <label>
+          <span>Email</span>
+          <input id="admin-auth-email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="admin-auth-password" type="password" autocomplete="current-password" placeholder="Password" />
+        </label>
+        <button class="primary-action" id="admin-auth-login" type="submit">Sign in</button>
+        <button class="secondary-action" id="admin-auth-logout" type="button" hidden>Sign out</button>
+        <span class="admin-users-auth-status" id="admin-auth-status"></span>
+      </form>
       <div class="admin-users-toolbar">
         <label>
           <span>Search users</span>
@@ -60,7 +77,7 @@
         <button class="primary-action" id="admin-user-search-btn" type="button">Search</button>
         <button class="secondary-action" id="admin-user-refresh-btn" type="button">Refresh</button>
       </div>
-      <p class="admin-users-status" id="admin-users-status">Checking admin access…</p><p style="font-size:12px;opacity:.7;margin:8px 0;color:#f66">This admin tool only works when the Netlify function has a real database (production site or netlify dev with NETLIFY_DATABASE_URL). On preview deploys use the main production site to grant lobby access, then test the preview URL with those accounts.</p>
+      <p class="admin-users-status" id="admin-users-status">Checking admin access…</p>
       <div class="admin-users-layout">
         <div class="admin-users-list-wrap">
           <table class="admin-users-table">

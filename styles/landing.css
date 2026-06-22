@@ -1292,7 +1292,48 @@ svg {
   margin-bottom: 10px;
 }
 
+.admin-users-auth {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 260px) minmax(180px, 240px) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(45, 83, 130, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.admin-users-auth[hidden] {
+  display: none;
+}
+
+.admin-users-auth > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-users-auth strong {
+  color: #172033;
+  font-family: var(--display-font);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.admin-users-auth > div span,
+.admin-users-auth-status {
+  color: #637087;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-users-auth-status[data-tone="error"] {
+  color: #b73535;
+}
+
 .admin-users-toolbar label,
+.admin-users-auth label,
 .admin-user-editor label {
   display: flex;
   flex-direction: column;
@@ -1307,6 +1348,7 @@ svg {
 }
 
 .admin-users-toolbar input,
+.admin-users-auth input,
 .admin-user-editor input[type="text"],
 .admin-user-editor input[type="email"],
 .admin-user-editor input[type="url"],
@@ -1322,6 +1364,7 @@ svg {
 }
 
 .admin-users-toolbar input:focus,
+.admin-users-auth input:focus,
 .admin-user-editor input:focus,
 .admin-user-editor textarea:focus {
   border-color: rgba(45, 126, 245, 0.62);
@@ -1513,6 +1556,10 @@ svg {
 
   .admin-users-layout {
     grid-template-columns: 1fr;
+  }
+
+  .admin-users-auth {
+    grid-template-columns: 1fr 1fr;
   }
 
   .admin-user-editor {

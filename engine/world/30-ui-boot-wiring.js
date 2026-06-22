@@ -4144,7 +4144,11 @@ syncTinyworldOwnerToolControls();
       items.push({ group: 'Settings', label: 'Settings — AI Config',    run: settingsTab('ai') });
       if (window.TinyWorldAuth) {
         items.push({ group: 'Account', label: 'Open account / My Worlds', run: topBtnAction('account-btn') });
-        items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
+        items.push({ group: 'Account', label: 'Sign in', run: () => {
+          const top = document.getElementById('auth-login-btn-top');
+          if (top && !top.hidden) top.click();
+          else if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to unlock AI, settings & cloud saves');
+        } });
         items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
       }
       return items;

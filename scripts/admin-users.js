@@ -15,6 +15,11 @@
     els.status.textContent = msg || '';
     els.status.dataset.tone = tone || '';
   }
+  function setAuthStatus(msg, tone) {
+    if (!els.authStatus) return;
+    els.authStatus.textContent = msg || '';
+    els.authStatus.dataset.tone = tone || '';
+  }
   function walletToken() {
     try { return localStorage.getItem('tinyworld:auth:wallet-session.v1') || ''; } catch (_) { return ''; }
   }
@@ -49,6 +54,61 @@
         });
       });
     });
+  }
+  function showAuthPanel(show) {
+    if (els.authPanel) els.authPanel.hidden = !show;
+  }
+  function refreshAuthPanel() {
+    return accessToken().then(function (token) {
+      showAuthPanel(!token);
+      if (els.authLogout) els.authLogout.hidden = !token;
+      return !!token;
+    }).catch(function () {
+      showAuthPanel(true);
+      if (els.authLogout) els.authLogout.hidden = true;
+      return false;
+    });
+  }
+  function signInAdmin() {
+    var A = window.TinyWorldAuth;
+    if (!A || typeof A.login !== 'function') {
+      setAuthStatus('Auth is still loading. Try again in a moment.', 'error');
+      return Promise.resolve(false);
+    }
+    var email = (els.authEmail && els.authEmail.value || '').trim();
+    var password = (els.authPassword && els.authPassword.value || '');
+    if (!email || !password) {
+      setAuthStatus('Enter your admin email and password.', 'error');
+      return Promise.resolve(false);
+    }
+    els.authLogin.disabled = true;
+    setAuthStatus('Signing in...');
+    return A.login(email, password).then(function () {
+      if (els.authPassword) els.authPassword.value = '';
+      setAuthStatus('Signed in.');
+      showAuthPanel(false);
+      if (els.authLogout) els.authLogout.hidden = false;
+      return loadUsers();
+    }).catch(function (err) {
+      setAuthStatus((err && err.message) || 'Sign in failed.', 'error');
+      return false;
+    }).finally(function () {
+      els.authLogin.disabled = false;
+    });
+  }
+  function signOutAdmin() {
+    var A = window.TinyWorldAuth;
+    var done = function () {
+      state.users = [];
+      state.selected = null;
+      renderUsers();
+      fillEditor(null);
+      showAuthPanel(true);
+      if (els.authLogout) els.authLogout.hidden = true;
+      setStatus('Signed out.');
+    };
+    if (!A || typeof A.logout !== 'function') { done(); return; }
+    A.logout().catch(function () {}).then(done);
   }
   function selectedPayload() {
     return {
@@ -111,11 +171,25 @@
         if (again) fillEditor(again);
       }
     }).catch(function (err) {
-      setStatus(err.message || 'Unable to load users.', 'error');
-      els.list.innerHTML = '<tr><td colspan="5" class="admin-users-empty">Admin access required.</td></tr>';
+      var message = err.message || 'Unable to load users.';
+      setStatus(message, 'error');
+      if (/sign in/i.test(message)) {
+        showAuthPanel(true);
+        setAuthStatus('Sign in to load admin users.');
+        els.list.innerHTML = '<tr><td colspan="5" class="admin-users-empty">Sign in with a world-admin account.</td></tr>';
+      } else {
+        els.list.innerHTML = '<tr><td colspan="5" class="admin-users-empty">Admin access required.</td></tr>';
+      }
     }).finally(function () { state.loading = false; });
   }
   function bind() {
+    if (els.authPanel) {
+      els.authPanel.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        signInAdmin();
+      });
+    }
+    if (els.authLogout) els.authLogout.addEventListener('click', signOutAdmin);
     els.searchBtn.addEventListener('click', loadUsers);
     els.refreshBtn.addEventListener('click', loadUsers);
     els.search.addEventListener('keydown', function (evt) { if (evt.key === 'Enter') { evt.preventDefault(); loadUsers(); } });
@@ -149,6 +223,8 @@
   }
   function init() {
     els = {
+      authPanel: byId('admin-users-auth'), authEmail: byId('admin-auth-email'), authPassword: byId('admin-auth-password'),
+      authLogin: byId('admin-auth-login'), authLogout: byId('admin-auth-logout'), authStatus: byId('admin-auth-status'),
       search: byId('admin-user-search'), searchBtn: byId('admin-user-search-btn'), refreshBtn: byId('admin-user-refresh-btn'),
       status: byId('admin-users-status'), list: byId('admin-users-list'), editor: byId('admin-user-editor'), idPill: byId('admin-user-id-pill'),
       id: byId('admin-user-id'), username: byId('admin-user-username'), email: byId('admin-user-email'), display: byId('admin-user-display'),
@@ -156,7 +232,9 @@
       lobby: byId('admin-user-lobby'), reset: byId('admin-user-reset-password'), resetNote: byId('admin-reset-note'),
     };
     bind();
-    Promise.resolve(window.__tinyworldAuthReady).catch(function () {}).then(loadUsers);
+    Promise.resolve(window.__tinyworldAuthReady).catch(function () {}).then(function () {
+      refreshAuthPanel().then(loadUsers);
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
