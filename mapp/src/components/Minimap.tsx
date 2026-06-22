@@ -1,7 +1,7 @@
 // -------- 2D 俯视小地图 --------
 
 import { Component, PropsWithChildren } from 'react'
-import { View, Canvas } from '@tarojs/components'
+import { CoverView, Canvas } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
@@ -96,14 +96,14 @@ class Minimap extends Component<PageProps> {
 
   render() {
     return (
-      <View className='minimap-wrap'>
+      <CoverView className='minimap-wrap'>
         <Canvas
           type='2d'
           id='minimap-canvas'
           className='minimap-canvas'
           style={`width:${MAP_SIZE}px;height:${MAP_SIZE}px`}
         />
-      </View>
+      </CoverView>
     )
   }
 }
