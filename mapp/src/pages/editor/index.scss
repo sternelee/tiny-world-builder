@@ -1,9 +1,6 @@
 .editor-container {
-  position: relative;
   width: 100vw;
   height: 100vh;
-  overflow: hidden;
-  background: #1a1a2e;
 }
 
 .editor-canvas {
@@ -13,9 +10,8 @@
 
 .editor-loading {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 25%;
+  left: 10%;
   color: rgba(255, 255, 255, 0.7);
   font-size: 16px;
   z-index: 999;
@@ -32,12 +28,11 @@
   border-radius: 8px;
   color: #ff6b6b;
   font-size: 13px;
-  word-break: break-all;
   z-index: 999;
 }
 
-/* ---- HUD ---- */
-.hud-topbar {
+/* ---- HUD bar ---- */
+.hud-bar {
   position: fixed;
   top: 40px;
   left: 0;
@@ -56,10 +51,11 @@
   color: #fff;
 }
 
-.hud-gridsize {
+.hud-picker-wrap {
   position: fixed;
   top: 44px;
-  left: 100px;
+  left: 105px;
+  z-index: 999;
   padding: 3px 8px;
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.12);
@@ -67,32 +63,33 @@
 }
 
 .hud-gridsize-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #fff;
 }
 
-.hud-right {
+.hud-btns {
   position: fixed;
   top: 42px;
-  right: 8px;
-  width: auto;
+  right: 4px;
+  z-index: 999;
 }
 
 .hud-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   margin-left: 3px;
-  display: inline-block;
-  border-radius: 6px;
+  display: block;
+  float: left;
+  border-radius: 5px;
   background: rgba(255,255,255,0.12);
   border: 1px solid rgba(255,255,255,0.08);
   text-align: center;
-  line-height: 28px;
+  line-height: 30px;
 }
 
 .hud-btn-icon {
-  font-size: 15px;
+  font-size: 14px;
   color: #fff;
 }
 
@@ -102,33 +99,37 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 68px;
+  height: 70px;
   background: rgba(20, 22, 36, 0.94);
   z-index: 999;
-  padding: 0;
 }
 
-.toolbar-row {
+.tb-row {
   position: absolute;
   left: 2px;
   right: 2px;
   height: 30px;
 }
 
-.toolbar-row:nth-child(1) { top: 3px; }
-.toolbar-row:nth-child(2) { top: 35px; }
+.tb-row-1 {
+  top: 3px;
+}
+
+.tb-row-2 {
+  top: 36px;
+}
 
 .tb-btn {
   width: 28px;
   height: 28px;
   margin: 1px;
-  display: inline-block;
+  display: block;
+  float: left;
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.10);
   border: 1px solid rgba(255, 255, 255, 0.08);
   text-align: center;
   line-height: 28px;
-  vertical-align: top;
 }
 
 .tb-btn.active {
@@ -146,7 +147,16 @@
   font-weight: 600;
 }
 
-/* ---- Minimap ---- */
+.tb-sep {
+  width: 1px;
+  height: 22px;
+  margin: 3px 3px 3px 5px;
+  display: block;
+  float: left;
+  background: rgba(255,255,255,0.12);
+}
+
+/* ---- Minimap (2D canvas, direct siblings) ---- */
 .minimap-wrap {
   position: fixed;
   top: 80px;
@@ -154,7 +164,6 @@
   width: 72px;
   height: 72px;
   border-radius: 6px;
-  overflow: hidden;
   border: 2px solid rgba(255,255,255,0.15);
   z-index: 999;
 }

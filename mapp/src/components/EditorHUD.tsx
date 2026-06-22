@@ -1,7 +1,7 @@
-// -------- 编辑器 HUD — 简化 CoverView 版 --------
+// -------- 编辑器 HUD — Picker 分离出 CoverView --------
 
 import { Component, PropsWithChildren } from 'react'
-import { CoverView, Text, Picker } from '@tarojs/components'
+import { CoverView, Text, Picker, View } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { HOME_GRID_OPTIONS } from '../core/constants'
@@ -32,31 +32,35 @@ class EditorHUD extends Component<PageProps> {
 
   render() {
     const { editorStore } = this.props.store!
-    const { onReset, onClear, onToggleCamera, onToggleToolbar, onSave, onLoad, onExport, onImport, onLoadPreset } = this.props
+    const { onToggleCamera, onSave, onLoad, onLoadPreset } = this.props
+    const gridIdx = Math.max(0, HOME_GRID_OPTIONS.indexOf(editorStore.grid))
 
     return (
-      <CoverView>
-        <CoverView className='hud-topbar' />
+      <CoverView className='hud-bar'>
+        {/* Title */}
         <Text className='hud-title'>Tiny World</Text>
-        <Picker
-          mode='selector'
-          range={HOME_GRID_OPTIONS.map(s => `${s}×${s}`)}
-          value={HOME_GRID_OPTIONS.indexOf(editorStore.grid)}
-          onChange={this.onGridPickerChange}
-        >
-          <CoverView className='hud-gridsize'>
-            <Text className='hud-gridsize-label'>{editorStore.grid}×{editorStore.grid}</Text>
-          </CoverView>
-        </Picker>
 
-        <CoverView className='hud-right'>
+        {/* Right buttons */}
+        <CoverView className='hud-btns'>
           <CoverView className='hud-btn' onClick={onToggleCamera}>
             <Text className='hud-btn-icon'>{editorStore.cameraMode === 'isometric' ? '◇' : '◈'}</Text>
           </CoverView>
-          <CoverView className='hud-btn' onClick={onSave}><Text className='hud-btn-icon'>💾</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onLoad}><Text className='hud-btn-icon'>📂</Text></CoverView>
-          <CoverView className='hud-btn' onClick={onLoadPreset}><Text className='hud-btn-icon'>🏘</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onSave}><Text className='hud-btn-icon'>S</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onLoad}><Text className='hud-btn-icon'>L</Text></CoverView>
+          <CoverView className='hud-btn' onClick={onLoadPreset}><Text className='hud-btn-icon'>P</Text></CoverView>
         </CoverView>
+
+        {/* Picker must be OUTSIDE CoverView — picker not valid child of cover-view */}
+        <View className='hud-picker-wrap'>
+          <Picker
+            mode='selector'
+            range={HOME_GRID_OPTIONS.map(s => `${s}×${s}`)}
+            value={gridIdx}
+            onChange={this.onGridPickerChange}
+          >
+            <Text className='hud-gridsize-label'>{editorStore.grid}×{editorStore.grid}</Text>
+          </Picker>
+        </View>
       </CoverView>
     )
   }

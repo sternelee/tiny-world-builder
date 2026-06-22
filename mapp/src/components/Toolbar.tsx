@@ -1,4 +1,4 @@
-// -------- 底部工具栏 — CoverView 简化版 --------
+// -------- 底部工具栏 — CoverView 兼容版（无 flex/inline-block 问题） --------
 
 import { Component, PropsWithChildren } from 'react'
 import { CoverView, Text } from '@tarojs/components'
@@ -27,37 +27,24 @@ class Toolbar extends Component<PageProps> {
 
     return (
       <CoverView className='toolbar'>
-        {/* 动作行 */}
-        <CoverView className='toolbar-row'>
-          <CoverView
-            className={`tb-btn ${activeId === '__eraser__' ? 'active' : ''}`}
-            onClick={onEraser}
-          >
+        {/* Row 1: actions */}
+        <CoverView className='tb-row tb-row-1'>
+          <CoverView className={`tb-btn ${activeId === '__eraser__' ? 'active' : ''}`} onClick={onEraser}>
             <Text className='tb-icon'>E</Text>
           </CoverView>
-          <CoverView className='tb-btn' onClick={onRaise}>
-            <Text className='tb-icon'>+</Text>
-          </CoverView>
-          <CoverView className='tb-btn' onClick={onLower}>
-            <Text className='tb-icon'>-</Text>
-          </CoverView>
+          <CoverView className='tb-btn' onClick={onRaise}><Text className='tb-icon'>+</Text></CoverView>
+          <CoverView className='tb-btn' onClick={onLower}><Text className='tb-icon'>-</Text></CoverView>
           <CoverView className='tb-sep' />
-          <CoverView
-            className={`tb-btn ${editorStore.canUndo ? '' : 'disabled'}`}
-            onClick={editorStore.canUndo ? onUndo : undefined}
-          >
+          <CoverView className={`tb-btn ${editorStore.canUndo ? '' : 'disabled'}`} onClick={editorStore.canUndo ? onUndo : undefined}>
             <Text className='tb-icon'>U</Text>
           </CoverView>
-          <CoverView
-            className={`tb-btn ${editorStore.canRedo ? '' : 'disabled'}`}
-            onClick={editorStore.canRedo ? onRedo : undefined}
-          >
+          <CoverView className={`tb-btn ${editorStore.canRedo ? '' : 'disabled'}`} onClick={editorStore.canRedo ? onRedo : undefined}>
             <Text className='tb-icon'>R</Text>
           </CoverView>
         </CoverView>
 
-        {/* 工具行 */}
-        <CoverView className='toolbar-row'>
+        {/* Row 2: quick tools */}
+        <CoverView className='tb-row tb-row-2'>
           {QUICK_TOOLS.map(id => {
             const tool = TOOLS.find(t => t.id === id)
             if (!tool) return null
@@ -81,15 +68,9 @@ class Toolbar extends Component<PageProps> {
 }
 
 const TICONS: Record<string, string> = {
-  grass: 'G', path: 'P', dirt: 'D',
-  water: 'W', stone: 'S', lava: 'L',
-  sand: 'SD', snow: 'SN',
-  house: 'H', tree: 'T', fence: 'F',
-  rock: 'R', bridge: 'B',
-  crop: 'C', corn: 'CN', wheat: 'WH',
-  pumpkin: 'PK', carrot: 'CR', sunflower: 'SF',
-  tuft: 'TF', flower: 'FL', bush: 'BS',
-  cow: 'CW', sheep: 'SH',
+  grass: 'G', house: 'H', tree: 'T', fence: 'F',
+  rock: 'R', bridge: 'B', crop: 'C', tuft: 'TF',
+  flower: 'FL', cow: 'CW',
 }
 
 export default Toolbar
