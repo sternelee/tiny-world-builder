@@ -58,7 +58,7 @@ export class SceneManager {
 
     // 场景
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x1a1a2e)
+    this.scene.background = new THREE.Color(0xb9dcf4)
 
     // 相机
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000)
@@ -66,16 +66,22 @@ export class SceneManager {
     this.camera.lookAt(0, 0, 0)
 
     // 灯光
-    this.scene.add(new THREE.AmbientLight(0x404060))
-    const sun = new THREE.DirectionalLight(0xffffff, 1)
-    sun.position.set(8, 12, 10)
+    this.scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3a7d44, 0.6))
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9)
+    sun.position.set(8, 15, 10)
     this.scene.add(sun)
-    const fill = new THREE.DirectionalLight(0x8888ff, 0.3)
-    fill.position.set(-5, 3, -5)
+    const fill = new THREE.DirectionalLight(0xb0c4ff, 0.3)
+    fill.position.set(-5, 5, -5)
     this.scene.add(fill)
 
-    // 网格
-    this.scene.add(new THREE.GridHelper(12, 12, 0x666688, 0x333344))
+    // 软阴影地面（在 tile 未覆盖区域提供参考）
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 20),
+      new THREE.MeshLambertMaterial({ color: 0xc8e0f0, depthWrite: false, transparent: true, opacity: 0.6 }),
+    )
+    ground.rotation.x = -Math.PI / 2
+    ground.position.y = -0.06
+    this.scene.add(ground)
   }
 
   /** 启动渲染循环 */

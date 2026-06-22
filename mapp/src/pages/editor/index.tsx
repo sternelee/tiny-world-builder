@@ -130,8 +130,8 @@ class EditorPage extends Component<PageProps, EditorState> {
   private placeCamera(grid: number) {
     const cam = this.sceneManager.camera3D
     if (!cam) return
-    const s = grid * 0.6
-    cam.position.set(s * 0.8, s * 0.6, s * 0.8)
+    const s = grid * 0.65
+    cam.position.set(s * 0.7, s * 0.55, s * 0.7)
     cam.lookAt(0, 0, 0)
   }
 
