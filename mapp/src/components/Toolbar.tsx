@@ -1,13 +1,18 @@
-// -------- 底部工具栏组件 --------
+// -------- 底部工具栏 — 工具 + 动作按钮 --------
 
 import { Component, PropsWithChildren } from 'react'
 import { View, ScrollView, Text } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
-import { ToolDef, TOOLS, getToolGroups } from '../core/constants'
+import { ToolDef, getToolGroups } from '../core/constants'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
+  onRaise?: () => void
+  onLower?: () => void
+  onEraser?: () => void
+  onUndo?: () => void
+  onRedo?: () => void
 }
 
 @inject('store')
@@ -24,12 +29,50 @@ class Toolbar extends Component<PageProps> {
 
   render() {
     const { editorStore } = this.props.store!
+    const { onRaise, onLower, onEraser, onUndo, onRedo } = this.props
     const groups = getToolGroups()
     const activeId = editorStore.activeTool?.id
 
     return (
       <View className='toolbar'>
         <ScrollView scrollX className='toolbar-scroll'>
+          {/* 动作按钮组 */}
+          <View className='tool-group'>
+            <View
+              className={`tool-btn action-btn ${activeId === '__eraser__' ? 'active danger' : ''}`}
+              onClick={onEraser}
+            >
+              <Text className='tool-icon'>⊘</Text>
+              <Text className='tool-label'>Erase</Text>
+            </View>
+            <View className='tool-btn action-btn' onClick={onRaise}>
+              <Text className='tool-icon'>↑</Text>
+              <Text className='tool-label'>Raise</Text>
+            </View>
+            <View className='tool-btn action-btn' onClick={onLower}>
+              <Text className='tool-icon'>↓</Text>
+              <Text className='tool-label'>Lower</Text>
+            </View>
+            <View className='tool-sep' />
+            <View
+              className={`tool-btn action-btn ${editorStore.canUndo ? '' : 'disabled'}`}
+              onClick={editorStore.canUndo ? onUndo : undefined}
+            >
+              <Text className='tool-icon'>↩</Text>
+              <Text className='tool-label'>Undo</Text>
+            </View>
+            <View
+              className={`tool-btn action-btn ${editorStore.canRedo ? '' : 'disabled'}`}
+              onClick={editorStore.canRedo ? onRedo : undefined}
+            >
+              <Text className='tool-icon'>↪</Text>
+              <Text className='tool-label'>Redo</Text>
+            </View>
+          </View>
+
+          <View className='tool-sep-v' />
+
+          {/* 工具分组 */}
           {Object.entries(groups).map(([groupName, tools]) => (
             <View key={groupName} className='tool-group'>
               <Text className='tool-group-label'>{groupName}</Text>
@@ -55,17 +98,17 @@ class Toolbar extends Component<PageProps> {
 
 function toolIcon(tool: ToolDef): string {
   const icons: Record<string, string> = {
-    grass: '\u{1F3F4}', path: '\u{2B1D}', dirt: '\u{1F7E5}',
-    water: '\u{1F4E7}', stone: '\u{1F7E3}', lava: '\u{1F525}',
-    sand: '\u{1F7E8}', snow: '\u{26C4}',
-    house: '\u{1F3E0}', tree: '\u{1F333}', fence: '\u{1F9F1}',
-    rock: '\u{1FAA8}', bridge: '\u{1F309}',
-    crop: '\u{1F33E}', corn: '\u{1F33D}', wheat: '\u{1F33E}',
-    pumpkin: '\u{1F383}', carrot: '\u{1F955}', sunflower: '\u{1F33B}',
-    tuft: '\u{1F331}', flower: '\u{1F338}', bush: '\u{1FAB4}',
-    cow: '\u{1F404}', sheep: '\u{1F411}',
+    grass: '⛰', path: '▬', dirt: '●',
+    water: '🌊', stone: '◆', lava: '🔥',
+    sand: '◈', snow: '❄',
+    house: '🏠', tree: '🌳', fence: '⊞',
+    rock: '🪨', bridge: '🌉',
+    crop: '🌾', corn: '🌽', wheat: '🌾',
+    pumpkin: '🎃', carrot: '🥕', sunflower: '🌻',
+    tuft: '🌱', flower: '🌸', bush: '🌿',
+    cow: '🐄', sheep: '🐑',
   }
-  return icons[tool.id] || '\u{2B55}'
+  return icons[tool.id] || '○'
 }
 
 export default Toolbar

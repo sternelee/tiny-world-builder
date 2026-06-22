@@ -182,6 +182,49 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.setState(s => ({ toolbarVisible: !s.toolbarVisible }))
   }
 
+  // ---- Toolbar 动作 ----
+  private onEraser = () => {
+    const { editorStore } = this.props.store!
+    if (editorStore.activeTool?.id === '__eraser__') {
+      editorStore.setActiveTool(null)
+    } else {
+      editorStore.setActiveTool({ id: '__eraser__', label: 'Erase', kind: null, terrain: null })
+    }
+  }
+
+  private onRaise = () => {
+    const { editorStore } = this.props.store!
+    const cam = this.sceneManager.camera3D
+    if (!cam) return
+    const scene = this.sceneManager.scene3D
+    if (!scene) return
+    // Raise at center of grid
+    const cx = Math.floor(editorStore.grid / 2)
+    const cz = Math.floor(editorStore.grid / 2)
+    editorStore.raiseTerrain(cx, cz)
+    this.rebuildScene()
+  }
+
+  private onLower = () => {
+    const { editorStore } = this.props.store!
+    const cx = Math.floor(editorStore.grid / 2)
+    const cz = Math.floor(editorStore.grid / 2)
+    editorStore.lowerTerrain(cx, cz)
+    this.rebuildScene()
+  }
+
+  private onUndo = () => {
+    const { editorStore } = this.props.store!
+    editorStore.undo()
+    this.rebuildScene()
+  }
+
+  private onRedo = () => {
+    const { editorStore } = this.props.store!
+    editorStore.redo()
+    this.rebuildScene()
+  }
+
   // ---- Touch 交互 ----
   private touchStart = { x: 0, y: 0 }
   private touchMoved = false
@@ -224,6 +267,14 @@ class EditorPage extends Component<PageProps, EditorState> {
     const hit = raycastCell(cam, t.x || t.clientX || 0, t.y || t.clientY || 0, this.win.width, this.win.height, scene, editorStore.grid)
     if (!hit) return
 
+    // Eraser mode
+    if (editorStore.activeTool?.id === '__eraser__') {
+      editorStore.eraseCell(hit.x, hit.z)
+      this.rebuildScene()
+      return
+    }
+
+    // Normal tool
     const tool = editorStore.activeTool
     if (!tool) return
 
@@ -256,7 +307,15 @@ class EditorPage extends Component<PageProps, EditorState> {
               onToggleCamera={this.onToggleCamera}
               onToggleToolbar={this.onToggleToolbar}
             />
-            {toolbarVisible && <Toolbar />}
+            {toolbarVisible && (
+              <Toolbar
+                onEraser={this.onEraser}
+                onRaise={this.onRaise}
+                onLower={this.onLower}
+                onUndo={this.onUndo}
+                onRedo={this.onRedo}
+              />
+            )}
           </>
         )}
       </View>

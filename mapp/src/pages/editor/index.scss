@@ -194,3 +194,41 @@
   margin-top: 2px;
   line-height: 1;
 }
+
+.tool-sep {
+  width: 1px;
+  height: 30px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 6px;
+}
+
+.tool-sep-v {
+  width: 1px;
+  height: 40px;
+  background: rgba(255,255,255,0.08);
+  margin: 0 8px;
+}
+
+.tool-btn.danger {
+  background: rgba(255, 60, 50, 0.25);
+  border-color: rgba(255, 60, 50, 0.35);
+}
+
+.tool-btn.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.action-btn .tool-icon {
+  font-size: 14px;
+}
+
+.action-btn .tool-label {
+  display: none;
+}
