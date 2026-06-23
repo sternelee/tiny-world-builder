@@ -53,7 +53,7 @@
     ].join(' ');
     const label = live
       ? T('countdown.live', null, 'WAVE 2 is live')
-      : T('countdown.label', { time }, 'WAVE 1 arrives, WAVE 2 in {time}');
+      : T('countdown.label', { time }, 'WAVE 2 in {time}');
     return {
       target: WAVE2,
       targetMs: WAVE2_MS,
@@ -152,7 +152,7 @@
     el.setAttribute('data-countdown-skin', 'app');
     el.setAttribute('data-countdown-tick', 'interval');
     el.setAttribute('aria-live', 'polite');
-    el.textContent = 'WAVE 1 arrives, WAVE 2 in';
+    el.textContent = 'WAVE 2 in';
     brand.appendChild(el);
   }
 

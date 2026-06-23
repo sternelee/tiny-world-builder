@@ -79,6 +79,39 @@ backend:
   includes `?party=`, `?room=`, or `?collab=`. Collaborate links should reuse a
   `/api/share` id as both the world snapshot id and the PartyKit room id:
   `/tiny-world-builder?share=<id>&party=<id>`.
+- Shared build/collab rooms are public-observer by default: second and later
+  PartyKit connections are admitted as `viewer` seats, not held in a lobby.
+  Host clients heartbeat public room metadata to `/api/collabs`; the home page
+  feed and `/collabs` page list those rooms with observer links
+  (`observe=1`). This public visibility must not grant edit authority; edits
+  still require a host-assigned role plus server-side island/zone checks.
+- Closing a shared build is a two-layer operation: host clients send
+  `room.close` to PartyKit so every connected peer receives `room.closed` and no
+  replacement host is promoted, and they POST `{ action: 'close', roomId }` to
+  `/api/collabs` so the public registry stores a short-lived tombstone in
+  `collab_room_closures`. Heartbeats for tombstoned rooms must return
+  `{ closed: true }` instead of recreating the listing.
+- Admin collab moderation lives on `/collabs`: authenticated world-admin
+  sessions call `/api/collabs` with `{ action: 'hide', roomId }` to add a
+  short-lived `collab_room_hides` tombstone that removes a room from public
+  lists without disconnecting occupants, or `{ action: 'adminClose', roomId }`
+  to use the close tombstone. When a host sees that close tombstone on its
+  registry heartbeat, the client must send PartyKit `room.close` before closing
+  its socket so connected peers get the same shutdown event as a manual host
+  stop.
+- Shared build owners are tracked from the `/api/share` row. `/api/collabs`
+  copies `world_shares.owner_auth_id/profile_id` into `collab_rooms`, exposes
+  `GET /api/collabs?mine=1` for the builder world-menu "Shared rooms" section,
+  and lets the owner/admin `hide` (make private), `unhide`, or `ownerClose`.
+  `GET /api/collabs?roomId=<id>&control=1` can return a signed
+  `tinyworld-collab-control` token; the builder sends `control.claim` to
+  PartyKit so the original sharer/admin can reclaim host controls when reopening
+  their own room link instead of staying an observer.
+- Collaborative build zones are transient PartyKit room permission data, not
+  saved world cells. Host clients send `zones.set`; the server sanitizes zones,
+  stores editor `zoneIds`, and must gate every non-host `cell.set` against
+  assigned active zones. Client outlines/labels and local edit checks are UX and
+  desync prevention only; do not rely on them as the authority.
 - MMO economy/multiplayer extraction lives in `packages/tinyworld-mmo-core/`.
   It is a dependency-free ESM package for shared GOLD allowance, resource tax,
   ledger, join-command, and interest-snapshot contracts. Use it when wiring the

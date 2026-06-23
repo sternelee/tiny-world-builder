@@ -139,7 +139,7 @@
 
     // ---- time & weather popup ----
     'time.title': 'Time & weather',
-    'time.timeOfDay': 'Time of day (GMT)',
+    'time.timeOfDay': 'Time of day (BST)',
     'time.season': 'Season',
     'time.weather': 'Weather',
     'time.intensity': 'Weather intensity',
@@ -149,7 +149,7 @@
     'time.hours': '{n}h',
     'time.minutes': '{n}m',
     'time.seconds': '{n}s',
-    'countdown.label': 'WAVE 1 arrives, WAVE 2 in {time}',
+    'countdown.label': 'WAVE 2 in {time}',
     'countdown.live': 'WAVE 2 is live',
     'season.spring': 'Spring',
     'season.summer': 'Summer',

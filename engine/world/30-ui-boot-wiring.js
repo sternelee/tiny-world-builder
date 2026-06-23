@@ -2685,16 +2685,14 @@ syncTinyworldOwnerToolControls();
     // -- view modes --
     if (viewBtn && viewPopup) {
       function paintViewActive() {
-        const mode = (typeof cameraMode !== 'undefined') ? cameraMode : 'ortho';
-        // 'topdown' is a virtual mode (ortho + polar≈0). Detect it so the
-        // bird's-eye row stays highlighted instead of the Isometric row.
-        const isTopdown = (mode === 'ortho') && (typeof polar !== 'undefined') && polar < 0.05;
+        const mode = (typeof cameraMode !== 'undefined') ? cameraMode : 'perspective';
         viewPopup.querySelectorAll('.view-option').forEach(opt => {
+          if (opt.hidden) {
+            opt.classList.remove('active');
+            return;
+          }
           const v = opt.getAttribute('data-view');
-          let active = (v === mode);
-          if (v === 'topdown') active = isTopdown;
-          if (v === 'ortho')   active = (mode === 'ortho' && !isTopdown);
-          opt.classList.toggle('active', active);
+          opt.classList.toggle('active', v === mode);
         });
       }
       viewBtn.addEventListener('click', e => {
@@ -2706,6 +2704,7 @@ syncTinyworldOwnerToolControls();
         e.stopPropagation();
         const opt = e.target.closest('.view-option');
         if (!opt) return;
+        if (opt.hidden) return;
         const target = opt.getAttribute('data-view');
         if (typeof setCameraMode === 'function') {
           try { setCameraMode(target); } catch (err) { console.warn('[view] setCameraMode failed:', err); }
@@ -2716,15 +2715,42 @@ syncTinyworldOwnerToolControls();
     }
 
     // -- time / weather --
-    const TOD_GMT_SYNC_INTERVAL_MS = 10000;
+    const TOD_UK_SYNC_INTERVAL_MS = 10000;
+    const UK_TIME_ZONE = 'Europe/London';
     const SEASON_LS = 'tinyworld:season.v1';
     const WEATHER_LS = 'tinyworld:weather.v1';
     function clampTodMinutes(min) {
       return Math.max(0, Math.min(1439.999, Number(min) || 0));
     }
-    function gmtTodMinutes(now) {
+    function ukClockParts(now) {
       const d = now instanceof Date ? now : new Date();
-      return d.getUTCHours() * 60 + d.getUTCMinutes() + (d.getUTCSeconds() / 60);
+      try {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: UK_TIME_ZONE,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        }).formatToParts(d).reduce((acc, part) => {
+          acc[part.type] = part.value;
+          return acc;
+        }, {});
+        return {
+          hour: (Number(parts.hour) || 0) % 24,
+          minute: Number(parts.minute) || 0,
+          second: Number(parts.second) || 0,
+        };
+      } catch (_) {
+        return {
+          hour: d.getHours(),
+          minute: d.getMinutes(),
+          second: d.getSeconds(),
+        };
+      }
+    }
+    function ukTodMinutes(now) {
+      const parts = ukClockParts(now);
+      return parts.hour * 60 + parts.minute + (parts.second / 60);
     }
     function todClassFromMinutes(min) {
       if (min < 360 || min >= 1260) return 'tod-night'; // 21:00 - 06:00
@@ -2738,9 +2764,7 @@ syncTinyworldOwnerToolControls();
     function applyUiThemeMode() {
       const mode = ['auto', 'light', 'dark'].includes(uiThemeMode) ? uiThemeMode : 'auto';
       const afterHours = isUiAfterHours(currentTodMinutes);
-      // Light mode intentionally still darkens after hours: white/grey chrome
-      // disappears against bright night clouds and star maps.
-      const dark = mode === 'dark' || afterHours;
+      const dark = mode === 'dark' || (mode === 'auto' && afterHours);
       document.body.dataset.uiThemeMode = mode;
       document.body.classList.toggle('ui-theme-dark', dark);
       document.body.classList.toggle('ui-theme-light', !dark);
@@ -2756,7 +2780,7 @@ syncTinyworldOwnerToolControls();
       if (typeof updateAllBuildingWindowLights === 'function') updateAllBuildingWindowLights();
       if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
     }
-    window.__tinyworldGmtTodMinutes = gmtTodMinutes;
+    window.__tinyworldUkTodMinutes = ukTodMinutes;
     function applySeason(seasonV) {
       document.body.classList.remove('season-spring','season-summer','season-autumn','season-winter');
       const normalized = seasonV === 'fall' ? 'autumn' : seasonV;
@@ -2954,7 +2978,7 @@ syncTinyworldOwnerToolControls();
     }
 
     let repaintTimeWeatherPopup = function () {};
-    let todMinutes = gmtTodMinutes();
+    let todMinutes = ukTodMinutes();
     let season = 'summer';
     let weather = 'clear';
     try {
@@ -2966,13 +2990,13 @@ syncTinyworldOwnerToolControls();
     applyTod(todMinutes);
     applySeason(season);
     applyWeather(weather);
-    function syncTodToGmt() {
-      todMinutes = gmtTodMinutes();
+    function syncTodToUkTime() {
+      todMinutes = ukTodMinutes();
       applyTod(todMinutes);
       repaintTimeWeatherPopup();
     }
-    window.__tinyworldSyncTodToGmt = syncTodToGmt;
-    setInterval(syncTodToGmt, TOD_GMT_SYNC_INTERVAL_MS);
+    window.__tinyworldSyncTodToUkTime = syncTodToUkTime;
+    setInterval(syncTodToUkTime, TOD_UK_SYNC_INTERVAL_MS);
     const uiThemeSelect = document.getElementById('ui-theme-mode');
     if (uiThemeSelect) {
       uiThemeSelect.value = ['auto', 'light', 'dark'].includes(uiThemeMode) ? uiThemeMode : 'auto';
@@ -3103,7 +3127,7 @@ syncTinyworldOwnerToolControls();
       }
       function paintReadout() {
         if (range) range.value = String(Math.floor(clampTodMinutes(todMinutes)));
-        if (readout) readout.textContent = formatTime(todMinutes) + ' GMT';
+        if (readout) readout.textContent = formatTime(todMinutes) + ' BST';
         if (intensityRange) intensityRange.value = String(Math.round(weatherIntensity * 100));
         if (intensityReadout) intensityReadout.textContent = Math.round(weatherIntensity * 100) + '%';
         if (splashesRange) splashesRange.value = String(Math.round(weatherSplashIntensity * 100));
@@ -3113,7 +3137,7 @@ syncTinyworldOwnerToolControls();
       if (range) {
         range.disabled = true;
         range.setAttribute('aria-readonly', 'true');
-        range.setAttribute('title', 'Synced live to GMT');
+        range.setAttribute('title', 'Synced live to UK/BST time');
       }
       paintPills(); paintReadout();
 
@@ -3125,7 +3149,7 @@ syncTinyworldOwnerToolControls();
       timePopup.addEventListener('click', e => e.stopPropagation());
       if (range) {
         range.addEventListener('input', () => {
-          syncTodToGmt();
+          syncTodToUkTime();
         });
       }
       if (seasonPills) {
@@ -3440,6 +3464,9 @@ syncTinyworldOwnerToolControls();
     const renameBtn = document.getElementById('world-menu-rename');
     const listEl = document.getElementById('world-menu-list');
     const emptyEl = document.getElementById('world-menu-empty');
+    const sharedSectionEl = document.getElementById('world-menu-shared');
+    const sharedListEl = document.getElementById('world-menu-shared-list');
+    const sharedEmptyEl = document.getElementById('world-menu-shared-empty');
     const inviteTopBtn = document.getElementById('invite-top-btn');
     if (!trigger || !menu || !labelEl || !nameInput || !listEl) return;
     const manageBtn = menu.querySelector('[data-action="manage"]');
@@ -3448,6 +3475,7 @@ syncTinyworldOwnerToolControls();
     if (!window.TinyWorldAuth && manageBtn) manageBtn.hidden = true;
     if (!window.TinyWorldAuth && shareBtn) shareBtn.hidden = true;
     if (!window.TinyWorldAuth && collaborateBtn) collaborateBtn.hidden = true;
+    let sharedRoomsLoading = false;
 
     function menuWorlds() {
       const loggedIn = twCloudLoggedIn();
@@ -3540,6 +3568,148 @@ syncTinyworldOwnerToolControls();
         li.addEventListener('click', () => loadSlot(w.id));
         listEl.appendChild(li);
       });
+    }
+
+    function roomHrefForMenu(room) {
+      const href = String((room && room.href) || '').trim();
+      if (href && href.charAt(0) === '/') return href;
+      const roomId = String((room && room.roomId) || '').trim();
+      if (!roomId) return '/tiny-world-builder';
+      const p = new URLSearchParams();
+      if (room.shareId) p.set('share', room.shareId);
+      p.set('party', roomId);
+      p.set('observe', '1');
+      return '/tiny-world-builder?' + p.toString();
+    }
+
+    function currentSharedRoomId() {
+      try {
+        if (window.__tinyworldMultiplayer && window.__tinyworldMultiplayer.roomId) return window.__tinyworldMultiplayer.roomId;
+      } catch (_) {}
+      try {
+        const p = new URLSearchParams(location.search);
+        return p.get('party') || p.get('room') || p.get('collab') || '';
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function sharedRoomTitle(room) {
+      return String((room && room.name) || (room && room.roomId) || 'Shared room');
+    }
+
+    function paintSharedRooms(rooms) {
+      if (!sharedSectionEl || !sharedListEl || !sharedEmptyEl) return;
+      const list = Array.isArray(rooms) ? rooms : [];
+      sharedSectionEl.hidden = !twCloudLoggedIn();
+      sharedListEl.textContent = '';
+      sharedEmptyEl.hidden = !!list.length;
+      if (!twCloudLoggedIn()) return;
+      if (!list.length) {
+        sharedEmptyEl.textContent = sharedRoomsLoading ? 'Loading shared rooms...' : 'No live shared rooms.';
+        return;
+      }
+      const activeRoomId = currentSharedRoomId();
+      list.forEach(room => {
+        const roomId = String(room.roomId || '');
+        const li = document.createElement('li');
+        li.className = 'world-menu-shared-slot' + (roomId && roomId === activeRoomId ? ' active' : '');
+
+        const info = document.createElement('span');
+        info.className = 'shared-room-info';
+        const name = document.createElement('span');
+        name.className = 'shared-room-name';
+        name.textContent = sharedRoomTitle(room);
+        const meta = document.createElement('span');
+        meta.className = 'shared-room-meta';
+        const total = (Number(room.observerCount) || 0) + (Number(room.playerCount) || 0) + (Number(room.editorCount) || 0);
+        meta.textContent = (room.hidden ? 'Private' : 'Public') + ' · ' + total + ' viewing';
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const actions = document.createElement('span');
+        actions.className = 'shared-room-actions';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'shared-room-action';
+        open.textContent = roomId === activeRoomId ? 'Here' : 'Open';
+        open.disabled = roomId === activeRoomId;
+        open.addEventListener('click', e => {
+          e.stopPropagation();
+          if (roomId !== activeRoomId) location.assign(roomHrefForMenu(room));
+        });
+        const privacy = document.createElement('button');
+        privacy.type = 'button';
+        privacy.className = 'shared-room-action';
+        privacy.textContent = room.hidden ? 'Make public' : 'Make private';
+        privacy.addEventListener('click', e => {
+          e.stopPropagation();
+          setSharedRoomPrivacy(room, !room.hidden);
+        });
+        const closeRoom = document.createElement('button');
+        closeRoom.type = 'button';
+        closeRoom.className = 'shared-room-action danger';
+        closeRoom.textContent = 'Close';
+        closeRoom.addEventListener('click', e => {
+          e.stopPropagation();
+          closeSharedRoomFromMenu(room);
+        });
+        actions.appendChild(open);
+        actions.appendChild(privacy);
+        actions.appendChild(closeRoom);
+        li.appendChild(info);
+        li.appendChild(actions);
+        sharedListEl.appendChild(li);
+      });
+    }
+
+    async function loadSharedRoomsForMenu() {
+      if (!sharedSectionEl || !twCloudLoggedIn() || sharedRoomsLoading) {
+        if (sharedSectionEl) sharedSectionEl.hidden = !twCloudLoggedIn();
+        return;
+      }
+      sharedRoomsLoading = true;
+      paintSharedRooms([]);
+      const data = await twCloudApiCall('/api/collabs?mine=1&limit=100', 'GET');
+      sharedRoomsLoading = false;
+      if (!data || data.error) {
+        if (sharedSectionEl) sharedSectionEl.hidden = true;
+        return;
+      }
+      paintSharedRooms(Array.isArray(data.rooms) ? data.rooms : []);
+    }
+
+    async function setSharedRoomPrivacy(room, makePrivate) {
+      const roomId = String(room && room.roomId || '');
+      if (!roomId) return;
+      const result = await twCloudApiCall('/api/collabs', 'POST', {
+        action: makePrivate ? 'hide' : 'unhide',
+        roomId,
+      });
+      if (result && result.error) {
+        twToast(result.error, 'err');
+        return;
+      }
+      twToast(makePrivate ? 'Shared room is private.' : 'Shared room is public.', 'ok');
+      loadSharedRoomsForMenu();
+    }
+
+    async function closeSharedRoomFromMenu(room) {
+      const roomId = String(room && room.roomId || '');
+      if (!roomId) return;
+      const ok = window.confirm ? window.confirm('Close "' + sharedRoomTitle(room) + '" for everyone?') : true;
+      if (!ok) return;
+      const result = await twCloudApiCall('/api/collabs', 'POST', { action: 'ownerClose', roomId });
+      if (result && result.error) {
+        twToast(result.error, 'err');
+        return;
+      }
+      if (roomId === currentSharedRoomId() && window.__tinyworldMultiplayer && typeof window.__tinyworldMultiplayer.closeRoom === 'function') {
+        window.__tinyworldMultiplayer.closeRoom({ skipConfirm: true });
+      } else {
+        twToast('Shared room closed.', 'ok');
+      }
+      loadSharedRoomsForMenu();
     }
 
     function leaveWorldRoomForMenuLoad() {
@@ -3670,6 +3840,7 @@ syncTinyworldOwnerToolControls();
       if (!url || !result || !result.id) return url;
       const u = new URL(url);
       u.searchParams.set('party', result.id);
+      u.searchParams.set('observe', '1');
       return u.href;
     }
 
@@ -3806,7 +3977,7 @@ syncTinyworldOwnerToolControls();
           return;
         }
         input.value = shared.url;
-        status.textContent = 'Anyone with this link can join this world build.';
+        status.textContent = 'Anyone with this link can observe. The host can grant build access from the room.';
         copyBtn.disabled = false;
         openBtn.disabled = false;
         copyBtn.addEventListener('click', async () => {
@@ -3870,6 +4041,7 @@ syncTinyworldOwnerToolControls();
 
     function open() {
       paintLabel(); paintList();
+      loadSharedRoomsForMenu();
       twWorldCatalogLoad(false).then(() => {
         if (!menu.hidden) { paintLabel(); paintList(); }
       }).catch(err => console.warn('[world-catalog] menu refresh failed:', err));
@@ -4041,8 +4213,8 @@ syncTinyworldOwnerToolControls();
         }
       } catch (_) {}
       // Top-bar buttons
-      items.push({ group: 'Camera', label: 'Toggle perspective', hint: 'orbit vs orthographic', kbd: 'P', run: topBtnAction('persp') });
-      items.push({ group: 'Camera', label: 'Pick camera view…', hint: 'top-down / perspective / first-person', run: topBtnAction('view-modes') });
+      items.push({ group: 'Camera', label: 'Switch to perspective', hint: 'orbit camera', kbd: 'P', run: topBtnAction('persp') });
+      items.push({ group: 'Camera', label: 'Pick camera view…', hint: 'perspective / third-person / first-person', run: topBtnAction('view-modes') });
       items.push({ group: 'Camera', label: 'Center on home grid', hint: 'frame the home board', kbd: 'H', run: topBtnAction('home') });
       // Terrain — raise/lower the hovered cell
       items.push({ group: 'Terrain', label: 'Raise terrain at cursor', hint: 'terrainFloors +1 (max 8)', kbd: 'R', run: () => {

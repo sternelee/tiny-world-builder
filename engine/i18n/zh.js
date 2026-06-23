@@ -121,7 +121,7 @@
     'view.walk.desc': '透过角色的眼睛',
 
     'time.title': '时间与天气',
-    'time.timeOfDay': '一天中的时间 (GMT)',
+    'time.timeOfDay': '一天中的时间 (BST)',
     'time.season': '季节',
     'time.weather': '天气',
     'time.intensity': '天气强度',
@@ -131,7 +131,7 @@
     'time.hours': '{n}小时',
     'time.minutes': '{n}分',
     'time.seconds': '{n}秒',
-    'countdown.label': 'WAVE 1 已到来，WAVE 2 还有 {time}',
+    'countdown.label': 'WAVE 2 还有 {time}',
     'countdown.live': 'WAVE 2 已上线',
     'season.spring': '春',
     'season.summer': '夏',
