@@ -218,3 +218,32 @@ export function getStoneNeighbors(
     w: getNeighbor(world, x, z, -1, 0, grid)?.terrain === 'stone',
   }
 }
+
+/** 获取4-邻域的地形类型 */
+export function getTerrainNeighbors(
+  world: WorldGrid, x: number, z: number, grid: number,
+): { n: string; s: string; e: string; w: string } {
+  return {
+    n: getNeighbor(world, x, z, 0, -1, grid)?.terrain || 'grass',
+    s: getNeighbor(world, x, z, 0, 1, grid)?.terrain || 'grass',
+    e: getNeighbor(world, x, z, 1, 0, grid)?.terrain || 'grass',
+    w: getNeighbor(world, x, z, -1, 0, grid)?.terrain || 'grass',
+  }
+}
+
+/** 获取4-邻域的 tile 层高（riser 侧边 culling 用）*/
+export function getLevelNeighbors(
+  world: WorldGrid, x: number, z: number, grid: number,
+): { n: number | null; s: number | null; e: number | null; w: number | null } {
+  const probe = (nx: number, nz: number): number | null => {
+    if (nx < 0 || nx >= grid || nz < 0 || nz >= grid) return null
+    const c = ensureCell(world, nx, nz)
+    return c.terrainFloors || 1
+  }
+  return {
+    n: probe(x, z - 1),
+    s: probe(x, z + 1),
+    e: probe(x + 1, z),
+    w: probe(x - 1, z),
+  }
+}

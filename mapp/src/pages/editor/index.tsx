@@ -9,7 +9,7 @@ import * as THREE from 'three'
 
 import { EditorStore } from '../../store/editorStore'
 import { SceneManager } from '../../three/SceneManager'
-import { makeTile, makeObject, CellNeighbors, tileLevelForCell } from '../../three/TileRenderer'
+import { makeTile, makeObject, CellNeighbors, TerrainNeighbors, LevelNeighbors, tileLevelForCell } from '../../three/TileRenderer'
 import { raycastCell } from '../../three/Raycaster'
 import { getWindowInfo } from '../../services/PlatformAdapter'
 import Toolbar from '../../components/Toolbar'
@@ -19,6 +19,7 @@ import Minimap from '../../components/Minimap'
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
 import { applyPreset } from '../../core/presets'
+import { getTerrainNeighbors, getLevelNeighbors } from '../../core/adjacency'
 import { saveWorld, loadWorld, exportWorldToFile, importWorldFromFile } from '../../services/WorldPersistence'
 
 type PageProps = PropsWithChildren & {
@@ -77,7 +78,9 @@ class EditorPage extends Component<PageProps, EditorState> {
         const wpos = this.cellToWorld(x, z)
 
         const level = tileLevelForCell(cell)
-        const tile = makeTile(cell.terrain, level)
+        const tn = getTerrainNeighbors(editorStore.world, x, z, grid)
+        const ln = getLevelNeighbors(editorStore.world, x, z, grid)
+        const tile = makeTile(cell.terrain, level, tn, ln)
         tile.position.set(wpos.x, 0, wpos.z)
         tile.userData = { cellX: x, cellZ: z }
         tileRoot.add(tile)

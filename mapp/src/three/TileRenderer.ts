@@ -26,32 +26,78 @@ export function terrainRiseForLevel(level: number): number {
   return Math.max(0, (Math.min(8, level || 1) - 1) * 0.20)
 }
 
-/** 生成地形瓦片 Mesh */
-export function makeTile(terrain: string, level: number): THREE.Group {
+/** 生成地形瓦片 Mesh — 支持邻接感知 */
+export function makeTile(
+  terrain: string,
+  level: number,
+  tNeighbors?: TerrainNeighbors,
+  lNeighbors?: LevelNeighbors,
+): THREE.Group {
   const group = new THREE.Group()
   const mats = terrainVoxelMaterials(terrain)
   const rise = terrainRiseForLevel(level)
+  const tn = tNeighbors || { n: terrain, s: terrain, e: terrain, w: terrain }
 
-  // 顶层
-  const top = new THREE.Mesh(
-    getRoundedSlab(TILE_SIZE, TOP_H),
-    mats.base,
-  )
+  // 顶层 slab
+  const top = new THREE.Mesh(getRoundedSlab(TILE_SIZE, TOP_H), mats.base)
   top.position.y = rise
   top.userData.tileTop = true
   group.add(top)
 
   // 基层
   if (rise > 0) {
-    const base = new THREE.Mesh(
-      getBoxGeometry(TILE_SIZE, rise, TILE_SIZE),
-      mats.low,
-    )
+    const base = new THREE.Mesh(getBoxGeometry(TILE_SIZE, rise, TILE_SIZE), mats.low)
     base.position.y = rise / 2
     group.add(base)
   }
 
-  // 装饰细节（简单草籽、石头斑块）
+  // ---- 道路连接带（path 邻接 path 时延伸） ----
+  if (terrain === 'path') {
+    const bandW = 0.18; const bandH = 0.025
+    for (const [dir, dx, dz] of [[tn.n, 0, -1], [tn.s, 0, 1], [tn.e, 1, 0], [tn.w, -1, 0]] as const) {
+      if (dir === 'path') {
+        const band = new THREE.Mesh(getBoxGeometry(bandW, bandH, 0.44), mats.base)
+        if (dx) { band.rotation.y = Math.PI / 2; band.position.set(dx * 0.28, TOP_H + rise - 0.01, 0) }
+        else band.position.set(0, TOP_H + rise - 0.01, dz * 0.28)
+        group.add(band)
+      }
+    }
+  }
+
+  // ---- 水岸泡沫（water 邻接非水时加岸边） ----
+  if (terrain === 'water') {
+    for (const [dir, dx, dz] of [[tn.n, 0, -1], [tn.s, 0, 1], [tn.e, 1, 0], [tn.w, -1, 0]] as const) {
+      if (dir !== 'water') {
+        const shore = new THREE.Mesh(getBoxGeometry(0.06, 0.025, 0.90), M.waterFoam)
+        if (dx) { shore.rotation.y = Math.PI / 2; shore.position.set(dx * 0.47, TOP_H + rise - 0.01, 0) }
+        else shore.position.set(0, TOP_H + rise - 0.01, dz * 0.47)
+        group.add(shore)
+      }
+    }
+  }
+
+  // ---- 地形 riser 侧边（相邻地形更高时加侧面板） ----
+  if (lNeighbors && rise > 0) {
+    const ln = lNeighbors
+    const sides: Array<[number | null, number, number]> = [[ln.n, 0, -1], [ln.s, 0, 1], [ln.e, 1, 0], [ln.w, -1, 0]]
+    for (const [nl, dx, dz] of sides) {
+      if (nl !== null && nl < level) {
+        const diff = rise - terrainRiseForLevel(nl)
+        if (diff > 0.01) {
+          const panel = new THREE.Mesh(getBoxGeometry(0.96, diff, 0.08), mats.low)
+          if (dx) {
+            panel.position.set(dx * 0.48, diff / 2, 0)
+          } else {
+            panel.position.set(0, diff / 2, dz * 0.48)
+            panel.rotation.y = Math.PI / 2
+          }
+          group.add(panel)
+        }
+      }
+    }
+  }
+
+  // 装饰细节
   if (terrain === 'grass') {
     addDecal(group, mats.hi, 0.25, 0.05, rise)
     addDecal(group, mats.hi, -0.21, 0.03, rise)
@@ -74,6 +120,16 @@ function addDecal(group: THREE.Group, mat: THREE.Material, ox: number, size: num
 /** 邻接信息 */
 export interface CellNeighbors {
   n: boolean; s: boolean; e: boolean; w: boolean
+}
+
+/** 地形邻接信息 */
+export interface TerrainNeighbors {
+  n: string; s: string; e: string; w: string
+}
+
+/** 层高邻接信息 */
+export interface LevelNeighbors {
+  n: number | null; s: number | null; e: number | null; w: number | null
 }
 
 /** 生成物体 Mesh — 支持邻接感知 */
