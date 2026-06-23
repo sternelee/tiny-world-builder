@@ -369,8 +369,8 @@ These decisions are still being worked out before a production launch. We are sh
 
 The recommended first version of the economy:
 
-1. Launch $TINYWORLD as a normal tradable Solana token.
-2. Let players connect wallets.
+1. Launch $TINYWORLD as a normal tradable Solana token. **(Done)**
+2. Let players connect wallets. **(Done)**
 3. Calculate GOLD allowance from the amount of $TINYWORLD held.
 4. Make GOLD non-withdrawable.
 5. Sell a small number of island NFTs through an official sale flow.
