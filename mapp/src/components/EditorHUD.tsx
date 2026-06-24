@@ -46,7 +46,7 @@ class EditorHUD extends Component<PageProps, HUDState> {
 
   render() {
     const { editorStore } = this.props.store!
-    const { onToggleCamera, onSave, onLoad, onLoadPreset, onNewProject, onLogin } = this.props
+    const { onToggleCamera, onSave, onLoad, onLoadPreset, onNewProject, onLogin, onToggleTime, onOpenLibrary } = this.props
     const { menuOpen } = this.state
 
     return (
@@ -82,6 +82,10 @@ class EditorHUD extends Component<PageProps, HUDState> {
             <View className='hud-menu-item' onClick={this.wrap(onNewProject)}>
               <Text className='hud-menu-icon'>N</Text>
               <Text className='hud-menu-label'>New</Text>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onOpenLibrary)}>
+              <Text className='hud-menu-icon'>🏗</Text>
+              <Text className='hud-menu-label'>Library</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onLogin)}>
               <Text className='hud-menu-icon'>👤</Text>

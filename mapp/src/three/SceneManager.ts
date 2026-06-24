@@ -79,11 +79,10 @@ export class SceneManager {
 
     // 场景
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0xb9dcf4)
+    this.scene.background = this._skyColor
 
     // 日夜间状态
-    this._todMinutes = 600 // 10:00 AM default
-    this._skyColor = new THREE.Color(0xb9dcf4)
+    this._skyColor.set(0xb9dcf4)
     this._todAuto = true
 
     // 相机
@@ -108,9 +107,10 @@ export class SceneManager {
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -0.06
     this.scene.add(ground)
-  }
 
-  /** 启动渲染循环 */
+    this._addClouds()
+    this.updateSkyColor()
+  }
   start() {
     if (this.running) return
     this.running = true
@@ -195,6 +195,7 @@ export class SceneManager {
     const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
     this.tickTod(nowMs)
     this.tickDrops(nowMs)
+    this.tickClouds(nowMs)
     this.renderer.render(this.scene, this.camera)
     const w = (globalThis as any).window
     if (w?.requestAnimationFrame) {
@@ -209,6 +210,47 @@ export class SceneManager {
     this.renderer = null
     this.scene = null
     this.camera = null
+  }
+
+  // ---- 天空云层 ----
+  private _addClouds() {
+    if (!this.scene) return
+    this._cloudGroup = new THREE.Group()
+    this._cloudGroup.name = 'cloudSky'
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+      depthTest: false,
+    })
+    for (let i = 0; i < 8; i++) {
+      const w = 0.8 + Math.random() * 2.5
+      const h = 0.25 + Math.random() * 0.6
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat)
+      plane.position.set(
+        (Math.random() - 0.5) * 16,
+        4.5 + Math.random() * 2,
+        (Math.random() - 0.5) * 16,
+      )
+      plane.rotation.y = Math.random() * Math.PI * 2
+      plane.userData.cloudDriftX = 0.02 + Math.random() * 0.06
+      plane.userData.cloudDriftZ = 0.01 + Math.random() * 0.03
+      this._cloudGroup!.add(plane)
+    }
+    this.scene.add(this._cloudGroup)
+  }
+
+  private tickClouds(_nowMs: number) {
+    if (!this._cloudGroup) return
+    for (const cloud of this._cloudGroup.children) {
+      const ud = (cloud as any).userData
+      if (ud?.cloudDriftX) cloud.position.x += ud.cloudDriftX * 16 / 1000
+      if (ud?.cloudDriftZ) cloud.position.z += ud.cloudDriftZ * 16 / 1000
+      // Wrap around
+      if (cloud.position.x > 8) cloud.position.x = -8
+      if (cloud.position.z > 8) cloud.position.z = -8
+    }
   }
 }
 

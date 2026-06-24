@@ -16,6 +16,7 @@ import Toolbar from '../../components/Toolbar'
 import EditorHUD from '../../components/EditorHUD'
 import Minimap from '../../components/Minimap'
 import ToolPaletteModal from '../../components/ToolPaletteModal'
+import ModelLibraryModal from '../../components/ModelLibraryModal'
 
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
@@ -32,6 +33,7 @@ interface EditorState {
   errorMsg: string | null
   toolbarVisible: boolean
   paletteOpen: boolean
+  libraryOpen: boolean
 }
 
 @inject('store')
@@ -41,7 +43,7 @@ class EditorPage extends Component<PageProps, EditorState> {
   private canvas: any = null
   private win = { width: 375, height: 667, dpr: 2 }
 
-  state: EditorState = { status: 'loading', errorMsg: null, toolbarVisible: true, paletteOpen: false }
+  state: EditorState = { status: 'loading', errorMsg: null, toolbarVisible: true, paletteOpen: false, libraryOpen: false }
 
   private cellToWorld(cx: number, cz: number) {
     const g = this.props.store!.editorStore.grid
@@ -304,6 +306,8 @@ class EditorPage extends Component<PageProps, EditorState> {
 
   private onMore = () => this.setState({ paletteOpen: true })
   private closePalette = () => this.setState({ paletteOpen: false })
+  private openLibrary = () => this.setState({ libraryOpen: true })
+  private closeLibrary = () => this.setState({ libraryOpen: false })
 
   private onToggleToolbar = () => {
     this.setState(s => ({ toolbarVisible: !s.toolbarVisible }))
@@ -541,6 +545,7 @@ class EditorPage extends Component<PageProps, EditorState> {
             onNewProject={this.onClear}
             onLogin={this.onLogin}
             onToggleTime={this.onToggleTime}
+            onOpenLibrary={this.openLibrary}
           />
         )}
 
@@ -573,6 +578,7 @@ class EditorPage extends Component<PageProps, EditorState> {
         )}
 
         <ToolPaletteModal visible={this.state.paletteOpen} onClose={this.closePalette} />
+        <ModelLibraryModal visible={this.state.libraryOpen} onClose={this.closeLibrary} />
       </View>
     )
   }

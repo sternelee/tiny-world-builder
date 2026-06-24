@@ -327,6 +327,158 @@
   margin-top: 2px;
 }
 
+/* ---- Model Library Modal ---- */
+.ml-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 999;
+}
+
+.ml-sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  max-height: 75vh;
+  background: #1a1a2e;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.ml-grip {
+  width: 36px; height: 4px;
+  margin: 8px auto;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+}
+
+.ml-head {
+  padding: 8px 16px 12px;
+}
+
+.ml-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.ml-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+  display: block;
+}
+
+.ml-grid {
+  padding: 0 12px 12px;
+  display: block;
+}
+
+.ml-card {
+  width: calc(33% - 6px);
+  margin: 3px;
+  display: inline-block;
+  vertical-align: top;
+  padding: 14px 4px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.ml-card-icon {
+  font-size: 28px;
+  display: block;
+}
+
+.ml-card-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  margin-top: 4px;
+  display: block;
+}
+
+.ml-preview {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.ml-preview-icon {
+  font-size: 64px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.ml-preview-label {
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ml-actions {
+  padding: 8px 16px 16px;
+}
+
+.ml-btn {
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.10);
+  text-align: center;
+}
+
+.ml-btn.primary {
+  background: rgba(58,114,200,0.5);
+  border-color: rgba(58,114,200,0.7);
+}
+
+.ml-btn.cancel {
+  background: rgba(255,255,255,0.05);
+}
+
+.ml-btn-text {
+  font-size: 15px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.ml-slot-list {
+  padding: 8px 16px;
+}
+
+.ml-slot {
+  padding: 14px 16px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.ml-slot-num {
+  font-size: 14px;
+  color: rgba(58,114,200,0.9);
+  font-weight: 600;
+}
+
+.ml-slot-name {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  margin-left: 8px;
+}
+
+.ml-back-btn {
+  padding: 14px;
+  margin: 0 16px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  text-align: center;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+
 /* Landscape compaction */
 @media (orientation: landscape) {
   .toolbar { padding: 2px 0; }
