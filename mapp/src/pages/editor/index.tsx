@@ -15,6 +15,7 @@ import { getWindowInfo } from '../../services/PlatformAdapter'
 import Toolbar from '../../components/Toolbar'
 import EditorHUD from '../../components/EditorHUD'
 import Minimap from '../../components/Minimap'
+import ToolPaletteModal from '../../components/ToolPaletteModal'
 
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
@@ -30,6 +31,7 @@ interface EditorState {
   status: 'loading' | 'ready' | 'error'
   errorMsg: string | null
   toolbarVisible: boolean
+  paletteOpen: boolean
 }
 
 @inject('store')
@@ -39,7 +41,7 @@ class EditorPage extends Component<PageProps, EditorState> {
   private canvas: any = null
   private win = { width: 375, height: 667, dpr: 2 }
 
-  state: EditorState = { status: 'loading', errorMsg: null, toolbarVisible: true }
+  state: EditorState = { status: 'loading', errorMsg: null, toolbarVisible: true, paletteOpen: false }
 
   private cellToWorld(cx: number, cz: number) {
     const g = this.props.store!.editorStore.grid
@@ -60,7 +62,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     }
   }
 
-  private rebuildScene() {
+  private rebuildScene(animate: boolean = false) {
     const { editorStore } = this.props.store!
     const grid = editorStore.grid
     const scene = this.sceneManager.scene3D
@@ -68,6 +70,7 @@ class EditorPage extends Component<PageProps, EditorState> {
 
     const oldTileRoot = scene.getObjectByName('tileRoot')
     if (oldTileRoot) scene.remove(oldTileRoot)
+    this.sceneManager.clearDrops()
 
     const tileRoot = new THREE.Group()
     tileRoot.name = 'tileRoot'
@@ -84,6 +87,10 @@ class EditorPage extends Component<PageProps, EditorState> {
         tile.position.set(wpos.x, 0, wpos.z)
         tile.userData = { cellX: x, cellZ: z }
         tileRoot.add(tile)
+        if (animate) {
+          const delay = (x + z) * 0.025
+          this.sceneManager.addDrop(tile, 0, 2.4, 0.42, delay)
+        }
 
         if (cell.kind) {
           const neighbors = this.getCellNeighbors(x, z, grid)
@@ -92,6 +99,10 @@ class EditorPage extends Component<PageProps, EditorState> {
             obj.position.set(wpos.x, 0, wpos.z)
             obj.userData = { cellX: x, cellZ: z, kind: cell.kind }
             tileRoot.add(obj)
+            if (animate) {
+              const delay = (x + z) * 0.025 + 0.08
+              this.sceneManager.addDrop(obj, 0, 1.8, 0.36, delay)
+            }
           }
         }
       }
@@ -188,7 +199,7 @@ class EditorPage extends Component<PageProps, EditorState> {
       this.sceneManager.start()
 
       this.props.store!.editorStore.ready = true
-      this.rebuildScene()
+      this.rebuildScene(true)
       this.setState({ status: 'ready' })
     } catch (err: any) {
       console.error('[editor] init error:', err)
@@ -244,6 +255,9 @@ class EditorPage extends Component<PageProps, EditorState> {
     }
   }
 
+  private onMore = () => this.setState({ paletteOpen: true })
+  private closePalette = () => this.setState({ paletteOpen: false })
+
   private onToggleToolbar = () => {
     this.setState(s => ({ toolbarVisible: !s.toolbarVisible }))
   }
@@ -252,7 +266,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     const { editorStore } = this.props.store!
     applyPreset(editorStore)
     editorStore.setSelectedCell(null)
-    this.rebuildScene()
+    this.rebuildScene(true)
   }
 
   private onLogin = () => {
@@ -269,7 +283,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     const { editorStore } = this.props.store!
     if (loadWorld(editorStore)) {
       editorStore.setSelectedCell(null)
-      this.rebuildScene()
+      this.rebuildScene(true)
       Taro.showToast({ title: 'Loaded', icon: 'success', duration: 1500 })
     } else {
       Taro.showToast({ title: 'No save found', icon: 'none', duration: 1500 })
@@ -501,8 +515,11 @@ class EditorPage extends Component<PageProps, EditorState> {
             onLower={this.onLower}
             onUndo={this.onUndo}
             onRedo={this.onRedo}
+            onMore={this.onMore}
           />
         )}
+
+        <ToolPaletteModal visible={this.state.paletteOpen} onClose={this.closePalette} />
       </View>
     )
   }

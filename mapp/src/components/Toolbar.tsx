@@ -13,17 +13,26 @@ type PageProps = PropsWithChildren & {
   onEraser?: () => void
   onUndo?: () => void
   onRedo?: () => void
+  onMore?: () => void
 }
 
-const QUICK_TOOLS = ['grass', 'house', 'tree', 'fence', 'rock', 'bridge', 'crop', 'tuft', 'flower', 'cow']
+const QUICK_TOOLS = ['grass', 'path', 'water', 'house', 'tree', 'fence', 'rock', 'bridge', 'crop', 'flower']
+
+const ICONS: Record<string, string> = {
+  grass: 'G', path: 'P', water: 'W',
+  house: 'H', tree: 'T', fence: 'F', rock: 'R', bridge: 'B',
+  crop: 'C', flower: 'FL',
+}
 
 @inject('store')
 @observer
 class Toolbar extends Component<PageProps> {
   render() {
     const { editorStore } = this.props.store!
-    const { onRaise, onLower, onEraser, onUndo, onRedo } = this.props
+    const { onRaise, onLower, onEraser, onUndo, onRedo, onMore } = this.props
     const activeId = editorStore.activeTool?.id
+    // 当前选中工具不在 quick 列表里 → 显示在 More 按钮上
+    const showInMore = !!activeId && !QUICK_TOOLS.includes(activeId) && activeId !== '__eraser__'
 
     return (
       <View className='toolbar'>
@@ -55,20 +64,20 @@ class Toolbar extends Component<PageProps> {
                   else editorStore.setActiveTool(tool)
                 }}
               >
-                <Text className='tb-icon'>{TICONS[id] || '?'}</Text>
+                <Text className='tb-icon'>{ICONS[id] || '?'}</Text>
               </View>
             )
           })}
+          <View
+            className={`tb-btn more ${showInMore ? 'active' : ''}`}
+            onClick={onMore}
+          >
+            <Text className='tb-icon'>{showInMore ? (activeId!.slice(0, 2).toUpperCase()) : '···'}</Text>
+          </View>
         </View>
       </View>
     )
   }
-}
-
-const TICONS: Record<string, string> = {
-  grass: 'G', house: 'H', tree: 'T', fence: 'F',
-  rock: 'R', bridge: 'B', crop: 'C', tuft: 'TF',
-  flower: 'FL', cow: 'CW',
 }
 
 export default Toolbar

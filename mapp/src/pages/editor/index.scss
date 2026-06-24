@@ -6,21 +6,25 @@
   flex-direction: column;
 }
 
-/* HUD on top — regular View, not overlay */
+/* HUD on top — height matches WeChat capsule area */
 .hud-bar {
   position: relative;
   height: 60px;
+  /* iOS notch safe area */
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
   background: rgba(20, 22, 36, 0.92);
   flex-shrink: 0;
   z-index: 1;
-  padding: 8px;
-  box-sizing: border-box;
+  box-sizing: content-box;
 }
 
 .hud-title {
   position: absolute;
   top: 18px;
   left: 50px;
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
   font-size: 15px;
   font-weight: 700;
   color: #fff;
@@ -30,6 +34,8 @@
   position: absolute;
   top: 14px;
   left: 8px;
+  margin-top: constant(safe-area-inset-top);
+  margin-top: env(safe-area-inset-top);
   width: 32px;
   height: 32px;
   border-radius: 6px;
@@ -46,7 +52,10 @@
 .hud-gridsize {
   position: absolute;
   top: 16px;
-  right: 8px;
+  /* WeChat capsule is at right:7px, ~87px wide. Stay clear. */
+  right: 102px;
+  margin-top: constant(safe-area-inset-top);
+  margin-top: env(safe-area-inset-top);
   padding: 6px 12px;
   background: rgba(255,255,255,0.18);
   border-radius: 6px;
@@ -58,10 +67,12 @@
   color: #fff;
 }
 
-/* Menu panel — absolute over the canvas via z-index */
+/* Hamburger menu panel */
 .hud-menu {
   position: absolute;
   top: 56px;
+  margin-top: constant(safe-area-inset-top);
+  margin-top: env(safe-area-inset-top);
   left: 6px;
   width: 140px;
   background: rgba(20, 22, 36, 0.97);
@@ -127,7 +138,7 @@
   z-index: 50;
 }
 
-/* Minimap — 2D canvas, 跟浏览器版对齐 */
+/* Minimap — 2D canvas */
 .minimap-wrap {
   position: absolute;
   bottom: 8px;
@@ -139,15 +150,16 @@
   z-index: 50;
 }
 
-/* Toolbar on bottom — regular View, not overlay */
+/* Toolbar on bottom */
 .toolbar {
   position: relative;
-  height: 76px;
   background: rgba(20, 22, 36, 0.94);
   flex-shrink: 0;
+  padding: 4px 0;
+  /* iOS bottom safe area */
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 1;
-  padding: 4px;
-  box-sizing: border-box;
 }
 
 .tb-row {
@@ -155,6 +167,7 @@
   height: 32px;
   margin-bottom: 4px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .tb-btn {
@@ -168,6 +181,11 @@
   text-align: center;
   line-height: 30px;
   vertical-align: top;
+}
+
+.tb-btn.more {
+  background: rgba(58, 114, 200, 0.30);
+  border-color: rgba(58, 114, 200, 0.5);
 }
 
 .tb-btn.active {
@@ -192,9 +210,126 @@
   background: rgba(255,255,255,0.18);
 }
 
+/* Tool palette modal */
+.tp-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.tp-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 70vh;
+  background: #1a1a2e;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tp-grip {
+  width: 36px;
+  height: 4px;
+  margin: 8px auto;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+}
+
+.tp-head {
+  position: relative;
+  padding: 0 16px 8px;
+}
+
+.tp-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tp-close {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  text-align: center;
+  line-height: 32px;
+}
+
+.tp-close-icon {
+  font-size: 24px;
+  color: rgba(255,255,255,0.6);
+  line-height: 1;
+}
+
+.tp-scroll {
+  max-height: 60vh;
+  padding: 0 12px 12px;
+}
+
+.tp-group {
+  margin-bottom: 12px;
+}
+
+.tp-group-label {
+  display: block;
+  margin: 8px 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.5px;
+}
+
+.tp-tools {
+  display: block;
+  white-space: normal;
+}
+
+.tp-tool {
+  width: 60px;
+  height: 60px;
+  margin: 3px;
+  display: inline-block;
+  vertical-align: top;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-align: center;
+  box-sizing: border-box;
+  padding: 6px 0 0;
+}
+
+.tp-tool.active {
+  background: rgba(58, 114, 200, 0.45);
+  border-color: rgba(58, 114, 200, 0.7);
+}
+
+.tp-tool-icon {
+  display: block;
+  font-size: 18px;
+  color: #fff;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.tp-tool-label {
+  display: block;
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  line-height: 14px;
+  margin-top: 2px;
+}
+
 /* Landscape compaction */
 @media (orientation: landscape) {
-  .toolbar { height: 60px; }
+  .toolbar { padding: 2px 0; }
   .tb-row { height: 26px; margin-bottom: 2px; }
   .tb-btn { width: 26px; height: 26px; line-height: 26px; }
   .tb-icon { font-size: 11px; }
@@ -202,4 +337,7 @@
   .hud-hamburger { top: 9px; }
   .hud-title { top: 13px; }
   .hud-gridsize { top: 11px; }
+
+  .tp-sheet { max-height: 80vh; }
+  .tp-tool { width: 56px; height: 56px; }
 }

@@ -9,12 +9,24 @@ import '../weapp-adapter'
 import { updateWindowSize, adoptCanvasAnimationFrame } from '../weapp-adapter'
 import * as THREE from 'three'
 
+export interface DropAnim {
+  object: THREE.Object3D
+  targetY: number
+  startY: number
+  startTime: number
+  duration: number
+  delay: number
+  done?: boolean
+}
+
 export class SceneManager {
   private renderer: THREE.WebGLRenderer | null = null
   private scene: THREE.Scene | null = null
   private camera: THREE.PerspectiveCamera | null = null
   private animId: number = 0
   private running = false
+  private startTime = 0
+  private dropAnims: DropAnim[] = []
 
   private canvas: any = null
 
@@ -88,7 +100,48 @@ export class SceneManager {
   start() {
     if (this.running) return
     this.running = true
+    this.startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
     this.loop()
+  }
+
+  /** 添加 drop 动画: 从 targetY + dropHeight 掉落到 targetY */
+  addDrop(object: THREE.Object3D, targetY: number, dropHeight: number, duration: number, delay: number) {
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
+    this.dropAnims.push({
+      object,
+      targetY,
+      startY: targetY + dropHeight,
+      startTime: now,
+      duration,
+      delay,
+    })
+    object.position.y = targetY + dropHeight
+  }
+
+  /** 清除 drop 队列 */
+  clearDrops() {
+    this.dropAnims.length = 0
+  }
+
+  private tickDrops(nowMs: number) {
+    if (!this.dropAnims.length) return
+    const keep: DropAnim[] = []
+    for (const a of this.dropAnims) {
+      const t = (nowMs - a.startTime - a.delay * 1000) / (a.duration * 1000)
+      if (t < 0) {
+        keep.push(a)
+        continue
+      }
+      if (t >= 1) {
+        a.object.position.y = a.targetY
+        continue
+      }
+      // easeOutCubic
+      const k = 1 - Math.pow(1 - t, 3)
+      a.object.position.y = a.startY + (a.targetY - a.startY) * k
+      keep.push(a)
+    }
+    this.dropAnims = keep
   }
 
   /** 停止渲染循环 */
@@ -103,6 +156,8 @@ export class SceneManager {
 
   private loop = () => {
     if (!this.running || !this.renderer || !this.scene || !this.camera) return
+    const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
+    this.tickDrops(nowMs)
     this.renderer.render(this.scene, this.camera)
     const w = (globalThis as any).window
     if (w?.requestAnimationFrame) {
