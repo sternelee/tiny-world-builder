@@ -394,12 +394,195 @@
   font-size: 15px;
 }
 
+/* ---------- resources & gold panel ---------- */
+.rewards-economy-body {
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rewards-economy-notice {
+  padding: 16px 24px 24px;
+  font-family: var(--body-font);
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* resource sell section */
+.rewards-resources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.rewards-resource-item {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(120, 130, 150, 0.18);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rewards-resource-name {
+  font-family: var(--body-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rewards-resource-count {
+  font-family: var(--display-font);
+  font-size: 24px;
+  font-weight: 700;
+  color: #111b45;
+  line-height: 1;
+}
+
+.rewards-resource-rate {
+  font-family: var(--body-font);
+  font-size: 12px;
+  color: #c9a227;
+  font-weight: 600;
+}
+
+.rewards-sell-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.rewards-sell-total {
+  font-family: var(--body-font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+}
+
+.rewards-sell-total-num {
+  font-family: var(--display-font);
+  font-size: 20px;
+  font-weight: 700;
+  color: #c9a227;
+}
+
+.rewards-sell-btn {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: linear-gradient(180deg, #d4a62a 0%, #b8891e 100%);
+  color: #fff;
+  font: 600 14px/1 var(--body-font);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 16px -8px rgba(180, 120, 20, 0.5);
+  transition: filter 0.12s;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.rewards-sell-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.rewards-sell-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+
+.rewards-sell-feedback {
+  font-family: var(--body-font);
+  font-size: 13px;
+  min-height: 18px;
+  width: 100%;
+}
+
+.rewards-sell-feedback.ok  { color: #1a6632; }
+.rewards-sell-feedback.err { color: #9a3020; }
+
+/* buy gold section */
+.rewards-buy-divider {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin: 4px 0 0;
+}
+
+.rewards-buy-heading {
+  font-family: var(--body-font);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rewards-buy-coming-soon {
+  font-family: var(--body-font);
+  font-size: 14px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.rewards-packs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.rewards-pack-btn {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(120, 130, 150, 0.22);
+  background: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, box-shadow 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rewards-pack-btn:hover { background: rgba(255, 255, 255, 0.9); box-shadow: 0 2px 8px rgba(20,30,50,0.1); }
+.rewards-pack-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rewards-pack-coins {
+  font-family: var(--display-font);
+  font-size: 20px;
+  font-weight: 700;
+  color: #c9a227;
+  line-height: 1;
+}
+
+.rewards-pack-name {
+  font-family: var(--body-font);
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rewards-pack-price {
+  font-family: var(--body-font);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.rewards-buy-feedback {
+  font-family: var(--body-font);
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.rewards-buy-feedback.err { color: #9a3020; }
+
 @media (max-width: 600px) {
   .rewards-balance-num { font-size: 52px; }
   .rewards-referral-link-row { flex-direction: column; }
   .rewards-copy-btn { align-self: flex-start; }
   .rewards-claim-row { flex-direction: column; }
   .rewards-claim-btn { align-self: flex-start; }
+  .rewards-resources-grid { grid-template-columns: 1fr 1fr; }
+  .rewards-packs-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>
 </head>
@@ -487,6 +670,13 @@
       '<svg class="rewards-signin-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
       '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>' +
       '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>' +
+      '</svg>';
+
+    var SVG_BASKET =
+      '<svg class="rewards-card-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>' +
+      '<line x1="3" y1="6" x2="21" y2="6"/>' +
+      '<path d="M16 10a4 4 0 0 1-8 0"/>' +
       '</svg>';
 
     var SVG_ARROW =
@@ -882,8 +1072,283 @@
       return card;
     }
 
+    // ---- sell rates (server is authoritative; client-side for display only) ----
+    var SELL_RATES = { fish: 1, meat: 2, plants: 1, ore: 3 };
+    var RESOURCE_LABELS = ['fish', 'meat', 'plants', 'ore'];
+
+    // ---- build economy card (sell resources + buy gold) ----
+    function buildEconomyCard(resourcesData, stripeData, reloadSignedIn) {
+      var card = document.createElement('div');
+      card.className = 'rewards-card';
+
+      // header
+      var header = document.createElement('div');
+      header.className = 'rewards-card-header';
+      // static SVG — safe innerHTML
+      header.innerHTML = SVG_BASKET;
+      var title = document.createElement('span');
+      title.className = 'rewards-card-title';
+      title.textContent = 'Resources & GOLD';
+      header.appendChild(title);
+      card.appendChild(header);
+
+      // ---- non-owner / 403 ----
+      if (resourcesData === 403 || stripeData === 403) {
+        var notice = document.createElement('div');
+        notice.className = 'rewards-economy-notice';
+        notice.textContent = 'The creator economy is in private testing.';
+        card.appendChild(notice);
+        return card;
+      }
+
+      var body = document.createElement('div');
+      body.className = 'rewards-economy-body';
+
+      // ---- sell section ----
+      var resources = resourcesData || {};
+      var amounts = {};
+      var totalGold = 0;
+      RESOURCE_LABELS.forEach(function (key) {
+        amounts[key] = Math.max(0, Number(resources[key]) || 0);
+        totalGold += amounts[key] * SELL_RATES[key];
+      });
+      var hasResources = totalGold > 0;
+
+      var grid = document.createElement('div');
+      grid.className = 'rewards-resources-grid';
+
+      RESOURCE_LABELS.forEach(function (key) {
+        var item = document.createElement('div');
+        item.className = 'rewards-resource-item';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'rewards-resource-name';
+        nameEl.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+
+        var countEl = document.createElement('div');
+        countEl.className = 'rewards-resource-count';
+        countEl.textContent = amounts[key].toLocaleString();
+
+        var rateEl = document.createElement('div');
+        rateEl.className = 'rewards-resource-rate';
+        rateEl.textContent = SELL_RATES[key].toLocaleString() + ' GOLD / unit';
+
+        item.appendChild(nameEl);
+        item.appendChild(countEl);
+        item.appendChild(rateEl);
+        grid.appendChild(item);
+      });
+
+      body.appendChild(grid);
+
+      // sell footer
+      var sellFooter = document.createElement('div');
+      sellFooter.className = 'rewards-sell-footer';
+
+      var totalEl = document.createElement('div');
+      totalEl.className = 'rewards-sell-total';
+
+      var totalLabel = document.createElement('span');
+      totalLabel.textContent = 'Sell all for ';
+      var totalNum = document.createElement('span');
+      totalNum.className = 'rewards-sell-total-num';
+      totalNum.textContent = totalGold.toLocaleString();
+      var totalSuffix = document.createElement('span');
+      totalSuffix.textContent = ' GOLD';
+      totalEl.appendChild(totalLabel);
+      totalEl.appendChild(totalNum);
+      totalEl.appendChild(totalSuffix);
+
+      var sellBtn = document.createElement('button');
+      sellBtn.className = 'rewards-sell-btn';
+      sellBtn.type = 'button';
+      sellBtn.textContent = 'Sell all';
+      sellBtn.disabled = !hasResources;
+
+      var sellFeedback = document.createElement('div');
+      sellFeedback.className = 'rewards-sell-feedback';
+      sellFeedback.setAttribute('aria-live', 'polite');
+
+      if (!hasResources) {
+        sellFeedback.className = 'rewards-sell-feedback';
+        sellFeedback.textContent = 'Harvest resources in a world to earn GOLD here.';
+      }
+
+      sellFooter.appendChild(totalEl);
+      sellFooter.appendChild(sellBtn);
+      body.appendChild(sellFooter);
+      body.appendChild(sellFeedback);
+
+      // idempotency key — one per sell session, regenerate after ok
+      var sellIdempotencyKey = crypto.randomUUID();
+
+      sellBtn.addEventListener('click', function () {
+        if (!hasResources) return;
+        var confirmed = window.confirm(
+          'Sell all resources for ' + totalGold.toLocaleString() + ' GOLD?\n' +
+          'Fish: ' + amounts.fish.toLocaleString() + ', ' +
+          'Meat: ' + amounts.meat.toLocaleString() + ', ' +
+          'Plants: ' + amounts.plants.toLocaleString() + ', ' +
+          'Ore: ' + amounts.ore.toLocaleString()
+        );
+        if (!confirmed) return;
+
+        sellBtn.disabled = true;
+        sellFeedback.className = 'rewards-sell-feedback';
+        sellFeedback.textContent = 'Selling...';
+
+        fetch('/api/me/resources/sell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            amounts: { fish: amounts.fish, meat: amounts.meat, plants: amounts.plants, ore: amounts.ore },
+            idempotencyKey: sellIdempotencyKey,
+          }),
+        })
+          .then(function (res) {
+            return res.json().then(function (data) { return { status: res.status, data: data }; });
+          })
+          .then(function (r) {
+            if (r.data && r.data.ok) {
+              // Regenerate key after successful sale
+              sellIdempotencyKey = crypto.randomUUID();
+              var earned = Number(r.data.gold) || totalGold;
+              sellFeedback.className = 'rewards-sell-feedback ok';
+              sellFeedback.textContent = '+' + earned.toLocaleString() + ' GOLD earned!';
+              // Reload the whole signed-in view to refresh resources + balance
+              if (typeof reloadSignedIn === 'function') {
+                setTimeout(reloadSignedIn, 1200);
+              } else {
+                sellBtn.disabled = false;
+              }
+            } else if (r.status === 409 && r.data && r.data.reason === 'insufficient-resources') {
+              sellFeedback.className = 'rewards-sell-feedback err';
+              sellFeedback.textContent = 'Not enough resources to sell. Refreshing counts...';
+              sellBtn.disabled = false;
+              if (typeof reloadSignedIn === 'function') setTimeout(reloadSignedIn, 1200);
+            } else {
+              var reason = (r.data && r.data.reason) ? String(r.data.reason) : '';
+              sellFeedback.className = 'rewards-sell-feedback err';
+              sellFeedback.textContent = reason
+                ? 'Could not sell: ' + reason + '. Please try again.'
+                : 'Something went wrong. Please try again.';
+              sellBtn.disabled = false;
+            }
+          })
+          .catch(function () {
+            sellFeedback.className = 'rewards-sell-feedback err';
+            sellFeedback.textContent = 'Could not reach the server. Please try again.';
+            sellBtn.disabled = false;
+          });
+      });
+
+      // ---- buy gold section ----
+      var divider = document.createElement('hr');
+      divider.className = 'rewards-buy-divider';
+      body.appendChild(divider);
+
+      var buyHeading = document.createElement('div');
+      buyHeading.className = 'rewards-buy-heading';
+      buyHeading.textContent = 'Buy GOLD';
+      body.appendChild(buyHeading);
+
+      var buyFeedback = document.createElement('div');
+      buyFeedback.className = 'rewards-buy-feedback';
+      buyFeedback.setAttribute('aria-live', 'polite');
+
+      var stripe = stripeData || {};
+      var stripeConfigured = stripe.configured === true;
+      var packs = (stripeConfigured && Array.isArray(stripe.packs)) ? stripe.packs : [];
+
+      if (!stripeConfigured || !packs.length) {
+        var comingSoon = document.createElement('div');
+        comingSoon.className = 'rewards-buy-coming-soon';
+        comingSoon.textContent = 'Buying GOLD with a card is coming soon.';
+        body.appendChild(comingSoon);
+      } else {
+        var packsGrid = document.createElement('div');
+        packsGrid.className = 'rewards-packs-grid';
+
+        var buyIdempotencyKey = crypto.randomUUID();
+
+        packs.forEach(function (pack) {
+          var packBtn = document.createElement('button');
+          packBtn.className = 'rewards-pack-btn';
+          packBtn.type = 'button';
+
+          var coinsEl = document.createElement('div');
+          coinsEl.className = 'rewards-pack-coins';
+          coinsEl.textContent = Number(pack.coins).toLocaleString() + ' GOLD';
+
+          var nameEl = document.createElement('div');
+          nameEl.className = 'rewards-pack-name';
+          nameEl.textContent = String(pack.name || '');
+
+          var priceEl = document.createElement('div');
+          priceEl.className = 'rewards-pack-price';
+          var dollars = (Number(pack.amountCents) / 100).toFixed(2);
+          priceEl.textContent = '$' + dollars;
+
+          packBtn.appendChild(coinsEl);
+          packBtn.appendChild(nameEl);
+          packBtn.appendChild(priceEl);
+
+          packBtn.addEventListener('click', function () {
+            // Disable all pack buttons while in-flight
+            Array.prototype.forEach.call(packsGrid.querySelectorAll('.rewards-pack-btn'), function (b) {
+              b.disabled = true;
+            });
+            buyFeedback.className = 'rewards-buy-feedback';
+            buyFeedback.textContent = 'Redirecting to checkout...';
+
+            fetch('/api/stripe/checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ packId: String(pack.id), idempotencyKey: buyIdempotencyKey }),
+            })
+              .then(function (res) {
+                return res.json().then(function (data) { return { status: res.status, data: data }; });
+              })
+              .then(function (r) {
+                if (r.data && r.data.ok && r.data.url) {
+                  window.location = r.data.url;
+                  // Don't re-enable — navigation is happening
+                } else if (r.status === 503) {
+                  buyFeedback.className = 'rewards-buy-feedback';
+                  buyFeedback.textContent = 'Buying GOLD with a card is coming soon.';
+                  Array.prototype.forEach.call(packsGrid.querySelectorAll('.rewards-pack-btn'), function (b) {
+                    b.disabled = false;
+                  });
+                } else {
+                  buyFeedback.className = 'rewards-buy-feedback err';
+                  buyFeedback.textContent = 'Could not start checkout. Please try again.';
+                  Array.prototype.forEach.call(packsGrid.querySelectorAll('.rewards-pack-btn'), function (b) {
+                    b.disabled = false;
+                  });
+                }
+              })
+              .catch(function () {
+                buyFeedback.className = 'rewards-buy-feedback err';
+                buyFeedback.textContent = 'Could not reach the server. Please try again.';
+                Array.prototype.forEach.call(packsGrid.querySelectorAll('.rewards-pack-btn'), function (b) {
+                  b.disabled = false;
+                });
+              });
+          });
+
+          packsGrid.appendChild(packBtn);
+        });
+
+        body.appendChild(packsGrid);
+      }
+
+      body.appendChild(buyFeedback);
+      card.appendChild(body);
+      return card;
+    }
+
     // ---- main render ----
-    function render(coinsData, referralData) {
+    function render(coinsData, referralData, resourcesData, stripeData, reloadSignedIn) {
       section.textContent = '';
 
       var balance = (coinsData && coinsData.balance != null) ? coinsData.balance : null;
@@ -897,6 +1362,11 @@
         coming.className = 'rewards-card rewards-coming-soon';
         coming.textContent = 'Rewards are coming soon.';
         section.appendChild(coming);
+      }
+
+      // Economy panel: resources + gold (only when resourcesData or stripeData present, or 403)
+      if (resourcesData !== null || stripeData !== null) {
+        section.appendChild(buildEconomyCard(resourcesData, stripeData, reloadSignedIn));
       }
 
       if (referralData && referralData.code) {
@@ -924,7 +1394,10 @@
             return null;
           }
 
-          // Fetch both endpoints in parallel
+          // Callback to reload the signed-in view (used after sale)
+          function reloadSignedIn() { load(); }
+
+          // Fetch all endpoints in parallel
           var coinsPromise = fetch('/api/me/coins', { headers: { Accept: 'application/json' } })
             .then(function (res) {
               if (!res.ok) return null;
@@ -939,13 +1412,36 @@
             })
             .catch(function () { return null; });
 
-          return Promise.all([coinsPromise, referralPromise]);
+          var resourcesPromise = fetch('/api/worlds/resources', { headers: { Accept: 'application/json' } })
+            .then(function (res) {
+              if (res.status === 403) return 403;
+              if (!res.ok) return null;
+              return res.json();
+            })
+            .catch(function () { return null; });
+
+          var stripePromise = fetch('/api/stripe/checkout', { headers: { Accept: 'application/json' } })
+            .then(function (res) {
+              if (res.status === 403) return 403;
+              if (!res.ok) return null;
+              return res.json();
+            })
+            .catch(function () { return null; });
+
+          return Promise.all([coinsPromise, referralPromise, resourcesPromise, stripePromise])
+            .then(function (results) {
+              return { results: results, reloadSignedIn: reloadSignedIn };
+            });
         })
-        .then(function (results) {
-          if (!results) return; // signed out — already handled
-          var coinsData   = results[0];
+        .then(function (payload) {
+          if (!payload) return; // signed out — already handled
+          var results = payload.results;
+          var reloadSignedIn = payload.reloadSignedIn;
+          var coinsData    = results[0];
           var referralData = results[1];
-          render(coinsData, referralData);
+          var resourcesData = results[2];
+          var stripeData   = results[3];
+          render(coinsData, referralData, resourcesData, stripeData, reloadSignedIn);
         })
         .catch(function () {
           // Final safety net — never throw to the user
