@@ -464,39 +464,44 @@ class EditorPage extends Component<PageProps, EditorState> {
 
     return (
       <View className='editor-container'>
-        <Canvas
-          type='webgl' id='editor-canvas' className='editor-canvas'
-          onTouchStart={this.onTouchStart}
-          onTouchMove={this.onTouchMove}
-          onTouchEnd={this.onTouchEnd}
-          disableScroll
-        />
-
-        {status === 'loading' && <View className='editor-loading'>Loading...</View>}
-        {status === 'error' && <View className='editor-error'>{errorMsg}</View>}
-
+        {/* HUD on top - regular View as flex child */}
         {status === 'ready' && (
-          <>
-            <EditorHUD
-              onGridChange={this.onGridChange}
-              onToggleCamera={this.onToggleCamera}
-              onSave={this.onSave}
-              onLoad={this.onLoad}
-              onLoadPreset={this.onLoadPreset}
-              onNewProject={this.onClear}
-              onLogin={this.onLogin}
-            />
-            <Minimap />
-            {toolbarVisible && (
-              <Toolbar
-                onEraser={this.onEraser}
-                onRaise={this.onRaise}
-                onLower={this.onLower}
-                onUndo={this.onUndo}
-                onRedo={this.onRedo}
-              />
-            )}
-          </>
+          <EditorHUD
+            onGridChange={this.onGridChange}
+            onToggleCamera={this.onToggleCamera}
+            onSave={this.onSave}
+            onLoad={this.onLoad}
+            onLoadPreset={this.onLoadPreset}
+            onNewProject={this.onClear}
+            onLogin={this.onLogin}
+          />
+        )}
+
+        {/* Canvas fills middle area */}
+        <View className='canvas-wrap'>
+          <Canvas
+            type='webgl' id='editor-canvas' className='editor-canvas'
+            onTouchStart={this.onTouchStart}
+            onTouchMove={this.onTouchMove}
+            onTouchEnd={this.onTouchEnd}
+            disableScroll
+          />
+
+          {status === 'loading' && <View className='editor-loading'>Loading...</View>}
+          {status === 'error' && <View className='editor-error'>{errorMsg}</View>}
+
+          {status === 'ready' && <Minimap />}
+        </View>
+
+        {/* Toolbar at bottom - regular View as flex child */}
+        {status === 'ready' && toolbarVisible && (
+          <Toolbar
+            onEraser={this.onEraser}
+            onRaise={this.onRaise}
+            onLower={this.onLower}
+            onUndo={this.onUndo}
+            onRedo={this.onRedo}
+          />
         )}
       </View>
     )

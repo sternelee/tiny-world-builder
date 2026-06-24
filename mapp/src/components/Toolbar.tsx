@@ -1,7 +1,7 @@
-// -------- 底部工具栏 — CoverView 兼容版（无 flex/inline-block 问题） --------
+// -------- 底部工具栏 — 普通 View 布局（canvas 之外）--------
 
 import { Component, PropsWithChildren } from 'react'
-import { CoverView, Text } from '@tarojs/components'
+import { View, Text } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { ToolDef, TOOLS } from '../core/constants'
@@ -26,30 +26,28 @@ class Toolbar extends Component<PageProps> {
     const activeId = editorStore.activeTool?.id
 
     return (
-      <CoverView className='toolbar'>
-        {/* Row 1: actions */}
-        <CoverView className='tb-row tb-row-1'>
-          <CoverView className={`tb-btn ${activeId === '__eraser__' ? 'active' : ''}`} onClick={onEraser}>
+      <View className='toolbar'>
+        <View className='tb-row'>
+          <View className={`tb-btn ${activeId === '__eraser__' ? 'active' : ''}`} onClick={onEraser}>
             <Text className='tb-icon'>E</Text>
-          </CoverView>
-          <CoverView className='tb-btn' onClick={onRaise}><Text className='tb-icon'>+</Text></CoverView>
-          <CoverView className='tb-btn' onClick={onLower}><Text className='tb-icon'>-</Text></CoverView>
-          <CoverView className='tb-sep' />
-          <CoverView className={`tb-btn ${editorStore.canUndo ? '' : 'disabled'}`} onClick={editorStore.canUndo ? onUndo : undefined}>
+          </View>
+          <View className='tb-btn' onClick={onRaise}><Text className='tb-icon'>+</Text></View>
+          <View className='tb-btn' onClick={onLower}><Text className='tb-icon'>-</Text></View>
+          <View className='tb-sep' />
+          <View className={`tb-btn ${editorStore.canUndo ? '' : 'disabled'}`} onClick={editorStore.canUndo ? onUndo : undefined}>
             <Text className='tb-icon'>U</Text>
-          </CoverView>
-          <CoverView className={`tb-btn ${editorStore.canRedo ? '' : 'disabled'}`} onClick={editorStore.canRedo ? onRedo : undefined}>
+          </View>
+          <View className={`tb-btn ${editorStore.canRedo ? '' : 'disabled'}`} onClick={editorStore.canRedo ? onRedo : undefined}>
             <Text className='tb-icon'>R</Text>
-          </CoverView>
-        </CoverView>
+          </View>
+        </View>
 
-        {/* Row 2: quick tools */}
-        <CoverView className='tb-row tb-row-2'>
+        <View className='tb-row'>
           {QUICK_TOOLS.map(id => {
             const tool = TOOLS.find(t => t.id === id)
             if (!tool) return null
             return (
-              <CoverView
+              <View
                 key={id}
                 className={`tb-btn ${activeId === id ? 'active' : ''}`}
                 onClick={() => {
@@ -58,11 +56,11 @@ class Toolbar extends Component<PageProps> {
                 }}
               >
                 <Text className='tb-icon'>{TICONS[id] || '?'}</Text>
-              </CoverView>
+              </View>
             )
           })}
-        </CoverView>
-      </CoverView>
+        </View>
+      </View>
     )
   }
 }

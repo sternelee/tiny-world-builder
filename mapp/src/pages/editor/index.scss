@@ -2,59 +2,40 @@
   width: 100vw;
   height: 100vh;
   background: #b9dcf4;
+  display: flex;
+  flex-direction: column;
 }
 
-.editor-canvas {
-  width: 100vw;
-  height: 100vh;
-}
-
-.editor-loading {
-  position: fixed;
-  top: 25%;
-  left: 10%;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 16px;
-  z-index: 999;
-}
-
-.editor-error {
-  position: fixed;
-  bottom: 100px;
-  left: 20px;
-  right: 20px;
-  padding: 12px;
-  background: rgba(255, 50, 50, 0.2);
-  border: 1px solid rgba(255, 50, 50, 0.4);
-  border-radius: 8px;
-  color: #ff6b6b;
-  font-size: 13px;
-  z-index: 999;
-}
-
-/* ---- HUD ---- */
+/* HUD on top — regular View, not overlay */
 .hud-bar {
-  position: fixed;
-  top: 40px;
-  left: 0;
-  right: 0;
-  height: 36px;
-  background: rgba(0,0,0,0.35);
-  z-index: 999;
+  position: relative;
+  height: 60px;
+  background: rgba(20, 22, 36, 0.92);
+  flex-shrink: 0;
+  z-index: 1;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.hud-title {
+  position: absolute;
+  top: 18px;
+  left: 50px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .hud-hamburger {
-  position: fixed;
-  top: 43px;
+  position: absolute;
+  top: 14px;
   left: 8px;
-  width: 30px;
-  height: 30px;
-  border-radius: 5px;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.12);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.18);
   text-align: center;
-  line-height: 30px;
-  z-index: 999;
+  line-height: 32px;
 }
 
 .hud-hamburger-icon {
@@ -62,25 +43,13 @@
   color: #fff;
 }
 
-.hud-title {
-  position: fixed;
-  top: 44px;
-  left: 44px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  z-index: 999;
-}
-
 .hud-gridsize {
-  position: fixed;
-  top: 44px;
+  position: absolute;
+  top: 16px;
   right: 8px;
-  padding: 3px 8px;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.12);
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.18);
   border-radius: 6px;
-  z-index: 999;
 }
 
 .hud-gridsize-label {
@@ -89,30 +58,30 @@
   color: #fff;
 }
 
-/* ---- 汉堡菜单面板 ---- */
+/* Menu panel — absolute over the canvas via z-index */
 .hud-menu {
-  position: fixed;
-  top: 75px;
+  position: absolute;
+  top: 56px;
   left: 6px;
-  width: 130px;
-  background: rgba(20, 22, 36, 0.96);
+  width: 140px;
+  background: rgba(20, 22, 36, 0.97);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 8px;
   padding: 4px 0;
-  z-index: 1000;
+  z-index: 100;
 }
 
 .hud-menu-item {
   display: block;
-  height: 34px;
-  padding: 0 12px;
-  line-height: 34px;
+  height: 36px;
+  padding: 0 14px;
+  line-height: 36px;
 }
 
 .hud-menu-icon {
   font-size: 13px;
   color: rgba(255,255,255,0.6);
-  margin-right: 8px;
+  margin-right: 10px;
 }
 
 .hud-menu-label {
@@ -120,49 +89,96 @@
   color: #fff;
 }
 
-/* ---- Toolbar ---- */
+/* Canvas fills the remaining middle area */
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 100px;
+}
+
+.editor-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.editor-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-left: -50px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 16px;
+  z-index: 50;
+}
+
+.editor-error {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 10px;
+  background: rgba(255, 50, 50, 0.2);
+  border: 1px solid rgba(255, 50, 50, 0.4);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 12px;
+  z-index: 50;
+}
+
+/* Minimap — absolute inside canvas-wrap, not over the canvas DOM-wise */
+.minimap-wrap {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.5);
+  z-index: 50;
+}
+
+/* Toolbar on bottom — regular View, not overlay */
 .toolbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 70px;
+  position: relative;
+  height: 76px;
   background: rgba(20, 22, 36, 0.94);
-  z-index: 999;
+  flex-shrink: 0;
+  z-index: 1;
+  padding: 4px;
+  box-sizing: border-box;
 }
 
 .tb-row {
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  height: 30px;
+  display: block;
+  height: 32px;
+  margin-bottom: 4px;
+  text-align: center;
 }
 
-.tb-row-1 { top: 3px; }
-.tb-row-2 { top: 36px; }
-
 .tb-btn {
-  width: 28px;
-  height: 28px;
-  margin: 1px;
-  display: block;
-  float: left;
+  width: 30px;
+  height: 30px;
+  margin: 0 2px;
+  display: inline-block;
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   text-align: center;
-  line-height: 28px;
+  line-height: 30px;
+  vertical-align: top;
 }
 
 .tb-btn.active {
-  background: rgba(58, 114, 200, 0.45);
-  border-color: rgba(58, 114, 200, 0.6);
+  background: rgba(58, 114, 200, 0.55);
+  border-color: rgba(58, 114, 200, 0.7);
 }
 
-.tb-btn.disabled { opacity: 0.2; }
+.tb-btn.disabled { opacity: 0.3; }
 
 .tb-icon {
-  font-size: 12px;
+  font-size: 13px;
   color: #fff;
   font-weight: 600;
 }
@@ -170,35 +186,20 @@
 .tb-sep {
   width: 1px;
   height: 22px;
-  margin: 3px 3px 3px 5px;
-  display: block;
-  float: left;
-  background: rgba(255,255,255,0.12);
+  margin: 4px 4px;
+  display: inline-block;
+  vertical-align: top;
+  background: rgba(255,255,255,0.18);
 }
 
-/* ---- Minimap ---- */
-.minimap-wrap {
-  position: fixed;
-  bottom: 78px;
-  right: 6px;
-  width: 72px;
-  height: 72px;
-  border-radius: 6px;
-  border: 2px solid rgba(255,255,255,0.15);
-  z-index: 999;
-}
-
-/* ---- 横屏 ---- */
+/* Landscape compaction */
 @media (orientation: landscape) {
-  .toolbar {
-    height: 56px;
-  }
-  .tb-row-1 { top: 2px; }
-  .tb-row-2 { top: 30px; }
-  .tb-btn {
-    width: 26px;
-    height: 26px;
-    line-height: 26px;
-  }
+  .toolbar { height: 60px; }
+  .tb-row { height: 26px; margin-bottom: 2px; }
+  .tb-btn { width: 26px; height: 26px; line-height: 26px; }
   .tb-icon { font-size: 11px; }
+  .hud-bar { height: 50px; }
+  .hud-hamburger { top: 9px; }
+  .hud-title { top: 13px; }
+  .hud-gridsize { top: 11px; }
 }

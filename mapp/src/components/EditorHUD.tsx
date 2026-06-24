@@ -1,7 +1,7 @@
-// -------- 编辑器 HUD — 汉堡菜单（折叠）--------
+// -------- 编辑器 HUD — 普通 View 布局（canvas 之外）--------
 
 import { Component, PropsWithChildren } from 'react'
-import { CoverView, Text } from '@tarojs/components'
+import { View, Text } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { HOME_GRID_OPTIONS } from '../core/constants'
@@ -38,59 +38,57 @@ class EditorHUD extends Component<PageProps, HUDState> {
     this.setState(s => ({ menuOpen: !s.menuOpen }))
   }
 
+  private wrap = (cb?: () => void) => () => {
+    cb?.()
+    this.setState({ menuOpen: false })
+  }
+
   render() {
     const { editorStore } = this.props.store!
     const { onToggleCamera, onSave, onLoad, onLoadPreset, onNewProject, onLogin } = this.props
     const { menuOpen } = this.state
 
     return (
-      <CoverView>
-        {/* 顶栏背景 */}
-        <CoverView className='hud-bar' />
-
-        {/* 汉堡按钮 */}
-        <CoverView className='hud-hamburger' onClick={this.toggleMenu}>
+      <View className='hud-bar'>
+        <View className='hud-hamburger' onClick={this.toggleMenu}>
           <Text className='hud-hamburger-icon'>☰</Text>
-        </CoverView>
+        </View>
 
-        {/* 标题 */}
         <Text className='hud-title'>Tiny World</Text>
 
-        {/* 网格尺寸 */}
-        <CoverView className='hud-gridsize' onClick={this.cycleGrid}>
+        <View className='hud-gridsize' onClick={this.cycleGrid}>
           <Text className='hud-gridsize-label'>{editorStore.grid}&times;{editorStore.grid}</Text>
-        </CoverView>
+        </View>
 
-        {/* 汉堡菜单面板 */}
         {menuOpen && (
-          <CoverView className='hud-menu' onClick={this.toggleMenu}>
-            <CoverView className='hud-menu-item' onClick={onToggleCamera}>
-              <Text className='hud-menu-icon'>P</Text>
+          <View className='hud-menu'>
+            <View className='hud-menu-item' onClick={this.wrap(onToggleCamera)}>
+              <Text className='hud-menu-icon'>◈</Text>
               <Text className='hud-menu-label'>Camera</Text>
-            </CoverView>
-            <CoverView className='hud-menu-item' onClick={onSave}>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onSave)}>
               <Text className='hud-menu-icon'>S</Text>
               <Text className='hud-menu-label'>Save</Text>
-            </CoverView>
-            <CoverView className='hud-menu-item' onClick={onLoad}>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onLoad)}>
               <Text className='hud-menu-icon'>L</Text>
               <Text className='hud-menu-label'>Load</Text>
-            </CoverView>
-            <CoverView className='hud-menu-item' onClick={onLoadPreset}>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onLoadPreset)}>
               <Text className='hud-menu-icon'>P</Text>
               <Text className='hud-menu-label'>Preset</Text>
-            </CoverView>
-            <CoverView className='hud-menu-item' onClick={onNewProject}>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onNewProject)}>
               <Text className='hud-menu-icon'>N</Text>
               <Text className='hud-menu-label'>New</Text>
-            </CoverView>
-            <CoverView className='hud-menu-item' onClick={onLogin}>
-              <Text className='hud-menu-icon'>L</Text>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onLogin)}>
+              <Text className='hud-menu-icon'>👤</Text>
               <Text className='hud-menu-label'>Login</Text>
-            </CoverView>
-          </CoverView>
+            </View>
+          </View>
         )}
-      </CoverView>
+      </View>
     )
   }
 }
