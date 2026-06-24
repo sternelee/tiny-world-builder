@@ -42,6 +42,7 @@ class EditorPage extends Component<PageProps, EditorState> {
   private sceneManager = new SceneManager()
   private canvas: any = null
   private win = { width: 375, height: 667, dpr: 2 }
+  private ghostGroup: THREE.Group | null = null
 
   state: EditorState = { status: 'loading', errorMsg: null, toolbarVisible: true, paletteOpen: false, libraryOpen: false }
 
@@ -159,6 +160,7 @@ class EditorPage extends Component<PageProps, EditorState> {
 
     scene.add(tileRoot)
     this.placeCamera(grid)
+    this.refreshGhostMesh()
   }
 
   private renderSelection(scene: THREE.Scene) {
@@ -191,16 +193,20 @@ class EditorPage extends Component<PageProps, EditorState> {
   }
 
   private placeCamera(grid: number) {
-    const cam = this.sceneManager.camera3D
-    if (!cam) return
     const s = grid * 0.65
-    cam.position.set(s * 0.7, s * 0.55, s * 0.7)
-    cam.lookAt(0, 0, 0)
+    this.sceneManager.moveCameraTo(s * 0.7, s * 0.55, s * 0.7)
+  }
+
+  componentDidUpdate(_prevProps: any) {
+    const tool = this.props.store?.editorStore.activeTool
+    if (tool?.id !== (this as any)._lastToolId) {
+      (this as any)._lastToolId = tool?.id
+      this.refreshGhostMesh()
+    }
   }
 
   componentDidMount() {
     Taro.nextTick(() => this.init())
-    // 横屏适配
     Taro.onWindowResize?.(this.onWindowResize)
   }
 
@@ -297,8 +303,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     const grid = editorStore.grid
     const s = grid * 0.5
     if (next === 'isometric') {
-      cam.position.set(s, s * 1.2, s)
-      cam.lookAt(0, 0, 0)
+      this.sceneManager.moveCameraTo(s, s * 1.2, s)
     } else {
       this.placeCamera(grid)
     }
@@ -376,6 +381,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     } else {
       editorStore.setActiveTool({ id: '__eraser__', label: 'Erase', kind: null, terrain: null })
     }
+    this.refreshGhostMesh()
   }
 
   private onRaise = () => {
@@ -404,7 +410,55 @@ class EditorPage extends Component<PageProps, EditorState> {
     this.rebuildScene()
   }
 
-  // ---- Touch 交互（单指转动 + 双指缩放 + 长按菜单）----
+  // ---- Ghost 预览 ----
+  private refreshGhostMesh() {
+    const old = this.ghostGroup
+    if (old?.parent) old.parent.remove(old)
+    this.ghostGroup = null
+
+    const { editorStore } = this.props.store!
+    const tool = editorStore.activeTool
+    if (!tool || !tool.kind) return
+
+    // Build ghost mesh using makeObject but with ghost material applied
+    const ghostMat = new THREE.MeshBasicMaterial({
+      color: 0x6fb6ff,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    })
+    const obj = makeObject(tool.kind, undefined, undefined, undefined, ghostMat)
+    if (!obj) return
+
+    // Wrap in a group so we can change position easily
+    this.ghostGroup = new THREE.Group()
+    this.ghostGroup.name = 'ghostPreview'
+    this.ghostGroup.add(obj)
+    this.ghostGroup.visible = false
+    // Render ghost above normal objects
+    obj.traverse(child => {
+      if ((child as any).isMesh) (child as any).renderOrder = 999
+    })
+    const scene = this.sceneManager.scene3D
+    if (scene) scene.add(this.ghostGroup)
+  }
+
+  private updateGhostPosition(wx: number, wy: number) {
+    if (!this.ghostGroup) return
+    const { editorStore } = this.props.store!
+    const cam = this.sceneManager.camera3D
+    const scene = this.sceneManager.scene3D
+    if (!cam || !scene) return
+
+    const hit = raycastCell(cam, wx, wy, this.win.width, this.win.height, scene, editorStore.grid)
+    if (hit) {
+      const wpos = this.cellToWorld(hit.x, hit.z)
+      this.ghostGroup.position.set(wpos.x, 0, wpos.z)
+      this.ghostGroup.visible = true
+    } else {
+      this.ghostGroup.visible = false
+    }
+  }
   private touchStart = { x: 0, y: 0, time: 0 }
   private touchMoved = false
   private pinchDist = 0
@@ -467,6 +521,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     cam.position.x += dx * 0.008
     cam.position.z += dy * 0.008
     cam.lookAt(0, 0, 0)
+    this.updateGhostPosition(x, y)
   }
 
   private handleLongPress(e: any) {

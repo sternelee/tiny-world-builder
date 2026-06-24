@@ -33,6 +33,9 @@ export class SceneManager {
   private _skyColor = new THREE.Color()
   private _todAuto = true
   private _lastTodUpdate = 0
+  private _cloudGroup: THREE.Group | null = null
+  private _camTarget: THREE.Vector3 | null = null
+  private _camLookTarget = new THREE.Vector3(0, 0, 0)
 
   get timeOfDayMinutes() { return this._todMinutes }
   set timeOfDayMinutes(m: number) { this._todMinutes = m % 1440; this._todAuto = false }
@@ -195,6 +198,7 @@ export class SceneManager {
     const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
     this.tickTod(nowMs)
     this.tickDrops(nowMs)
+    this.tickCamera()
     this.tickClouds(nowMs)
     this.renderer.render(this.scene, this.camera)
     const w = (globalThis as any).window
@@ -251,6 +255,24 @@ export class SceneManager {
       if (cloud.position.x > 8) cloud.position.x = -8
       if (cloud.position.z > 8) cloud.position.z = -8
     }
+  }
+
+  // ---- 相机平滑过渡 ----
+  moveCameraTo(x: number, y: number, z: number) {
+    this._camTarget = new THREE.Vector3(x, y, z)
+  }
+
+  private tickCamera() {
+    if (!this._camTarget || !this.camera) return
+    const d = this.camera.position.distanceTo(this._camTarget)
+    if (d < 0.02) {
+      this.camera.position.copy(this._camTarget)
+      this.camera.lookAt(this._camLookTarget)
+      this._camTarget = null
+      return
+    }
+    this.camera.position.lerp(this._camTarget, 0.06)
+    this.camera.lookAt(this._camLookTarget)
   }
 }
 

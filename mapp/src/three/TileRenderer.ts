@@ -136,20 +136,21 @@ export interface LevelNeighbors {
 export function makeObject(
   kind: string, _cell?: CellState, neighbors?: CellNeighbors,
   clusterInfo?: { shape: string; length?: number; orientation?: string },
+  overrideMat?: THREE.Material,
 ): THREE.Group | null {
   const group = new THREE.Group()
 
   switch (kind) {
     case 'tree':
-      return makeTree(group)
+      return makeTree(group, overrideMat)
     case 'rock':
-      return makeRock(group)
+      return makeRock(group, overrideMat)
     case 'fence':
-      return makeFenceWithNeighbors(neighbors ?? { n: false, s: false, e: false, w: false })
+      return overrideMat ? applyMatToAll(makeFenceWithNeighbors(neighbors ?? { n: false, s: false, e: false, w: false }), overrideMat) : makeFenceWithNeighbors(neighbors ?? { n: false, s: false, e: false, w: false })
     case 'bridge':
-      return makeBridgeWithNeighbors(group, neighbors ?? { n: false, s: false, e: false, w: false })
+      return overrideMat ? applyMatToAll(makeBridgeWithNeighbors(group, neighbors ?? { n: false, s: false, e: false, w: false }), overrideMat) : makeBridgeWithNeighbors(group, neighbors ?? { n: false, s: false, e: false, w: false })
     case 'house':
-      return makeHouse(group, clusterInfo)
+      return overrideMat ? applyMatToAll(makeHouse(group, clusterInfo), overrideMat) : makeHouse(group, clusterInfo)
     case 'tuft':
       return makeTuft(group)
     case 'flower':
@@ -177,6 +178,11 @@ export function makeObject(
 }
 
 // ========== Object Factories ==========
+
+function applyMatToAll(g: THREE.Group, mat: THREE.Material): THREE.Group {
+  g.traverse(child => { if ((child as any).isMesh) (child as any).material = mat; })
+  return g
+}
 
 function makeTree(g: THREE.Group): THREE.Group {
   // Trunk
@@ -354,6 +360,9 @@ function buildSoloHouse(g: THREE.Group): THREE.Group {
     win.position.set(wx, 0.18, 0.41)
     g.add(win)
   }
+
+  // Chimney
+  addChimney(g, 0.18, -0.28, 0.28)
   return g
 }
 
@@ -386,6 +395,7 @@ function buildStretchedHouse(g: THREE.Group, length: number, orientation: string
     win.position.set(wx, 0.18, wz + (orientation === 'x' ? 0.41 : d / 2 - 0.02))
     g.add(win)
   }
+  addChimney(g, 0.25, d / 2 - 0.12, 0.28)
   return g
 }
 
@@ -420,6 +430,7 @@ function buildSquareHouse(g: THREE.Group): THREE.Group {
       g.add(win)
     }
   }
+  addChimney(g, 0.50, -0.80, 0.32)
   return g
 }
 
@@ -528,6 +539,13 @@ function makeSunflower(g: THREE.Group): THREE.Group {
   center.position.y = 0.20
   g.add(center)
   return g
+}
+
+/** 添加烟囱到房子 */
+function addChimney(g: THREE.Group, x: number, z: number, roofH: number) {
+  const ch = new THREE.Mesh(getBoxGeometry(0.10, 0.22, 0.10), M.chimney)
+  ch.position.set(x, roofH + 0.10, z)
+  g.add(ch)
 }
 
 // ---- Animals (simple block style) ----
