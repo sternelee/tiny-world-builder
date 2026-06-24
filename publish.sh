@@ -73,6 +73,7 @@ cp code-of-conduct.html "$DIST/code-of-conduct.html"
 cp worlds.html "$DIST/worlds.html"
 cp collabs.html "$DIST/collabs.html"
 cp harvest.html "$DIST/harvest.html"
+cp builder.html "$DIST/builder.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
 

@@ -383,10 +383,16 @@
         avatarDiv.textContent = initialLetter(leader.displayName || leader.username);
       }
 
-      var nameEl = document.createElement('span');
+      var nameEl = document.createElement('a');
       nameEl.className = 'leaderboard-name';
       // textContent — user-controlled field, never innerHTML
       nameEl.textContent = String(leader.displayName || leader.username || 'Builder');
+      // Link to the builder profile — username is encodeURIComponent'd for XSS safety
+      if (leader.username) {
+        nameEl.href = '/builder?u=' + encodeURIComponent(String(leader.username));
+        nameEl.style.textDecoration = 'none';
+        nameEl.style.color = 'inherit';
+      }
 
       builderDiv.appendChild(avatarDiv);
       builderDiv.appendChild(nameEl);

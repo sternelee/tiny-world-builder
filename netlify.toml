@@ -101,6 +101,11 @@
   to = "/harvest.html"
   status = 200
 
+[[redirects]]
+  from = "/builder"
+  to = "/builder.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
