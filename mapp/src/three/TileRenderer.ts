@@ -135,6 +135,7 @@ export interface LevelNeighbors {
 /** 生成物体 Mesh — 支持邻接感知 */
 export function makeObject(
   kind: string, _cell?: CellState, neighbors?: CellNeighbors,
+  clusterInfo?: { shape: string; length?: number; orientation?: string },
 ): THREE.Group | null {
   const group = new THREE.Group()
 
@@ -148,7 +149,7 @@ export function makeObject(
     case 'bridge':
       return makeBridgeWithNeighbors(group, neighbors ?? { n: false, s: false, e: false, w: false })
     case 'house':
-      return makeHouse(group)
+      return makeHouse(group, clusterInfo)
     case 'tuft':
       return makeTuft(group)
     case 'flower':
@@ -312,13 +313,27 @@ function makeBridgeWithNeighbors(g: THREE.Group, n: { n: boolean; s: boolean; e:
   return g
 }
 
-function makeHouse(g: THREE.Group): THREE.Group {
-  // Base
+function makeHouse(
+  g: THREE.Group,
+  cluster?: { shape: string; length?: number; orientation?: string },
+): THREE.Group {
+  const shape = cluster?.shape || 'solo'
+
+  if (shape === 'square') {
+    return buildSquareHouse(g)
+  }
+  if (shape === 'row' && cluster?.length) {
+    return buildStretchedHouse(g, cluster.length, cluster.orientation || 'x')
+  }
+  return buildSoloHouse(g)
+}
+
+/** 独栋房子 */
+function buildSoloHouse(g: THREE.Group): THREE.Group {
   const base = new THREE.Mesh(getBoxGeometry(0.80, 0.28, 0.80), M.wallCream)
   base.position.y = 0.14
   g.add(base)
 
-  // Roof
   const roofShape = new THREE.Shape()
   roofShape.moveTo(-0.45, 0)
   roofShape.lineTo(0.45, 0)
@@ -330,16 +345,80 @@ function makeHouse(g: THREE.Group): THREE.Group {
   const roof = new THREE.Mesh(roofGeo, M.roofBlue)
   g.add(roof)
 
-  // Door
   const door = new THREE.Mesh(getBoxGeometry(0.12, 0.16, 0.04), M.door)
   door.position.set(0, 0.10, 0.41)
   g.add(door)
 
-  // Windows
   for (const wx of [-0.20, 0.20]) {
     const win = new THREE.Mesh(getBoxGeometry(0.08, 0.08, 0.02), M.windowB)
     win.position.set(wx, 0.18, 0.41)
     g.add(win)
+  }
+  return g
+}
+
+/** 行状房子（2+ 格连成一线）*/
+function buildStretchedHouse(g: THREE.Group, length: number, orientation: string): THREE.Group {
+  const l = Math.min(length, 4)
+  const w = orientation === 'x' ? l * 0.96 : 0.80
+  const d = orientation === 'x' ? 0.80 : l * 0.96
+
+  const base = new THREE.Mesh(getBoxGeometry(w, 0.28, d), M.wallCream)
+  base.position.y = 0.14
+  g.add(base)
+
+  const roofShape = new THREE.Shape()
+  roofShape.moveTo(-w / 2, 0)
+  roofShape.lineTo(w / 2, 0)
+  roofShape.lineTo(0, 0.30)
+  roofShape.closePath()
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: d, bevelEnabled: false })
+  roofGeo.rotateX(Math.PI / 2)
+  roofGeo.translate(0, 0.28, -d / 2)
+  const roof = new THREE.Mesh(roofGeo, M.roofBlue)
+  g.add(roof)
+
+  // Windows spaced along the length
+  for (let i = 0; i < l; i++) {
+    const wx = orientation === 'x' ? (i - (l - 1) / 2) * 0.20 : 0
+    const wz = orientation === 'x' ? 0 : (i - (l - 1) / 2) * 0.20
+    const win = new THREE.Mesh(getBoxGeometry(0.08, 0.08, 0.02), M.windowB)
+    win.position.set(wx, 0.18, wz + (orientation === 'x' ? 0.41 : d / 2 - 0.02))
+    g.add(win)
+  }
+  return g
+}
+
+/** 2×2 正方形房子 */
+function buildSquareHouse(g: THREE.Group): THREE.Group {
+  const base = new THREE.Mesh(getBoxGeometry(1.90, 0.32, 1.90), M.wallCream)
+  base.position.y = 0.16
+  g.add(base)
+
+  // Pyramid roof
+  const roofShape = new THREE.Shape()
+  roofShape.moveTo(-1.00, 0)
+  roofShape.lineTo(1.00, 0)
+  roofShape.lineTo(0, 0.38)
+  roofShape.closePath()
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: 1.90, bevelEnabled: false })
+  roofGeo.rotateX(Math.PI / 2)
+  roofGeo.translate(0, 0.32, -0.95)
+  const roof = new THREE.Mesh(roofGeo, M.roofBlueD)
+  g.add(roof)
+
+  // Double door
+  const door = new THREE.Mesh(getBoxGeometry(0.18, 0.20, 0.04), M.door)
+  door.position.set(0, 0.14, 0.96)
+  g.add(door)
+
+  // Windows on all visible sides
+  for (const side of [-0.80, 0.80]) {
+    for (const w of [-0.40, 0, 0.40]) {
+      const win = new THREE.Mesh(getBoxGeometry(0.08, 0.08, 0.02), M.windowB)
+      win.position.set(side, 0.22, w)
+      g.add(win)
+    }
   }
   return g
 }

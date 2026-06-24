@@ -29,6 +29,15 @@ export class SceneManager {
   private dropAnims: DropAnim[] = []
 
   private canvas: any = null
+  private _todMinutes = 600
+  private _skyColor = new THREE.Color()
+  private _todAuto = true
+  private _lastTodUpdate = 0
+
+  get timeOfDayMinutes() { return this._todMinutes }
+  set timeOfDayMinutes(m: number) { this._todMinutes = m % 1440; this._todAuto = false }
+  get autoTimeOfDay() { return this._todAuto }
+  set autoTimeOfDay(v: boolean) { this._todAuto = v }
 
   /** 获取 Three.js 渲染器（供外部访问 scene/camera） */
   get renderer3D() { return this.renderer }
@@ -71,6 +80,11 @@ export class SceneManager {
     // 场景
     this.scene = new THREE.Scene()
     this.scene.background = new THREE.Color(0xb9dcf4)
+
+    // 日夜间状态
+    this._todMinutes = 600 // 10:00 AM default
+    this._skyColor = new THREE.Color(0xb9dcf4)
+    this._todAuto = true
 
     // 相机
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000)
@@ -144,6 +158,28 @@ export class SceneManager {
     this.dropAnims = keep
   }
 
+  private tickTod(nowMs: number) {
+    if (!this._todAuto) return
+    // 每秒推进 2 分钟 (30s = 1 hour, 12 min = 24 hours)
+    const dt = nowMs - this._lastTodUpdate
+    if (dt < 50) return
+    this._todMinutes = (this._todMinutes + dt * 0.002) % 1440
+    this._lastTodUpdate = nowMs
+    this.updateSkyColor()
+  }
+
+  private updateSkyColor() {
+    const m = this._todMinutes
+    const t = (m / 1440) * Math.PI * 2
+    // Day (600=10AM) to dusk (1080=6PM) to night (0=midnight) to dawn (360=6AM)
+    const sr = 0.5 + 0.5 * Math.sin(t - Math.PI / 2) // 0=night → 1=day
+    const r = 0.1 + 0.62 * sr
+    const g = 0.1 + 0.76 * sr
+    const b = 0.25 + 0.71 * sr
+    this._skyColor.setRGB(r, g, b)
+    if (this.scene) this.scene.background = this._skyColor
+  }
+
   /** 停止渲染循环 */
   stop() {
     this.running = false
@@ -157,6 +193,7 @@ export class SceneManager {
   private loop = () => {
     if (!this.running || !this.renderer || !this.scene || !this.camera) return
     const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
+    this.tickTod(nowMs)
     this.tickDrops(nowMs)
     this.renderer.render(this.scene, this.camera)
     const w = (globalThis as any).window

@@ -15,6 +15,7 @@ type PageProps = PropsWithChildren & {
   onLoadPreset?: () => void
   onNewProject?: () => void
   onLogin?: () => void
+  onToggleTime?: () => void
 }
 
 interface HUDState {
@@ -85,6 +86,10 @@ class EditorHUD extends Component<PageProps, HUDState> {
             <View className='hud-menu-item' onClick={this.wrap(onLogin)}>
               <Text className='hud-menu-icon'>👤</Text>
               <Text className='hud-menu-label'>Login</Text>
+            </View>
+            <View className='hud-menu-item' onClick={this.wrap(onToggleTime)}>
+              <Text className='hud-menu-icon'>T</Text>
+              <Text className='hud-menu-label'>Time</Text>
             </View>
           </View>
         )}

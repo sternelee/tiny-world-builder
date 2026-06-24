@@ -20,7 +20,7 @@ import ToolPaletteModal from '../../components/ToolPaletteModal'
 import './index.scss'
 import { ensureCell } from '../../core/world-data'
 import { applyPreset } from '../../core/presets'
-import { getTerrainNeighbors, getLevelNeighbors } from '../../core/adjacency'
+import { getTerrainNeighbors, getLevelNeighbors, bfsHouseCluster, classifyClusterShape } from '../../core/adjacency'
 import { saveWorld, loadWorld, exportWorldToFile, importWorldFromFile } from '../../services/WorldPersistence'
 
 type PageProps = PropsWithChildren & {
@@ -72,6 +72,47 @@ class EditorPage extends Component<PageProps, EditorState> {
     if (oldTileRoot) scene.remove(oldTileRoot)
     this.sceneManager.clearDrops()
 
+    // ---- 房子聚类：第一遍扫描，找到所有 house 簇 ----
+    const houseVisited = new Set<string>()
+    const houseClusterMap = new Map<string, { shape: string; length?: number; orientation?: string }>() // key 'x,z' → cluster info for anchor only
+    const houseSkipSet = new Set<string>() // 'x,z' of non-anchor cells
+
+    for (let x = 0; x < grid; x++) {
+      for (let z = 0; z < grid; z++) {
+        const key = `${x},${z}`
+        if (houseVisited.has(key)) continue
+        const cell = ensureCell(editorStore.world, x, z)
+        if (cell.kind !== 'house') continue
+
+        // BFS 收集簇
+        const cells = bfsHouseCluster(editorStore.world, x, z, grid)
+        for (const c of cells) houseVisited.add(`${c.x},${c.z}`)
+
+        const shape = classifyClusterShape(cells)
+        // 找出锚点（最小 x + z 或第一个）
+        const anchor = cells.reduce((best, c) => {
+          if (c.x < best.x || (c.x === best.x && c.z < best.z)) return c
+          return best
+        }, cells[0])
+        const anchorKey = `${anchor.x},${anchor.z}`
+
+        // 非锚点跳过渲染
+        for (const c of cells) {
+          const ck = `${c.x},${c.z}`
+          if (ck !== anchorKey) houseSkipSet.add(ck)
+        }
+
+        // 行状：计算长度和方向
+        let clusterInfo: any = { shape }
+        if (shape === 'row') {
+          clusterInfo.length = cells.length
+          clusterInfo.orientation = cells.length > 1 && cells[0].x === cells[1].x ? 'z' : 'x'
+        }
+        houseClusterMap.set(anchorKey, clusterInfo)
+      }
+    }
+
+    // ---- 第二遍：渲染 tile + object ----
     const tileRoot = new THREE.Group()
     tileRoot.name = 'tileRoot'
 
@@ -79,7 +120,9 @@ class EditorPage extends Component<PageProps, EditorState> {
       for (let z = 0; z < grid; z++) {
         const cell = ensureCell(editorStore.world, x, z)
         const wpos = this.cellToWorld(x, z)
+        const key = `${x},${z}`
 
+        // 地形瓦片（总是渲染）
         const level = tileLevelForCell(cell)
         const tn = getTerrainNeighbors(editorStore.world, x, z, grid)
         const ln = getLevelNeighbors(editorStore.world, x, z, grid)
@@ -92,9 +135,13 @@ class EditorPage extends Component<PageProps, EditorState> {
           this.sceneManager.addDrop(tile, 0, 2.4, 0.42, delay)
         }
 
+        // 物体
         if (cell.kind) {
+          if (houseSkipSet.has(key)) continue // 非锚点房子不渲染自己
+
           const neighbors = this.getCellNeighbors(x, z, grid)
-          const obj = makeObject(cell.kind, cell, neighbors)
+          const clusterInfo = houseClusterMap.get(key)
+          const obj = makeObject(cell.kind, cell, neighbors, clusterInfo)
           if (obj) {
             obj.position.set(wpos.x, 0, wpos.z)
             obj.userData = { cellX: x, cellZ: z, kind: cell.kind }
@@ -271,6 +318,11 @@ class EditorPage extends Component<PageProps, EditorState> {
 
   private onLogin = () => {
     Taro.showToast({ title: 'Login — coming soon', icon: 'none', duration: 1500 })
+  }
+
+  private onToggleTime = () => {
+    this.sceneManager.autoTimeOfDay = !this.sceneManager.autoTimeOfDay
+    Taro.showToast({ title: this.sceneManager.autoTimeOfDay ? 'Time: auto' : 'Time: paused', icon: 'none', duration: 1000 })
   }
 
   private onSave = () => {
@@ -488,6 +540,7 @@ class EditorPage extends Component<PageProps, EditorState> {
             onLoadPreset={this.onLoadPreset}
             onNewProject={this.onClear}
             onLogin={this.onLogin}
+            onToggleTime={this.onToggleTime}
           />
         )}
 
