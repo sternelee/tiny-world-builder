@@ -127,7 +127,7 @@
   z-index: 50;
 }
 
-/* Minimap — absolute inside canvas-wrap, not over the canvas DOM-wise */
+/* Minimap — 2D canvas, 跟浏览器版对齐 */
 .minimap-wrap {
   position: absolute;
   bottom: 8px;
@@ -136,19 +136,7 @@
   height: 84px;
   border-radius: 6px;
   border: 2px solid rgba(255,255,255,0.5);
-  background: #1a1a2e;
-  overflow: hidden;
   z-index: 50;
-}
-
-.mm-cell {
-  position: absolute;
-  box-sizing: border-box;
-}
-
-.mm-dot {
-  position: absolute;
-  border-radius: 50%;
 }
 
 /* Toolbar on bottom — regular View, not overlay */
