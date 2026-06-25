@@ -2467,8 +2467,7 @@ function tryEnterGate() {
       _texLoader = _texLoader || new THREE.TextureLoader();
       const t = _texLoader.load(url, undefined, undefined, () => avatarError(url));
       t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
-      if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-      else if ('encoding' in t && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+      twSetTextureSRGB(t);
       return t;
     }
     function disposeAvatarTextures(ent) {
@@ -2989,8 +2988,7 @@ function tryEnterGate() {
       if (ent.bubble.texture) ent.bubble.texture.dispose();
       const tex = new THREE.CanvasTexture(cv);
       tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-      if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-      else if ('encoding' in tex && THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+      twSetTextureSRGB(tex);
       tex.needsUpdate = true;
       ent.bubble.sprite.material.map = tex;
       ent.bubble.sprite.material.needsUpdate = true;

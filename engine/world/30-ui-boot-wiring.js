@@ -3021,7 +3021,10 @@ syncTinyworldOwnerToolControls();
     }
 
     let repaintTimeWeatherPopup = function () {};
+    let syncTimeRangeEditability = function () {};
     let todMinutes = ukTodMinutes();
+    let buildTodManual = false;
+    let buildTodMinutes = todMinutes;
     let season = 'summer';
     let weather = 'clear';
     try {
@@ -3030,16 +3033,48 @@ syncTinyworldOwnerToolControls();
       const w = localStorage.getItem(WEATHER_LS);
       if (w && ['clear','cloudy','rain','storm','snow'].includes(w)) weather = w;
     } catch (_) {}
-    applyTod(todMinutes);
+    function isBuildTimeEditable() {
+      if (document.body.classList.contains('tw-worlds-play') || document.body.classList.contains('mp-noedit')) return false;
+      if (window.__tinyworldMode && typeof window.__tinyworldMode.isBuild === 'function') return window.__tinyworldMode.isBuild();
+      return !document.body.classList.contains('tw-play-mode');
+    }
+    function applyTodMinutes(min) {
+      todMinutes = clampTodMinutes(min);
+      applyTod(todMinutes);
+    }
+    function restoreBuildTodIfNeeded() {
+      if (!isBuildTimeEditable() || !buildTodManual) return false;
+      applyTodMinutes(buildTodMinutes);
+      repaintTimeWeatherPopup();
+      return true;
+    }
+    applyTodMinutes(todMinutes);
     applySeason(season);
     applyWeather(weather);
-    function syncTodToUkTime() {
-      todMinutes = ukTodMinutes();
-      applyTod(todMinutes);
+    function syncTodToUkTime(opts = {}) {
+      const force = !!(opts && opts.force);
+      if (!force && isBuildTimeEditable() && buildTodManual) {
+        repaintTimeWeatherPopup();
+        return;
+      }
+      applyTodMinutes(ukTodMinutes());
       repaintTimeWeatherPopup();
     }
+    function syncTimeModeState() {
+      syncTimeRangeEditability();
+      if (restoreBuildTodIfNeeded()) return;
+      syncTodToUkTime({ force: true });
+    }
     window.__tinyworldSyncTodToUkTime = syncTodToUkTime;
-    setInterval(syncTodToUkTime, TOD_UK_SYNC_INTERVAL_MS);
+    window.__tinyworldIsBuildTimeEditable = isBuildTimeEditable;
+    window.addEventListener('tinyworld:mode-changed', syncTimeModeState);
+    setInterval(() => {
+      if (isBuildTimeEditable() && buildTodManual) {
+        repaintTimeWeatherPopup();
+        return;
+      }
+      syncTodToUkTime({ force: true });
+    }, TOD_UK_SYNC_INTERVAL_MS);
     const uiThemeSelect = document.getElementById('ui-theme-mode');
     if (uiThemeSelect) {
       uiThemeSelect.value = ['auto', 'light', 'dark'].includes(uiThemeMode) ? uiThemeMode : 'auto';
@@ -3185,19 +3220,23 @@ syncTinyworldOwnerToolControls();
         });
       }
       function paintReadout() {
+        syncTimeRangeEditability();
         if (range) range.value = String(Math.floor(clampTodMinutes(todMinutes)));
-        if (readout) readout.textContent = formatTime(todMinutes) + ' BST';
+        const liveSuffix = (!isBuildTimeEditable() || !buildTodManual) ? ' BST' : '';
+        if (readout) readout.textContent = formatTime(todMinutes) + liveSuffix;
         if (intensityRange) intensityRange.value = String(Math.round(weatherIntensity * 100));
         if (intensityReadout) intensityReadout.textContent = Math.round(weatherIntensity * 100) + '%';
         if (splashesRange) splashesRange.value = String(Math.round(weatherSplashIntensity * 100));
         if (splashesReadout) splashesReadout.textContent = Math.round(weatherSplashIntensity * 100) + '%';
       }
       repaintTimeWeatherPopup = paintReadout;
-      if (range) {
-        range.disabled = true;
-        range.setAttribute('aria-readonly', 'true');
-        range.setAttribute('title', 'Synced live to UK/BST time');
-      }
+      syncTimeRangeEditability = function () {
+        if (!range) return;
+        const editable = isBuildTimeEditable();
+        range.disabled = !editable;
+        range.setAttribute('aria-readonly', editable ? 'false' : 'true');
+        range.setAttribute('title', editable ? 'Drag to preview a build-mode time' : 'Synced live to UK/BST time in play mode');
+      };
       paintPills(); paintReadout();
 
       timeBtn.addEventListener('click', e => {
@@ -3208,7 +3247,15 @@ syncTinyworldOwnerToolControls();
       timePopup.addEventListener('click', e => e.stopPropagation());
       if (range) {
         range.addEventListener('input', () => {
-          syncTodToUkTime();
+          const next = clampTodMinutes(parseInt(range.value, 10) || 0);
+          if (!isBuildTimeEditable()) {
+            syncTodToUkTime({ force: true });
+            return;
+          }
+          buildTodManual = true;
+          buildTodMinutes = next;
+          applyTodMinutes(next);
+          paintReadout();
         });
       }
       if (seasonPills) {

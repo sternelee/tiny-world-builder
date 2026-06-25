@@ -1,6 +1,6 @@
   // -------- cloud sea + soft sprite clouds --------
   // Sprite-puff cloud system ported from the three.js r55 "webgl_clouds" demo
-  // (clouds-mrdoob/) to r128: merged BufferGeometry, vertex-shader billboarding
+  // (clouds-mrdoob/) to TinyWorld: merged BufferGeometry, vertex-shader billboarding
   // (the demo only flew straight down -Z so it never needed it), tinted to the
   // live sky and faded by distance. Two consumers share one shader/texture:
   //   - cloud sea   : a wide thin band far below the islands (own toggle)

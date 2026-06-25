@@ -1104,7 +1104,7 @@
       if (typeof window.openLayersPropertiesPanel === 'function') window.openLayersPropertiesPanel();
     }
 
-    // Preview rotator state (reused Three.js r128)
+    // Preview rotator state (reused Three.js renderer)
     let previewRenderer = null;
     let previewScene = null;
     let previewCamera = null;

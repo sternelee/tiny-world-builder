@@ -964,7 +964,7 @@
             if (alpha < 0.018) discard;
             vec3 color = mix(uColorB, uColorA, mix(hotCore, n * 0.72, smoke));
             gl_FragColor = vec4(color, alpha);
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }
         `,
       });
@@ -1207,7 +1207,7 @@
             if (alpha < 0.014) discard;
             vec3 color = mix(uTint, uWarm, 0.18 + bladeGhost * 0.30);
             gl_FragColor = vec4(color, alpha);
-            #include <encodings_fragment>
+            #include <colorspace_fragment>
           }
         `,
       });

@@ -3,7 +3,7 @@
   //   window.makeVoxelAvatar(opts) -> { group, setHeading, setHeadingFromDelta,
   //                                     setState, update, dispose, cfg }
   // The voxel geometry/skin builders (mesher, wardrobe, face/hair) are ported from
-  // voxel-poser.html (Three.js r128) but encapsulated PER-INSTANCE so many distinct
+  // voxel-poser.html but encapsulated PER-INSTANCE so many distinct
   // people can render at once — the source renders exactly one global singleton.
   //
   // v1 scope: static voxel geometry built ONCE at construction, animated purely by
