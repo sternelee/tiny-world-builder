@@ -1,6 +1,11 @@
 {
   "feed": [
     {
+      "ts": "2026-06-25T19:58:47.987Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T19-58-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-25T19:00:25.879Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T19-00-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -91,5 +96,5 @@
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"safe-scope autonomous production-line loop (owner-approved)\" -> plans/production-line/drafts/2026-06-24T18-48-safe-scope-autonomous-production-line-loop-owner.md. No economy paths touched."
     }
   ],
-  "lastTick": "2026-06-25T19:00:25.879Z"
+  "lastTick": "2026-06-25T19:58:47.987Z"
 }
