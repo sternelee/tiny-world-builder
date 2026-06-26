@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T05:42:26.848Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T05-42-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T03:27:13.413Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T03-27-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T11:30:00Z",
       "kind": "build",
       "text": "E2 built (Opus): idempotent weekly payout (partial unique index), pure planner with 6 unit tests, admin-gated /api/admin/gold-payout with a DRY-RUN preview so the owner can preview payouts before launch."
-    },
-    {
-      "ts": "2026-06-24T11:00:00Z",
-      "kind": "shipped",
-      "text": "T3b shipped to prod (PR #77): public /featured worlds gallery + shared preview renderer. Carousel 'Browse all' now points to it."
     }
   ],
-  "lastTick": "2026-06-26T03:27:13.413Z"
+  "lastTick": "2026-06-26T05:42:26.848Z"
 }
