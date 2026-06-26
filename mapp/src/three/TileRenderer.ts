@@ -2,6 +2,7 @@
 
 import * as THREE from 'three'
 import { CellState } from '../core/world-data'
+import { ClusterInfo } from '../core/adjacency'
 import { M, terrainVoxelMaterials } from './Materials'
 import {
   getBoxGeometry, getSphereGeometry, getCylinderGeometry,
@@ -135,7 +136,7 @@ export interface LevelNeighbors {
 /** 生成物体 Mesh — 支持邻接感知 */
 export function makeObject(
   kind: string, _cell?: CellState, neighbors?: CellNeighbors,
-  clusterInfo?: { shape: string; length?: number; orientation?: string },
+  clusterInfo?: ClusterInfo,
   overrideMat?: THREE.Material,
 ): THREE.Group | null {
   const group = new THREE.Group()
@@ -321,16 +322,15 @@ function makeBridgeWithNeighbors(g: THREE.Group, n: { n: boolean; s: boolean; e:
 
 function makeHouse(
   g: THREE.Group,
-  cluster?: { shape: string; length?: number; orientation?: string },
+  cluster?: ClusterInfo,
 ): THREE.Group {
   const shape = cluster?.shape || 'solo'
 
-  if (shape === 'square') {
-    return buildSquareHouse(g)
-  }
-  if (shape === 'row' && cluster?.length) {
-    return buildStretchedHouse(g, cluster.length, cluster.orientation || 'x')
-  }
+  if (shape === 'square') return buildSquareHouse(g)
+  if (shape === 'row' && cluster?.length) return buildStretchedHouse(g, cluster.length, cluster.orientation || 'x')
+  if (shape === 'L' && cluster?.cells && cluster?.anchor) return buildLHouse(g, cluster.cells, cluster.anchor)
+  if (shape === 'T' && cluster?.cells && cluster?.anchor) return buildTHouse(g, cluster.cells, cluster.anchor)
+  if (shape === '+' && cluster?.cells && cluster?.anchor) return buildPlusHouse(g, cluster.cells, cluster.anchor)
   return buildSoloHouse(g)
 }
 
@@ -431,6 +431,176 @@ function buildSquareHouse(g: THREE.Group): THREE.Group {
     }
   }
   addChimney(g, 0.50, -0.80, 0.32)
+  return g
+}
+
+/** 辅助：添加一个 wing（一段矩形墙体 + 坡屋顶） */
+function addHouseWing(
+  g: THREE.Group,
+  ox: number, oz: number,
+  w: number, d: number,
+  roofAxis: 'x' | 'z',
+  addDoor: boolean,
+) {
+  const base = new THREE.Mesh(getBoxGeometry(w, 0.28, d), M.wallCream)
+  base.position.set(ox, 0.14, oz)
+  g.add(base)
+
+  const rLen = roofAxis === 'x' ? w : d
+  const rDepth = roofAxis === 'x' ? d : w
+  const roofShape = new THREE.Shape()
+  roofShape.moveTo(-rLen / 2, 0)
+  roofShape.lineTo(rLen / 2, 0)
+  roofShape.lineTo(0, 0.28)
+  roofShape.closePath()
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: rDepth, bevelEnabled: false })
+  roofGeo.rotateX(Math.PI / 2)
+  if (roofAxis === 'x') {
+    roofGeo.translate(0, 0.28, -rDepth / 2)
+  } else {
+    roofGeo.rotateY(Math.PI / 2)
+    roofGeo.translate(0, 0.28, -rLen / 2)
+  }
+  const roof = new THREE.Mesh(roofGeo, M.roofBlue)
+  roof.position.set(ox, 0, oz)
+  g.add(roof)
+
+  // 沿正面放置窗户
+  const count = Math.max(1, Math.round((roofAxis === 'x' ? w : d) / 0.40))
+  for (let i = 0; i < count; i++) {
+    const t = count === 1 ? 0 : (i / (count - 1) - 0.5)
+    const win = new THREE.Mesh(getBoxGeometry(0.08, 0.08, 0.02), M.windowB)
+    if (roofAxis === 'x') {
+      win.position.set(ox + t * (w - 0.16), 0.18, oz + d / 2 + 0.01)
+    } else {
+      win.position.set(ox + w / 2 + 0.16, 0.18, oz + t * (d - 0.16))
+    }
+    g.add(win)
+  }
+
+  if (addDoor) {
+    const door = new THREE.Mesh(getBoxGeometry(0.12, 0.16, 0.04), M.door)
+    if (roofAxis === 'x') {
+      door.position.set(ox, 0.10, oz + d / 2 + 0.01)
+    } else {
+      door.position.set(ox + w / 2 + 0.01, 0.10, oz)
+    }
+    g.add(door)
+  }
+}
+
+/** L 形房子（两翼在拐角交汇）*/
+function buildLHouse(
+  g: THREE.Group,
+  cells: Array<{ x: number; z: number }>,
+  anchor: { x: number; z: number },
+): THREE.Group {
+  // 找出两翼方向
+  const others = cells.filter(c => c.x !== anchor.x || c.z !== anchor.z)
+  const dxSet = new Set(others.map(c => c.x - anchor.x))
+  const dzSet = new Set(others.map(c => c.z - anchor.z))
+
+  // 翼 1：沿 x 方向（如果有）
+  const xWing = others.filter(c => c.z === anchor.z)
+  // 翼 2：沿 z 方向（如果有）
+  const zWing = others.filter(c => c.x === anchor.x)
+
+  if (xWing.length > 0) {
+    const len = xWing.length + 1
+    const w = len * 0.96
+    const ox = (xWing[xWing.length - 1].x - anchor.x) * 0.48
+    addHouseWing(g, ox, 0, w, 0.80, 'x', false)
+  }
+  if (zWing.length > 0) {
+    const len = zWing.length + 1
+    const d = len * 0.96
+    const oz = (zWing[zWing.length - 1].z - anchor.z) * 0.48
+    addHouseWing(g, 0, oz, 0.80, d, 'z', false)
+  }
+
+  addChimney(g, 0.18, -0.28, 0.28)
+  return g
+}
+
+/** T 形房子（主翼 + 中间分支）*/
+function buildTHouse(
+  g: THREE.Group,
+  cells: Array<{ x: number; z: number }>,
+  anchor: { x: number; z: number },
+): THREE.Group {
+  const xs = cells.map(c => c.x)
+  const zs = cells.map(c => c.z)
+  const spanX = Math.max(...xs) - Math.min(...xs) + 1
+  const spanZ = Math.max(...zs) - Math.min(...zs) + 1
+
+  // 主翼沿较长轴
+  if (spanX >= spanZ) {
+    // 主翼 x 方向
+    addHouseWing(g, 0, 0, spanX * 0.96, 0.80, 'x', true)
+    // 分支沿 z
+    const branchCells = cells.filter(c => c.x === Math.round((Math.min(...xs) + Math.max(...xs)) / 2))
+    const branchLen = branchCells.length
+    const bz = branchCells.length > 0
+      ? (Math.max(...branchCells.map(c => c.z)) + Math.min(...branchCells.map(c => c.z))) / 2 - anchor.z
+      : 0
+    if (branchLen > 1) {
+      addHouseWing(g, 0, bz * 0.96, 0.80, branchLen * 0.96, 'z', false)
+    }
+  } else {
+    // 主翼 z 方向
+    addHouseWing(g, 0, 0, 0.80, spanZ * 0.96, 'z', true)
+    // 分支沿 x
+    const branchCells = cells.filter(c => c.z === Math.round((Math.min(...zs) + Math.max(...zs)) / 2))
+    const branchLen = branchCells.length
+    const bx = branchCells.length > 0
+      ? (Math.max(...branchCells.map(c => c.x)) + Math.min(...branchCells.map(c => c.x))) / 2 - anchor.x
+      : 0
+    if (branchLen > 1) {
+      addHouseWing(g, bx * 0.96, 0, branchLen * 0.96, 0.80, 'x', false)
+    }
+  }
+
+  addChimney(g, 0.25, -0.30, 0.28)
+  return g
+}
+
+/** + 形房子（四翼对称）*/
+function buildPlusHouse(
+  g: THREE.Group,
+  cells: Array<{ x: number; z: number }>,
+  anchor: { x: number; z: number },
+): THREE.Group {
+  const xs = cells.map(c => c.x)
+  const zs = cells.map(c => c.z)
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2
+  const cz = (Math.min(...zs) + Math.max(...zs)) / 2
+
+  // 中心块
+  addHouseWing(g, 0, 0, 0.96, 0.96, 'x', true)
+
+  // 四翼
+  const arms = [
+    { cells: cells.filter(c => c.z === Math.round(cz) && c.x > Math.round(cx)), ox: 1, oz: 0, w: 0.96, d: 0.80, axis: 'x' as const },
+    { cells: cells.filter(c => c.z === Math.round(cz) && c.x < Math.round(cx)), ox: -1, oz: 0, w: 0.96, d: 0.80, axis: 'x' as const },
+    { cells: cells.filter(c => c.x === Math.round(cx) && c.z > Math.round(cz)), ox: 0, oz: 1, w: 0.80, d: 0.96, axis: 'z' as const },
+    { cells: cells.filter(c => c.x === Math.round(cx) && c.z < Math.round(cz)), ox: 0, oz: -1, w: 0.80, d: 0.96, axis: 'z' as const },
+  ]
+
+  for (const arm of arms) {
+    if (arm.cells.length === 0) continue
+    const len = arm.cells.length
+    const centerOff = (len - 1) / 2
+    for (let i = 0; i < len; i++) {
+      const off = (i - centerOff) * 0.96
+      if (arm.axis === 'x') {
+        addHouseWing(g, arm.ox * 0.48 + off, 0, 0.96, 0.80, 'x', false)
+      } else {
+        addHouseWing(g, 0, arm.oz * 0.48 + off, 0.80, 0.96, 'z', false)
+      }
+    }
+  }
+
+  addChimney(g, 0.30, -0.30, 0.28)
   return g
 }
 
@@ -538,14 +708,17 @@ function makeSunflower(g: THREE.Group): THREE.Group {
   const center = new THREE.Mesh(getSphereGeometry(0.025, 6, 6), M.sunflowerCenter)
   center.position.y = 0.20
   g.add(center)
+  g.userData.swayPhase = Math.random() * Math.PI * 2
   return g
 }
 
-/** 添加烟囱到房子 */
+/** 添加烟囱到房子，记录烟囱顶位置用于烟雾粒子 */
 function addChimney(g: THREE.Group, x: number, z: number, roofH: number) {
   const ch = new THREE.Mesh(getBoxGeometry(0.10, 0.22, 0.10), M.chimney)
   ch.position.set(x, roofH + 0.10, z)
   g.add(ch)
+  if (!g.userData.chimneyTops) g.userData.chimneyTops = []
+  g.userData.chimneyTops.push({ x, y: roofH + 0.22, z })
 }
 
 // ---- Animals (simple block style) ----

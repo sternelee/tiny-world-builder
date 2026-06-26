@@ -2,6 +2,9 @@ import { Component, PropsWithChildren } from 'react'
 import { Provider } from 'mobx-react'
 
 import { EditorStore } from './store/editorStore'
+// 加载 i18n locale 数据
+import './i18n/en'
+import './i18n/zh'
 
 import './app.scss'
 

@@ -102,6 +102,14 @@ export function bfsHouseCluster(
 }
 
 /** 判断房子聚类形状：'single' | 'L' | 'T' | '+' | 'square' | 'row' */
+export interface ClusterInfo {
+  shape: string
+  length?: number
+  orientation?: string
+  cells?: Array<{ x: number; z: number }>
+  anchor?: { x: number; z: number }
+}
+
 export function classifyClusterShape(
   cells: Array<{ x: number; z: number }>,
 ): string {

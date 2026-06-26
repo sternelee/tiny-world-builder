@@ -1,12 +1,15 @@
-// -------- 模型库弹窗：图标预览 + AI 修改 + 保存选项目 --------
+// -------- 模型库弹窗：3D 预览 + 放置 --------
 
 import { Component, PropsWithChildren } from 'react'
-import { View, Text, CoverView } from '@tarojs/components'
+import { View, Text, Canvas } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { TOOLS, ToolDef } from '../core/constants'
 import { saveWorld } from '../services/WorldPersistence'
+import { makeObject, CellNeighbors } from '../three/TileRenderer'
+import { t } from '../i18n'
 import Taro from '@tarojs/taro'
+import * as THREE from 'three'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
@@ -17,10 +20,10 @@ type PageProps = PropsWithChildren & {
 const PREVIEW_TOOLS = ['house', 'tree', 'fence', 'rock', 'bridge', 'crop', 'pumpkin', 'cow', 'sheep', 'tuft', 'flower', 'bush']
 
 const PREVIEW_LABELS: Record<string, string> = {
-  house: '房屋 House', tree: '树木 Tree', fence: '围栏 Fence',
-  rock: '岩石 Rock', bridge: '桥梁 Bridge', crop: '作物 Crop',
-  pumpkin: '南瓜 Pumpkin', cow: '奶牛 Cow', sheep: '绵羊 Sheep',
-  tuft: '草簇 Tuft', flower: '花朵 Flower', bush: '灌木 Bush',
+  house: t('obj.house'), tree: t('obj.tree'), fence: t('obj.fence'),
+  rock: t('obj.rock'), bridge: t('obj.bridge'), crop: t('obj.crop'),
+  pumpkin: t('obj.pumpkin'), cow: t('obj.cow'), sheep: t('obj.sheep'),
+  tuft: t('obj.tuft'), flower: t('obj.flower'), bush: t('obj.bush'),
 }
 
 const PREVIEW_ICONS: Record<string, string> = {
@@ -40,8 +43,59 @@ interface MCState {
 class ModelLibraryModal extends Component<PageProps, MCState> {
   state: MCState = { selected: null, showPreview: false, showSaveSlot: false }
 
-  private select = (tool: ToolDef) => {
+  // 3D 预览渲染器
+  private _prevRenderer: THREE.WebGLRenderer | null = null
+  private _prevScene: THREE.Scene | null = null
+  private _prevCamera: THREE.PerspectiveCamera | null = null
+  private _prevReady = false
+
+  private async ensurePreviewRenderer() {
+    if (this._prevReady) return
+    return new Promise<void>((resolve) => {
+      Taro.createSelectorQuery()
+        .select('#model-preview-3d')
+        .node((res: any) => {
+          const canvas = res?.node
+          if (!canvas) { resolve(); return }
+          const dpr = Taro.getDeviceInfo?.()?.pixelRatio || 2
+          canvas.width = 200 * dpr
+          canvas.height = 200 * dpr
+          this._prevRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+          this._prevRenderer!.setSize(200, 200)
+          this._prevRenderer!.setPixelRatio(Math.min(dpr, 2))
+          this._prevScene = new THREE.Scene()
+          this._prevScene.add(new THREE.HemisphereLight(0x87ceeb, 0x3a7d44, 0.8))
+          const sun = new THREE.DirectionalLight(0xffffff, 0.9)
+          sun.position.set(3, 5, 4)
+          this._prevScene.add(sun)
+          this._prevCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+          this._prevCamera.position.set(1.5, 1.2, 1.5)
+          this._prevCamera.lookAt(0, 0.15, 0)
+          this._prevReady = true
+          resolve()
+        })
+        .exec()
+    })
+  }
+
+  private renderPreview(tool: ToolDef) {
+    if (!this._prevRenderer || !this._prevScene || !this._prevCamera) return
+    // 清除旧物体（保留灯光）
+    for (const child of [...this._prevScene.children]) {
+      if ((child as any).isGroup || (child as any).isMesh) this._prevScene.remove(child)
+    }
+    const neighbors: CellNeighbors = { n: false, s: false, e: false, w: false }
+    const obj = makeObject(tool.kind || tool.id, undefined, neighbors)
+    if (obj) {
+      this._prevScene.add(obj)
+      this._prevRenderer.render(this._prevScene, this._prevCamera)
+    }
+  }
+
+  private select = async (tool: ToolDef) => {
     this.setState({ selected: tool, showPreview: true })
+    await this.ensurePreviewRenderer()
+    this.renderPreview(tool)
   }
 
   private closePreview = () => {
@@ -83,8 +137,8 @@ class ModelLibraryModal extends Component<PageProps, MCState> {
             <>
               <View className='ml-grip' />
               <View className='ml-head'>
-                <Text className='ml-title'>模型库</Text>
-                <Text className='ml-sub'>选择一个物体预览或放置</Text>
+                <Text className='ml-title'>{t('library.title')}</Text>
+                <Text className='ml-sub'>{t('library.subtitle')}</Text>
               </View>
               <View className='ml-grid'>
                 {PREVIEW_TOOLS.map(id => {
@@ -102,7 +156,7 @@ class ModelLibraryModal extends Component<PageProps, MCState> {
           ) : showSaveSlot ? (
             <>
               <View className='ml-head'>
-                <Text className='ml-title'>选择存档槽位</Text>
+                <Text className='ml-title'>{t('slot.title')}</Text>
               </View>
               <View className='ml-slot-list'>
                 {['默认 Default', '世界 1', '世界 2', '世界 3', '世界 4'].map((name, i) => (
@@ -122,22 +176,27 @@ class ModelLibraryModal extends Component<PageProps, MCState> {
                 <Text className='ml-title'>{PREVIEW_LABELS[selected.id] || selected.label}</Text>
               </View>
               <View className='ml-preview'>
-                <Text className='ml-preview-icon'>{PREVIEW_ICONS[selected.id] || '?'}</Text>
-                <Text className='ml-preview-label'>点击画布放置此物体</Text>
-                <Text className='ml-preview-label'>类型: {selected.terrain ? `${selected.terrain} 地形` : selected.kind ? `${selected.kind} 物体` : '工具'}</Text>
+                <Canvas
+                  type='webgl'
+                  id='model-preview-3d'
+                  className='ml-preview-3d'
+                  style='width:200px;height:200px'
+                />
+                <Text className='ml-preview-label'>{t('library.tapToPlace')}</Text>
+                <Text className='ml-preview-label'>{selected.terrain ? `${t('library.terrain')}: ${selected.terrain}` : selected.kind ? `${t('library.object')}: ${selected.kind}` : ''}</Text>
               </View>
               <View className='ml-actions'>
                 <View className='ml-btn primary' onClick={this.placeOnWorld}>
-                  <Text className='ml-btn-text'>放置到场景</Text>
+                  <Text className='ml-btn-text'>{t('library.place')}</Text>
                 </View>
                 <View className='ml-btn' onClick={this.aiModify}>
-                  <Text className='ml-btn-text'>AI 修改</Text>
+                  <Text className='ml-btn-text'>{t('library.ai')}</Text>
                 </View>
                 <View className='ml-btn' onClick={this.showSavePicker}>
-                  <Text className='ml-btn-text'>保存到项目</Text>
+                  <Text className='ml-btn-text'>{t('library.save')}</Text>
                 </View>
                 <View className='ml-btn cancel' onClick={this.closePreview}>
-                  <Text className='ml-btn-text'>关闭</Text>
+                  <Text className='ml-btn-text'>{t('library.close')}</Text>
                 </View>
               </View>
             </>

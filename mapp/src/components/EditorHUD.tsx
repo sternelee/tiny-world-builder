@@ -5,6 +5,7 @@ import { View, Text } from '@tarojs/components'
 import { inject, observer } from 'mobx-react'
 import { EditorStore } from '../store/editorStore'
 import { HOME_GRID_OPTIONS } from '../core/constants'
+import { t } from '../i18n'
 
 type PageProps = PropsWithChildren & {
   store?: { editorStore: EditorStore }
@@ -16,6 +17,7 @@ type PageProps = PropsWithChildren & {
   onNewProject?: () => void
   onLogin?: () => void
   onToggleTime?: () => void
+  onOpenLibrary?: () => void
 }
 
 interface HUDState {
@@ -55,7 +57,7 @@ class EditorHUD extends Component<PageProps, HUDState> {
           <Text className='hud-hamburger-icon'>☰</Text>
         </View>
 
-        <Text className='hud-title'>Tiny World</Text>
+        <Text className='hud-title'>{t('hud.title')}</Text>
 
         <View className='hud-gridsize' onClick={this.cycleGrid}>
           <Text className='hud-gridsize-label'>{editorStore.grid}&times;{editorStore.grid}</Text>
@@ -65,35 +67,35 @@ class EditorHUD extends Component<PageProps, HUDState> {
           <View className='hud-menu'>
             <View className='hud-menu-item' onClick={this.wrap(onToggleCamera)}>
               <Text className='hud-menu-icon'>◈</Text>
-              <Text className='hud-menu-label'>Camera</Text>
+              <Text className='hud-menu-label'>{t('hud.camera')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onSave)}>
               <Text className='hud-menu-icon'>S</Text>
-              <Text className='hud-menu-label'>Save</Text>
+              <Text className='hud-menu-label'>{t('hud.save')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onLoad)}>
               <Text className='hud-menu-icon'>L</Text>
-              <Text className='hud-menu-label'>Load</Text>
+              <Text className='hud-menu-label'>{t('hud.load')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onLoadPreset)}>
               <Text className='hud-menu-icon'>P</Text>
-              <Text className='hud-menu-label'>Preset</Text>
+              <Text className='hud-menu-label'>{t('hud.preset')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onNewProject)}>
               <Text className='hud-menu-icon'>N</Text>
-              <Text className='hud-menu-label'>New</Text>
+              <Text className='hud-menu-label'>{t('hud.new')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onOpenLibrary)}>
               <Text className='hud-menu-icon'>🏗</Text>
-              <Text className='hud-menu-label'>Library</Text>
+              <Text className='hud-menu-label'>{t('hud.library')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onLogin)}>
               <Text className='hud-menu-icon'>👤</Text>
-              <Text className='hud-menu-label'>Login</Text>
+              <Text className='hud-menu-label'>{t('hud.login')}</Text>
             </View>
             <View className='hud-menu-item' onClick={this.wrap(onToggleTime)}>
               <Text className='hud-menu-icon'>T</Text>
-              <Text className='hud-menu-label'>Time</Text>
+              <Text className='hud-menu-label'>{t('hud.time')}</Text>
             </View>
           </View>
         )}

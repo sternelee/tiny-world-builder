@@ -106,7 +106,7 @@ class EditorPage extends Component<PageProps, EditorState> {
         }
 
         // 行状：计算长度和方向
-        let clusterInfo: any = { shape }
+        let clusterInfo: any = { shape, cells, anchor }
         if (shape === 'row') {
           clusterInfo.length = cells.length
           clusterInfo.orientation = cells.length > 1 && cells[0].x === cells[1].x ? 'z' : 'x'
@@ -161,6 +161,121 @@ class EditorPage extends Component<PageProps, EditorState> {
     scene.add(tileRoot)
     this.placeCamera(grid)
     this.refreshGhostMesh()
+    this.renderSelection(scene)
+  }
+
+  /** 增量更新：只重建受影响的格子，避免全量销毁 */
+  private updateCell(x: number, z: number, animate: boolean = false) {
+    const { editorStore } = this.props.store!
+    const grid = editorStore.grid
+    const scene = this.sceneManager.scene3D
+    if (!scene) return
+    const tileRoot = scene.getObjectByName('tileRoot') as THREE.Group | undefined
+    if (!tileRoot) { this.rebuildScene(animate); return }
+
+    // 收集受影响的格子：目标 + 四邻
+    const affected = new Set<string>([`${x},${z}`])
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+    for (const [dx, dz] of dirs) {
+      const nx = x + dx, nz = z + dz
+      if (nx >= 0 && nx < grid && nz >= 0 && nz < grid) affected.add(`${nx},${nz}`)
+    }
+
+    // 如果目标或邻居是 house，扩展到整个连通簇
+    const needsHouseScan = [...affected].some(k => {
+      const [cx, cz] = k.split(',').map(Number)
+      return ensureCell(editorStore.world, cx, cz).kind === 'house'
+    })
+    if (needsHouseScan) {
+      for (const k of [...affected]) {
+        const [cx, cz] = k.split(',').map(Number)
+        if (ensureCell(editorStore.world, cx, cz).kind === 'house') {
+          const cluster = bfsHouseCluster(editorStore.world, cx, cz, grid)
+          for (const c of cluster) affected.add(`${c.x},${c.z}`)
+        }
+      }
+    }
+
+    // 删除受影响格子的旧 mesh（只查直接子节点，避免重复匹配）
+    const toRemove: THREE.Object3D[] = []
+    for (let i = tileRoot.children.length - 1; i >= 0; i--) {
+      const child = tileRoot.children[i]
+      const ud = (child as any).userData
+      if (ud?.cellX != null && affected.has(`${ud.cellX},${ud.cellZ}`)) {
+        toRemove.push(child)
+      }
+    }
+    for (const obj of toRemove) {
+      tileRoot.remove(obj)
+    }
+
+    // 重新计算房子聚类（只扫描受影响格子涉及的行）
+    const houseVisited = new Set<string>()
+    const houseClusterMap = new Map<string, any>()
+    const houseSkipSet = new Set<string>()
+
+    for (const k of affected) {
+      const [cx, cz] = k.split(',').map(Number)
+      if (houseVisited.has(k)) continue
+      const cell = ensureCell(editorStore.world, cx, cz)
+      if (cell.kind !== 'house') continue
+
+      const cells = bfsHouseCluster(editorStore.world, cx, cz, grid)
+      for (const c of cells) houseVisited.add(`${c.x},${c.z}`)
+      const shape = classifyClusterShape(cells)
+      const anchor = cells.reduce((best, c) =>
+        c.x < best.x || (c.x === best.x && c.z < best.z) ? c : best, cells[0])
+      const anchorKey = `${anchor.x},${anchor.z}`
+      for (const c of cells) {
+        const ck = `${c.x},${c.z}`
+        if (ck !== anchorKey) houseSkipSet.add(ck)
+      }
+      let clusterInfo: any = { shape, cells, anchor }
+      if (shape === 'row') {
+        clusterInfo.length = cells.length
+        clusterInfo.orientation = cells.length > 1 && cells[0].x === cells[1].x ? 'z' : 'x'
+      }
+      houseClusterMap.set(anchorKey, clusterInfo)
+    }
+
+    // 重建受影响格子
+    for (const k of affected) {
+      const [cx, cz] = k.split(',').map(Number)
+      const cell = ensureCell(editorStore.world, cx, cz)
+      const wpos = this.cellToWorld(cx, cz)
+
+      // 地形瓦片
+      const level = tileLevelForCell(cell)
+      const tn = getTerrainNeighbors(editorStore.world, cx, cz, grid)
+      const ln = getLevelNeighbors(editorStore.world, cx, cz, grid)
+      const tile = makeTile(cell.terrain, level, tn, ln)
+      tile.position.set(wpos.x, 0, wpos.z)
+      tile.userData = { cellX: cx, cellZ: cz }
+      tileRoot.add(tile)
+      if (animate) {
+        const delay = (cx + cz) * 0.025
+        this.sceneManager.addDrop(tile, 0, 2.4, 0.42, delay)
+      }
+
+      // 物体
+      if (cell.kind && !houseSkipSet.has(k)) {
+        const neighbors = this.getCellNeighbors(cx, cz, grid)
+        const clusterInfo = houseClusterMap.get(k)
+        const obj = makeObject(cell.kind, cell, neighbors, clusterInfo)
+        if (obj) {
+          obj.position.set(wpos.x, 0, wpos.z)
+          obj.userData = { cellX: cx, cellZ: cz, kind: cell.kind }
+          tileRoot.add(obj)
+          if (animate) {
+            const delay = (cx + cz) * 0.025 + 0.08
+            this.sceneManager.addDrop(obj, 0, 1.8, 0.36, delay)
+          }
+        }
+      }
+    }
+
+    this.refreshGhostMesh()
+    this.renderSelection(scene)
   }
 
   private renderSelection(scene: THREE.Scene) {
@@ -388,14 +503,14 @@ class EditorPage extends Component<PageProps, EditorState> {
     const { editorStore } = this.props.store!
     const cell = editorStore.selectedCell ?? { x: Math.floor(editorStore.grid / 2), z: Math.floor(editorStore.grid / 2) }
     editorStore.raiseTerrain(cell.x, cell.z)
-    this.rebuildScene()
+    this.updateCell(cell.x, cell.z)
   }
 
   private onLower = () => {
     const { editorStore } = this.props.store!
     const cell = editorStore.selectedCell ?? { x: Math.floor(editorStore.grid / 2), z: Math.floor(editorStore.grid / 2) }
     editorStore.lowerTerrain(cell.x, cell.z)
-    this.rebuildScene()
+    this.updateCell(cell.x, cell.z)
   }
 
   private onUndo = () => {
@@ -537,7 +652,7 @@ class EditorPage extends Component<PageProps, EditorState> {
 
     // 长按：选中 + 显示动作菜单
     editorStore.setSelectedCell(hit)
-    this.rebuildScene()
+    this.renderSelection(scene)
     Taro.showActionSheet({
       itemList: ['Raise terrain', 'Lower terrain', 'Delete object', 'Cancel'],
       success: (res) => {
@@ -545,7 +660,7 @@ class EditorPage extends Component<PageProps, EditorState> {
         else if (res.tapIndex === 1) editorStore.lowerTerrain(hit.x, hit.z)
         else if (res.tapIndex === 2) editorStore.eraseCell(hit.x, hit.z)
         else return
-        this.rebuildScene()
+        this.updateCell(hit.x, hit.z)
       },
     })
   }
@@ -567,7 +682,7 @@ class EditorPage extends Component<PageProps, EditorState> {
     // Eraser mode
     if (editorStore.activeTool?.id === '__eraser__') {
       editorStore.eraseCell(hit.x, hit.z)
-      this.rebuildScene()
+      this.updateCell(hit.x, hit.z)
       return
     }
 
@@ -575,13 +690,13 @@ class EditorPage extends Component<PageProps, EditorState> {
     if (editorStore.activeTool) {
       const tool = editorStore.activeTool as any
       editorStore.setCell(hit.x, hit.z, { terrain: tool.terrain || undefined, kind: tool.kind })
-      this.rebuildScene()
+      this.updateCell(hit.x, hit.z, true)
       return
     }
 
     // 无工具 → 选取格子
     editorStore.setSelectedCell(hit)
-    this.rebuildScene()
+    this.renderSelection(scene)
   }
 
   render() {
