@@ -368,6 +368,9 @@
     'radial.edit.recolor': '重新着色',
     'radial.edit.tapPart': '点选部件',
 
+    'hardwareAccel.title': '图形加速似乎已关闭',
+    'hardwareAccel.body': 'Tiny World 正在使用软件渲染。请在浏览器设置中开启硬件加速，以获得更流畅的 FPS。',
+    'hardwareAccel.dismiss': '关闭警告',
     'toast.downloadFailed': '下载失败。',
     'toast.invalidJson': '该文件不是有效的 JSON。',
     'toast.readFailed': '无法读取该文件。',

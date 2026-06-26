@@ -12,6 +12,8 @@
     const settingsSearchStatus = document.getElementById('settings-search-status');
     const shadowEl = document.getElementById('render-shadow');
     const resolutionEl = document.getElementById('render-resolution');
+    const dynamicResolutionEl = document.getElementById('render-dynamic-resolution');
+    const targetFpsEl = document.getElementById('render-target-fps');
     const distanceEl = null;
     const visibleSizeEl = null;
     const homeGridEl = document.getElementById('render-home-grid');
@@ -98,6 +100,7 @@
     const materialResetEl = document.getElementById('render-material-reset');
     const materialWearEl = document.getElementById('render-material-wear');
     const resolutionValue = document.getElementById('render-resolution-value');
+    const targetFpsValue = document.getElementById('render-target-fps-value');
     const distanceValue = null;
     const visibleSizeValue = null;
     const brightnessValue = document.getElementById('render-brightness-value');
@@ -227,6 +230,8 @@
     function resetRenderingSettings() {
       setShadowQuality('balanced');
       setRenderResolutionScale(0.75);
+      setDynamicResolutionEnabled(RENDER_DEFAULTS.dynamicResolution === '1');
+      setRenderTargetFps(parseInt(RENDER_DEFAULTS.targetFps, 10) || 55);
       setRenderVisibleDistance(0);
       setRenderVisibleSize(0);
       renderBrightness = 0.80;
@@ -456,6 +461,11 @@
     function syncControls() {
       shadowEl.value = renderShadowQuality;
       resolutionEl.value = String(Math.round(renderResolutionScale * 100));
+      if (dynamicResolutionEl) dynamicResolutionEl.checked = !!renderDynamicResolution;
+      if (targetFpsEl) {
+        targetFpsEl.value = String(renderTargetFps);
+        targetFpsEl.disabled = !renderDynamicResolution;
+      }
       if (distanceEl) {
         distanceEl.min = '0';
         distanceEl.max = '0';
@@ -551,6 +561,10 @@
       if (crowdPausedLiveEl) crowdPausedLiveEl.checked = !!crowdPaused;
       if (crowdEnabledLiveEl) crowdEnabledLiveEl.checked = !!crowdEnabled;
       resolutionValue.textContent = resolutionEl.value + '%';
+      if (targetFpsValue && targetFpsEl) {
+        const effectivePct = Math.round(effectiveRenderResolutionScale() * 100);
+        targetFpsValue.textContent = (renderDynamicResolution ? (targetFpsEl.value + ' fps · now ' + effectivePct + '%') : 'off');
+      }
       if (distanceValue && distanceEl) distanceValue.textContent = distanceEl.value;
       if (visibleSizeValue && visibleSizeEl) visibleSizeValue.textContent = visibleSizeEl.value + 'x' + visibleSizeEl.value;
       brightnessValue.textContent = brightnessEl.value + '%';
@@ -607,11 +621,16 @@
       if (crowdScaleLiveEl) document.getElementById('crowd-scale-live-value').textContent = Math.round(crowdScale * 100) + '%';
       if (crowdSpeedLiveEl) document.getElementById('crowd-speed-live-value').textContent = Math.round(crowdSpeedMul * 100) + '%';
       if (crowdZoneRadiusLiveEl) document.getElementById('crowd-zone-radius-live-value').textContent = crowdZoneRadius.toFixed(2);
-      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2) + ' · shadow ' + sun.shadow.mapSize.x + ' · preview off · planes ' + (renderPlanesEnabled ? 'on' : 'off') + ' · crowd ' + crowdCount;
+      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2)
+        + ' · res ' + Math.round(effectiveRenderResolutionScale() * 100) + '%'
+        + (renderDynamicResolution ? ' dyn→' + renderTargetFps + 'fps' : '')
+        + ' · shadow ' + sun.shadow.mapSize.x + ' · preview off · planes ' + (renderPlanesEnabled ? 'on' : 'off') + ' · crowd ' + crowdCount;
     }
 
     function persistSettings() {
       localStorage.setItem(RENDER_LS.resolution, renderResolutionScale.toFixed(2));
+      localStorage.setItem(RENDER_LS.dynamicResolution, renderDynamicResolution ? '1' : '0');
+      localStorage.setItem(RENDER_LS.targetFps, String(renderTargetFps));
       localStorage.setItem(RENDER_LS.visibleDistance, '0');
       localStorage.setItem(RENDER_LS.visibleSize, '0');
       localStorage.setItem(RENDER_LS.brightness, renderBrightness.toFixed(2));
@@ -695,6 +714,8 @@
       const oldAccentLights = renderAccentLights;
       setShadowQuality(shadowEl.value);
       setRenderResolutionScale(parseInt(resolutionEl.value, 10) / 100);
+      setDynamicResolutionEnabled(dynamicResolutionEl ? !!dynamicResolutionEl.checked : renderDynamicResolution);
+      setRenderTargetFps(targetFpsEl ? parseInt(targetFpsEl.value, 10) : renderTargetFps);
       setRenderVisibleDistance(0);
       setRenderVisibleSize(0);
       renderBrightness = parseInt(brightnessEl.value, 10) / 100;
@@ -930,7 +951,7 @@
     });
     closeBtn.addEventListener('click', () => { closeTinyModal(modal); });
     modal.addEventListener('click', e => { if (e.target === modal) closeTinyModal(modal); });
-    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, ambientFillEl, frontFillEl, sideFillEl, backFillEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, planesEnabledEl, enhancedWaterEl, distantWorldsEl, cloudSeaEl, cloudSoftEl, starVaultEl, starVaultStrengthEl, cloudRimLightEl, accentLightsEl, underCloudSpreadEl, skyBlueDepthEl, skyBlueSaturationEl, distanceMistEl, backdropEl, backdropVignetteEl, pixelSizeEl, pixelDepthEdgeEl, pixelNormalEdgeEl, shaderAntialiasEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl, voxelGapEl, voxelBevelEl, voxelTerrainEl, surfaceLinkedMaterialsEl, showCrownsEl, terrainVoxelResolutionEl, terrainTintEl, terrainTextureEl, terrainTextureScaleEl, terrainToneEl, materialTintEl, materialTextureEl, materialTextureScaleEl, materialToneEl, materialWearEl, crowdCountEl, crowdScaleEl, crowdSpeedEl, crowdBobEl, crowdSwayEl, crowdLeanEl, crowdZoneRadiusEl, crowdShowZonesEl, crowdPausedEl, crowdEnabledEl, crowdDebugEl, crowdModeEl, crowdCountLiveEl, crowdScaleLiveEl, crowdSpeedLiveEl, crowdZoneRadiusLiveEl, crowdShowZonesLiveEl, crowdShowArrowsLiveEl, crowdPausedLiveEl, crowdEnabledLiveEl]) {
+    for (const el of [shadowEl, resolutionEl, dynamicResolutionEl, targetFpsEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, ambientFillEl, frontFillEl, sideFillEl, backFillEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, planesEnabledEl, enhancedWaterEl, distantWorldsEl, cloudSeaEl, cloudSoftEl, starVaultEl, starVaultStrengthEl, cloudRimLightEl, accentLightsEl, underCloudSpreadEl, skyBlueDepthEl, skyBlueSaturationEl, distanceMistEl, backdropEl, backdropVignetteEl, pixelSizeEl, pixelDepthEdgeEl, pixelNormalEdgeEl, shaderAntialiasEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl, voxelGapEl, voxelBevelEl, voxelTerrainEl, surfaceLinkedMaterialsEl, showCrownsEl, terrainVoxelResolutionEl, terrainTintEl, terrainTextureEl, terrainTextureScaleEl, terrainToneEl, materialTintEl, materialTextureEl, materialTextureScaleEl, materialToneEl, materialWearEl, crowdCountEl, crowdScaleEl, crowdSpeedEl, crowdBobEl, crowdSwayEl, crowdLeanEl, crowdZoneRadiusEl, crowdShowZonesEl, crowdPausedEl, crowdEnabledEl, crowdDebugEl, crowdModeEl, crowdCountLiveEl, crowdScaleLiveEl, crowdSpeedLiveEl, crowdZoneRadiusLiveEl, crowdShowZonesLiveEl, crowdShowArrowsLiveEl, crowdPausedLiveEl, crowdEnabledLiveEl]) {
       if (!el) continue;
       el.addEventListener('input', applyFromControls);
       el.addEventListener('change', applyFromControls);

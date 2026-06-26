@@ -399,7 +399,10 @@
     'radial.edit.recolor': 'Recolor',
     'radial.edit.tapPart': 'Tap a part',
 
-    // ---- player-facing toasts (00-prelude.js) ----
+    // ---- graphics warnings / player-facing toasts (00-prelude.js, 01-render-core.js) ----
+    'hardwareAccel.title': 'Graphics acceleration looks off',
+    'hardwareAccel.body': 'Tiny World is using software rendering. Turn on hardware acceleration in your browser settings for smoother FPS.',
+    'hardwareAccel.dismiss': 'Dismiss warning',
     'toast.downloadFailed': 'Download failed.',
     'toast.invalidJson': 'That file is not valid JSON.',
     'toast.readFailed': 'Could not read that file.',

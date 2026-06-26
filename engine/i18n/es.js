@@ -368,6 +368,9 @@
     'radial.edit.recolor': 'Recolorear',
     'radial.edit.tapPart': 'Toca una pieza',
 
+    'hardwareAccel.title': 'La aceleración gráfica parece desactivada',
+    'hardwareAccel.body': 'Tiny World está usando renderizado por software. Activa la aceleración por hardware en los ajustes del navegador para mejorar los FPS.',
+    'hardwareAccel.dismiss': 'Descartar aviso',
     'toast.downloadFailed': 'Error al descargar.',
     'toast.invalidJson': 'Ese archivo no es un JSON válido.',
     'toast.readFailed': 'No se pudo leer ese archivo.',

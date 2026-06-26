@@ -32,7 +32,7 @@ Organization guidance:
 - App/Workspace owns the UI theme selector (`ui-theme-mode`). `Auto` follows
   live UK/BST time-of-day, `Dark` forces dark chrome, and `Light` forces light
   chrome without auto-darkening after-hours.
-- Rendering: keep image/render-cost controls grouped by intent. `Quality` covers resolution and shadows; `Lighting` covers lighting and fill controls; `Image effects` covers brightness, saturation, contrast, pixelation, shader AA, and tilt-shift.
+- Rendering: keep image/render-cost controls grouped by intent. `Quality` covers shadow quality, Resolution, Dynamic resolution, and Target FPS; dynamic resolution treats the Resolution slider as a ceiling and only changes a transient effective scale. `Lighting` covers lighting and fill controls; `Image effects` covers brightness, saturation, contrast, pixelation, shader AA, and tilt-shift.
 - World: preview/ghost controls are intentionally removed and forced to zero; do not reintroduce distance/window/opacity controls unless Preview rendering is explicitly brought back. Terrain style covers voxel bevel, landscape/planet toggles, voxel/cottage, and terrain voxel resolution. `Voxel gap` and `Show crowns` are also intentionally removed from the UI and forced off for render stability/performance.
 - Time & weather popup: the time-of-day range is editable only in Build mode for
   local lighting previews. Play/Tinyverse/no-edit modes follow live UK/BST time

@@ -1092,10 +1092,19 @@
                 <option value="high">High</option>
               </select>
             </label>
-            <div class="range-row">
+            <div class="range-row" data-settings-keywords="resolution quality scale dpr pixels performance fps">
               <span>Resolution</span>
               <input id="render-resolution" type="range" min="25" max="150" step="5" />
               <output id="render-resolution-value"></output>
+            </div>
+            <label class="gen-check" data-settings-keywords="dynamic resolution adaptive fps target performance frame rate">
+              <input id="render-dynamic-resolution" type="checkbox" />
+              <span>Dynamic resolution <em class="gen-hint">automatically lowers resolution to hold frame rate</em></span>
+            </label>
+            <div class="range-row" data-settings-keywords="target fps dynamic resolution performance frame rate">
+              <span>Target FPS</span>
+              <input id="render-target-fps" type="range" min="30" max="60" step="5" />
+              <output id="render-target-fps-value"></output>
             </div>
             <div class="settings-section-title">Lighting</div>
             <div class="range-row">

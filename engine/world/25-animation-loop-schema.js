@@ -1,11 +1,11 @@
   // -------- animation loop --------
   let prevT = 0;
   let smokeTimer = 0;
-  // Item 5 — Page Visibility pause only. The earlier DPR backoff path
-  // was removed because renderer.setPixelRatio reallocates the shadow
-  // map and left it blank until the next click forced a re-render
-  // (tinyworld's existing render-settings resolution slider already
-  // covers manual perf tuning).
+  // Item 5 — Page Visibility pause only. The old per-frame DPR backoff
+  // path was removed because renderer.setPixelRatio reallocates the
+  // shadow map and left it blank until the next click forced a re-render.
+  // Current dynamic resolution is opt-in via render settings, throttled,
+  // bounded below the user's Resolution ceiling, and forces a shadow refresh.
   let docHidden = false;
   document.addEventListener('visibilitychange', () => {
     docHidden = !!document.hidden;
@@ -173,6 +173,8 @@
     if (window.__tinyworldLobby && typeof window.__tinyworldLobby.tick === 'function') {
       try { window.__tinyworldLobby.tick(t, dt); } catch (_) {}
     }
+    if (typeof tickDynamicResolution === 'function') tickDynamicResolution(now);
+
     // CCTV-only view mode (?view=cctv): draw the feed wall to the canvas instead
     // of the world. Falls back to renderScene() until the feeds are mounted.
     const cv = window.__tinyworldCctvView;

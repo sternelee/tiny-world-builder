@@ -10,7 +10,8 @@ Keep the renderer single-pass and predictable.
 Current renderer contract:
 
 - Default render path is single-pass: `renderer.render(scene, camera)` straight to the canvas. The only sanctioned post-process is the optional pixelation pass (low-res render target + depth/normal-edge fullscreen quad) gated behind the `Pixel size` / `Pixel depth edge` / `Pixel normal edge` render settings. When `renderPixelSize <= 1` or XR is presenting, that pass MUST bypass and fall back to direct rendering — do not introduce other always-on post passes (EffectComposer, screen shaders, additional render targets) without explicit approval.
-- Cap DPR; do not return to uncapped `devicePixelRatio`.
+- Cap DPR; do not return to uncapped `devicePixelRatio`. Dynamic resolution (`renderDynamicResolution`) is an adaptive multiplier below the user's Resolution slider ceiling: it adjusts effective pixel ratio slowly toward Target FPS and never persists its transient scale.
+- Warn on software WebGL renderers (SwiftShader/llvmpipe/softpipe/WARP/etc.) with the dismissible hardware-acceleration banner; many FPS complaints come from browser hardware acceleration being disabled.
 - Main WebGL context uses `antialias: true`; the old smoothing/post pass has been removed.
 - Brightness/saturation/contrast are lightweight CSS filters on the WebGL canvas, not shader uniforms.
 

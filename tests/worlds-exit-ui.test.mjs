@@ -166,6 +166,12 @@ test('stamps are reachable from the main toolbar and keep the floating panel act
 test('mobile rendering and stamp thumbnails stay under compact-screen budgets', () => {
   assert.match(renderCoreJs, /function renderDprCapForViewport\(\) \{[\s\S]*return renderCompactViewportActive\(\) \? 1\.35 : 2\.0/);
   assert.match(renderCoreJs, /window\.addEventListener\('resize', \(\) => \{[\s\S]*applyRendererPixelRatio\(\);[\s\S]*applyStageSize\(\);/);
+  assert.match(renderCoreJs, /dynamicResolution: 'tinyworld:render:dynamicResolution'/);
+  assert.match(renderCoreJs, /function tickDynamicResolution\(now\)/);
+  assert.match(renderCoreJs, /function detectSoftwareRenderer\(\)[\s\S]*WEBGL_debug_renderer_info/);
+  assert.match(builderJs, /render-dynamic-resolution/);
+  assert.match(builderJs, /render-target-fps/);
+  assert.match(stylesCss, /\.graphics-warning\s*\{/);
   assert.match(toolbarJs, /function toolbarThumbDprCap\(\) \{[\s\S]*return toolbarCompactViewportActive\(\) \? 1 : 2/);
   assert.match(toolbarJs, /function stampBuilderThumbBudget\(\) \{[\s\S]*maxPerFrame: 1, maxMs: 7, delayMs: 72/);
   assert.match(stylesCss, /@media \(max-width: 700px\) \{[\s\S]*\.stamp-panel \{[\s\S]*max-height: calc\(100dvh - 168px\)/);

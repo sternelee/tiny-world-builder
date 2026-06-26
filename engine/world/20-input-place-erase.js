@@ -464,6 +464,7 @@
   let dragMode = null;        // 'orbit' | 'pan' | 'pinch' | 'select-area' | 'draw' | 'move-selection' | 'transform-gizmo' | 'engine-select' | 'mooring'
   let selectionDragAnchor = null;
   let selectionMoveDragLastCoord = null;
+  let selectionMoveDragState = null;
   // Click-selection state (Select tool). lastSelectionAnchor is the last single
   // cell the user picked — the anchor for a Shift+click contiguous range.
   // pointerDownHit/Mods snapshot the press so we can resolve a click on pointerup
@@ -726,6 +727,135 @@
     return changed;
   }
 
+  const selectionMovePreviewGroup = new THREE.Group();
+  selectionMovePreviewGroup.name = 'selection-move-preview';
+  selectionMovePreviewGroup.visible = false;
+  xrWorldRoot.add(selectionMovePreviewGroup);
+
+  function clearSelectionMovePreview() {
+    while (selectionMovePreviewGroup.children.length) {
+      selectionMovePreviewGroup.remove(selectionMovePreviewGroup.children[0]);
+    }
+    const mats = selectionMovePreviewGroup.userData.previewMaterials || [];
+    mats.forEach(mat => { if (mat && typeof mat.dispose === 'function') mat.dispose(); });
+    selectionMovePreviewGroup.userData.previewMaterials = [];
+    selectionMovePreviewGroup.visible = false;
+    selectionMovePreviewGroup.position.set(0, 0, 0);
+  }
+
+  function makeSelectionMovePreviewMaterial() {
+    if (typeof makeGhostHoloMaterial === 'function') return makeGhostHoloMaterial();
+    return new THREE.MeshBasicMaterial({
+      color: 0x6fb6ff,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function makeSelectionMoveOutlineMaterial() {
+    if (typeof makeGhostOutlineMaterial === 'function') return makeGhostOutlineMaterial();
+    return new THREE.MeshBasicMaterial({
+      color: 0x2f8fff,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function addSelectionMovePreviewNode(source, holo, outline) {
+    if (!source) return;
+    const clone = source.clone(true);
+    const meshNodes = [];
+    clone.traverse(o => {
+      if (!o.isMesh) return;
+      meshNodes.push(o);
+    });
+    meshNodes.forEach(o => {
+      o.userData.sharedGeometry = true;
+      o.material = holo;
+      o.castShadow = false;
+      o.receiveShadow = false;
+      o.renderOrder = 1202;
+      if (o.geometry) {
+        const hull = new THREE.Mesh(o.geometry, outline);
+        hull.userData.sharedGeometry = true;
+        hull.scale.setScalar(typeof GHOST_OUTLINE_SCALE === 'number' ? GHOST_OUTLINE_SCALE : 1.12);
+        hull.castShadow = false;
+        hull.receiveShadow = false;
+        hull.renderOrder = 1203;
+        o.add(hull);
+      }
+    });
+    selectionMovePreviewGroup.add(clone);
+  }
+
+  function beginSelectionMoveDragPreview(startCoord) {
+    clearSelectionMovePreview();
+    const selectedTargets = selectedClipboardTargets(false);
+    const payload = makeClipboardPayload(selectedTargets);
+    if (!payload || !payload.cells || !payload.cells.length || !startCoord) return null;
+    const holo = makeSelectionMovePreviewMaterial();
+    const outline = makeSelectionMoveOutlineMaterial();
+    selectionMovePreviewGroup.userData.previewMaterials = [holo, outline];
+    selectedTargets.forEach(({ x, z }) => {
+      const entry = cellMeshes[x + ',' + z];
+      if (!entry) return;
+      addSelectionMovePreviewNode(entry.object, holo, outline);
+      if (entry.extras) entry.extras.forEach(extra => addSelectionMovePreviewNode(extra, holo, outline));
+    });
+    const state = {
+      payload,
+      selectedTargets,
+      startCoord,
+      currentCoord: startCoord,
+      dx: 0,
+      dz: 0,
+      shown: selectionMovePreviewGroup.children.length > 0,
+    };
+    selectionMovePreviewGroup.visible = state.shown;
+    return state;
+  }
+
+  function updateSelectionMoveDragPreview(coord) {
+    if (!selectionMoveDragState || !coord) return false;
+    const dx = coord.x - selectionMoveDragState.startCoord.x;
+    const dz = coord.z - selectionMoveDragState.startCoord.z;
+    selectionMoveDragState.currentCoord = coord;
+    selectionMoveDragState.dx = dx;
+    selectionMoveDragState.dz = dz;
+    if (selectionMoveDragState.shown) {
+      selectionMovePreviewGroup.position.set(dx * TILE, 0, dz * TILE);
+      selectionMovePreviewGroup.visible = true;
+    }
+    return !!(dx || dz);
+  }
+
+  function cancelSelectionMoveDragPreview() {
+    selectionMoveDragState = null;
+    clearSelectionMovePreview();
+  }
+
+  function commitSelectionMoveDragPreview() {
+    const state = selectionMoveDragState;
+    selectionMoveDragState = null;
+    clearSelectionMovePreview();
+    if (!state || (!state.dx && !state.dz)) return false;
+    const selectedTargets = selectedClipboardTargets(true);
+    const payload = makeClipboardPayload(selectedTargets);
+    if (!payload || !payload.cells || !payload.cells.length) return false;
+    const target = {
+      x: (payload.origin && Number.isFinite(payload.origin.x) ? payload.origin.x : Math.min(...selectedTargets.map(t => t.x))) + state.dx,
+      z: (payload.origin && Number.isFinite(payload.origin.z) ? payload.origin.z : Math.min(...selectedTargets.map(t => t.z))) + state.dz,
+      userEdited: selectedTargets.some(t => isOutsideHomeGrid(t.x, t.z) || isOutsideHomeGrid(t.x + state.dx, t.z + state.dz)),
+    };
+    selectedTargets.forEach(({ x, z }) => clearCellForCut(x, z));
+    return pasteClipboardPayloadAtTarget(payload, target, { animate: true, impactDust: true });
+  }
+
   renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 
   renderer.domElement.addEventListener('pointerdown', e => {
@@ -858,6 +988,7 @@
     const wantsSelectionMove = e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && mpEditAllowed() && selectedTool && selectedTool.select && isSelectedWorldHit(pressHit);
     dragMode = wantsDraw ? 'draw' : wantsSelectionMove ? 'move-selection' : ((e.button === 2 || spaceDown) ? 'pan' : 'orbit');
     selectionMoveDragLastCoord = wantsSelectionMove ? drawWorldCoordForHit(pressHit) : null;
+    selectionMoveDragState = wantsSelectionMove ? beginSelectionMoveDragPreview(selectionMoveDragLastCoord) : null;
     // Rectangle drag (Shift+drag):
     //   - With Select tool → normal area selection
     //   - With any other tool → live preview rectangle; on release we fill the area with the current tool
@@ -979,12 +1110,8 @@
         } else if (dragMode === 'move-selection') {
           const hit = pickTile(e.clientX, e.clientY);
           const coord = drawWorldCoordForHit(hit);
-          if (coord && selectionMoveDragLastCoord) {
-            const moveDx = coord.x - selectionMoveDragLastCoord.x;
-            const moveDz = coord.z - selectionMoveDragLastCoord.z;
-            if ((moveDx || moveDz) && shiftSelectedCellIntent(moveDx, moveDz)) {
-              selectionMoveDragLastCoord = coord;
-            }
+          if (coord && selectionMoveDragLastCoord && updateSelectionMoveDragPreview(coord)) {
+            selectionMoveDragLastCoord = coord;
           }
         } else if (dragMode === 'engine-select') {
           // Engine clicks select the attachment; dragging should not orbit.
@@ -1048,6 +1175,17 @@
       lastPointer = null;
       dragMode = null;
       notifySelectionChanged();
+      e.preventDefault();
+      return;
+    }
+
+    if (dragMode === 'move-selection' && didDrag) {
+      commitSelectionMoveDragPreview();
+      pointerDown = null;
+      lastPointer = null;
+      dragMode = null;
+      selectionDragAnchor = null;
+      selectionMoveDragLastCoord = null;
       e.preventDefault();
       return;
     }
@@ -1143,6 +1281,7 @@
       dragMode = null;
       selectionDragAnchor = null;
       selectionMoveDragLastCoord = null;
+      cancelSelectionMoveDragPreview();
       drawVisitedCells.clear();
       drawChangedWorldCoords.clear();
       drawLastWorldCoord = null;
@@ -1172,6 +1311,7 @@
       pinchPrevDist = 0;
       pinchPrevMid = null;
       selectionMoveDragLastCoord = null;
+      cancelSelectionMoveDragPreview();
       drawVisitedCells.clear();
       drawChangedWorldCoords.clear();
       drawLastWorldCoord = null;

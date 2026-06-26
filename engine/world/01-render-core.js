@@ -156,6 +156,8 @@
   const UNDERCLOUD_HEIGHT_MULTIPLIER = 1.08;
   const RENDER_LS = {
     resolution: 'tinyworld:render:resolution',
+    dynamicResolution: 'tinyworld:render:dynamicResolution',
+    targetFps: 'tinyworld:render:targetFps',
     saturation: 'tinyworld:render:saturation',
     contrast: 'tinyworld:render:contrast',
     brightness: 'tinyworld:render:brightness',
@@ -225,22 +227,25 @@
     crowdEnabled: 'tinyworld:crowd:enabled',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '25';
+  const RENDER_SETTINGS_VERSION = '26';
   const RENDER_DEFAULTS = {
     // Defaults tuned from the light-mode render panel: lower internal
-    // resolution, softer direct light, full ambient fill, and stronger colour
-    // grade/tilt blur. Colour sliders are direct CSS filters on the canvas.
+    // resolution, softer direct light, full ambient fill, brighter canvas, and
+    // stronger directional fills so objects do not sink into dark silhouettes.
+    // Colour sliders are direct CSS filters on the canvas.
     resolution: '0.75',
+    dynamicResolution: '1',
+    targetFps: '55',
     saturation: '1.09',
-    contrast: '1.20',
-    brightness: '0.80',
+    contrast: '1.16',
+    brightness: '1.08',
     uiTheme: 'auto',
     shadow: 'balanced',
-    lighting: '0.50',
+    lighting: '0.62',
     ambientFill: '1.00',
-    frontFill: '0.10',
-    sideFill: '0.10',
-    backFill: '0.10',
+    frontFill: '0.34',
+    sideFill: '0.26',
+    backFill: '0.22',
     visibleDistance: '0',
     visibleSize: '0',
     clouds: '0.4',
@@ -331,6 +336,11 @@
     if (!Number.isFinite(n)) return fallback;
     return Math.max(min, Math.min(max, n));
   }
+  function storedBool(key, fallback) {
+    const raw = localStorage.getItem(key);
+    if (raw === null || raw === undefined) return !!fallback;
+    return raw !== '0' && raw !== 'false';
+  }
 
   // -------- scene / renderer --------
   const container = document.getElementById('app');
@@ -354,6 +364,16 @@
     return { w, h };
   }
   let renderResolutionScale = storedNumber(RENDER_LS.resolution, parseFloat(RENDER_DEFAULTS.resolution), 0.25, 1.5);
+  let renderDynamicResolution = storedBool(RENDER_LS.dynamicResolution, RENDER_DEFAULTS.dynamicResolution === '1');
+  let renderTargetFps = Math.round(storedNumber(RENDER_LS.targetFps, parseFloat(RENDER_DEFAULTS.targetFps), 30, 60) / 5) * 5;
+  let dynamicResolutionScale = renderResolutionScale;
+  let dynamicFrameMsEma = 0;
+  let dynamicLastFrameNow = 0;
+  let dynamicLastAdjustNow = 0;
+  const DYNAMIC_RESOLUTION_MIN = 0.40;
+  function effectiveRenderResolutionScale() {
+    return renderDynamicResolution ? Math.min(renderResolutionScale, dynamicResolutionScale) : renderResolutionScale;
+  }
   function renderCompactViewportActive() {
     return !!(window.matchMedia && window.matchMedia('(max-width: 800px)').matches);
   }
@@ -544,7 +564,8 @@
   }
   const renderer = createRenderer();
   function applyRendererPixelRatio() {
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, renderDprCapForViewport()) * renderResolutionScale);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, renderDprCapForViewport()) * effectiveRenderResolutionScale());
+    if (renderer.shadowMap) renderer.shadowMap.needsUpdate = true;
   }
   applyRendererPixelRatio();
   applyStageSize();
@@ -565,6 +586,55 @@
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.xr.enabled = true;
   container.appendChild(renderer.domElement);
+
+  function detectSoftwareRenderer() {
+    try {
+      const gl = renderer.getContext && renderer.getContext();
+      if (!gl) return null;
+      const dbg = gl.getExtension && gl.getExtension('WEBGL_debug_renderer_info');
+      const name = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '');
+      const vendor = String((dbg && gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)) || gl.getParameter(gl.VENDOR) || '');
+      const text = (name + ' ' + vendor).toLowerCase();
+      return {
+        renderer: name,
+        vendor,
+        software: /swiftshader|software|llvmpipe|softpipe|mesa offscreen|chromium software|basic render driver|gdi generic|\bwarp\b/.test(text),
+      };
+    } catch (_) { return null; }
+  }
+  function showHardwareAccelerationWarning(info) {
+    if (!info || !info.software || document.getElementById('graphics-warning')) return;
+    try {
+      if (localStorage.getItem('tinyworld:graphics-warning-dismissed.v1') === '1') return;
+    } catch (_) {}
+    const tx = (key, fallback) => (typeof window.tx === 'function' ? window.tx(key, fallback) : fallback);
+    const el = document.createElement('div');
+    el.id = 'graphics-warning';
+    el.className = 'graphics-warning';
+    el.setAttribute('role', 'alert');
+    const copy = document.createElement('div');
+    copy.className = 'graphics-warning-copy';
+    const title = document.createElement('strong');
+    title.textContent = tx('hardwareAccel.title', 'Graphics acceleration looks off');
+    const body = document.createElement('span');
+    body.textContent = tx('hardwareAccel.body', 'Tiny World is using software rendering. Turn on hardware acceleration in your browser settings for smoother FPS.');
+    if (info.renderer) body.title = info.renderer;
+    copy.appendChild(title);
+    copy.appendChild(body);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'graphics-warning-close';
+    close.textContent = '×';
+    close.setAttribute('aria-label', tx('hardwareAccel.dismiss', 'Dismiss warning'));
+    close.addEventListener('click', () => {
+      try { localStorage.setItem('tinyworld:graphics-warning-dismissed.v1', '1'); } catch (_) {}
+      el.remove();
+    });
+    el.appendChild(copy);
+    el.appendChild(close);
+    document.body.appendChild(el);
+  }
+  setTimeout(() => showHardwareAccelerationWarning(detectSoftwareRenderer()), 350);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xb9dcf4);
@@ -679,7 +749,55 @@
 
   function setRenderResolutionScale(value) {
     renderResolutionScale = Math.max(0.25, Math.min(1.5, value));
+    dynamicResolutionScale = Math.min(renderResolutionScale, Math.max(DYNAMIC_RESOLUTION_MIN, dynamicResolutionScale || renderResolutionScale));
+    if (!renderDynamicResolution) dynamicResolutionScale = renderResolutionScale;
     applyRendererPixelRatio();
+  }
+  function setDynamicResolutionEnabled(on) {
+    renderDynamicResolution = !!on;
+    dynamicFrameMsEma = 0;
+    dynamicLastFrameNow = 0;
+    dynamicLastAdjustNow = performance.now();
+    if (!renderDynamicResolution) dynamicResolutionScale = renderResolutionScale;
+    else dynamicResolutionScale = Math.min(renderResolutionScale, Math.max(DYNAMIC_RESOLUTION_MIN, dynamicResolutionScale || renderResolutionScale));
+    applyRendererPixelRatio();
+  }
+  function setRenderTargetFps(value) {
+    renderTargetFps = Math.max(30, Math.min(60, Math.round((value || 55) / 5) * 5));
+    dynamicFrameMsEma = 0;
+  }
+  function tickDynamicResolution(now) {
+    if (!renderDynamicResolution || !renderer || (renderer.xr && renderer.xr.isPresenting)) {
+      dynamicLastFrameNow = now || 0;
+      return;
+    }
+    if (!now) now = performance.now();
+    if (dynamicLastFrameNow) {
+      const frameMs = now - dynamicLastFrameNow;
+      if (frameMs > 0 && frameMs < 250) {
+        dynamicFrameMsEma = dynamicFrameMsEma ? dynamicFrameMsEma * 0.90 + frameMs * 0.10 : frameMs;
+      }
+    }
+    dynamicLastFrameNow = now;
+    if (!dynamicFrameMsEma || now - dynamicLastAdjustNow < 900) return;
+    const targetMs = 1000 / Math.max(30, renderTargetFps || 55);
+    const minScale = Math.min(renderResolutionScale, DYNAMIC_RESOLUTION_MIN);
+    let next = dynamicResolutionScale || renderResolutionScale;
+    if (dynamicFrameMsEma > targetMs * 1.16 && next > minScale + 0.005) {
+      next -= dynamicFrameMsEma > targetMs * 1.45 ? 0.08 : 0.05;
+    } else if (dynamicFrameMsEma < targetMs * 0.78 && next < renderResolutionScale - 0.005) {
+      next += 0.025;
+    } else {
+      return;
+    }
+    next = Math.max(minScale, Math.min(renderResolutionScale, next));
+    if (Math.abs(next - dynamicResolutionScale) >= 0.01) {
+      dynamicResolutionScale = next;
+      applyRendererPixelRatio();
+      const out = document.getElementById('render-target-fps-value');
+      if (out) out.textContent = renderTargetFps + ' fps · now ' + Math.round(effectiveRenderResolutionScale() * 100) + '%';
+      dynamicLastAdjustNow = now;
+    }
   }
 
   var landscapeGhostBoardsSuppressed = false;

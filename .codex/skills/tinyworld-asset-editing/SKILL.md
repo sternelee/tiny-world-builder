@@ -10,6 +10,7 @@ Use the existing board intent contract:
 - `world[x][z]` is intent and `cellMeshes['x,z']` is render state.
 - New asset edits must flow through `setCell(x, z, opts)` or helpers that call it.
 - Selection state is exposed through `window.__tinyworldSelection`; use `worldCoords()`, `materialize()`, and `replaceWorldCoords()`. Do not parse raw `selectedCells` keys in new code.
+- Select-tool dragging of an already-selected cell/object should be preview-first: clone the current rendered object/extras into a separate hologram group, update only that virtual offset during pointermove, and commit the real cut/paste once on pointerup. Do not call `shiftSelectedCellIntent()` repeatedly from pointermove, because intermediate cut/paste steps can wipe cells along the drag path.
 
 Placement rules:
 
