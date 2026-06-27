@@ -1,6 +1,11 @@
 {
   "feed": [
     {
+      "ts": "2026-06-27T01:17:56.879Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-27T01-17-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T23:42:59.853Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T23-42-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -194,12 +199,7 @@
       "ts": "2026-06-24T20:53:16.370Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"mine/hunt/fish for coins — keep what you earn, carried into final economy\" -> plans/production-line/drafts/2026-06-24T20-53-mine-hunt-fish-for-coins-keep-what-you-earn-carr.md. No economy paths touched."
-    },
-    {
-      "ts": "2026-06-24T19:54:47.186Z",
-      "kind": "tick",
-      "text": "Autonomous tick (safe scope): drafted news/tweet for \"richer early-preview starter worlds + awardable Prospector badge\" -> plans/production-line/drafts/2026-06-24T19-54-richer-early-preview-starter-worlds-awardable-pr.md. ECONOMY TRIPWIRE: netlify/database/migrations/20260625030000_reseed_preview_islands.sql"
     }
   ],
-  "lastTick": "2026-06-26T23:42:59.853Z"
+  "lastTick": "2026-06-27T01:17:56.879Z"
 }
