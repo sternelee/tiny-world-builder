@@ -93,7 +93,8 @@ Offline random island generation:
   TinyWorld schema cells: connected island mask, archetype terrain/object
   weights, water/bridge/path passes, then a deliberate token-to-native mapping.
 - The current random-island terrain/object catalog, archetype weights, resource
-  buckets, and output mapping are versioned in
+  buckets, output mapping, motif ownership, and live-economy alignment notes are
+  versioned in the canonical repository
   `docs/random-island-generation-assets.md`. Any change to those source blocks
   must update that manifest and its source digest in the same patch.
 - Keep emitted cells complete v4 object cells: `x`, `z`, `terrain`, `kind`,

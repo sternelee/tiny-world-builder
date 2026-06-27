@@ -1,18 +1,30 @@
 # Random Island Generation Asset Manifest
 
-Manifest version: `2026-06-26.7`
+Manifest version: `2026-06-27.1`
 
 Source: `engine/world/26-ai-generation.js`
 
 Source digest: `sha256-b264f7982d0c6321`
 
-This is the versioned manifest for the offline random island generator used by
-`generateProceduralWorld()` / `generateRandomIslandWorld()`. Update this file in
-the same change whenever the generator's terrain tokens, lab object tokens,
-archetype weights, economy resource buckets, or lab-to-TinyWorld mapping changes.
+Canonical path: `docs/random-island-generation-assets.md`
+
+This is the canonical, versioned repository for the offline random island
+generator's current asset vocabulary. It covers the assets and rules used by
+`generateProceduralWorld()` / `generateRandomIslandWorld()`: terrain tokens, lab
+object tokens, archetype weights, fence storage, economy preview buckets, motif
+ownership, and lab-to-TinyWorld mapping.
+
+Update this file in the same change whenever the generator's terrain tokens, lab
+object tokens, archetype weights, economy resource buckets, motif ownership, or
+lab-to-TinyWorld mapping changes. `tests/random-island-assets-manifest.test.mjs`
+enforces that the manifest source digest stays aligned with the generator source
+blocks.
 
 This is not the full renderer asset catalog. It only covers assets the random
-island generator currently knows about.
+island generator currently knows about. Shipped GLB/texture/runtime assets stay
+in `models/`, `textures/`, `assets/`, or `engine/world/assets/`; generated sample
+and stats output stays ignored under `random-island-runs/` and
+`stats-runs/random-island/`.
 
 ## Terrain Tokens
 
@@ -199,6 +211,62 @@ Resource bucket membership:
 | commerce | house, manor, lamp, bridge, water-bridge |
 | defense | watchtower, spotlight, castle |
 | charm | flower, berries, tree, crystal, ruins, totem |
+
+## Economy System Alignment
+
+TinyWorld currently has two separate economy layers:
+
+| Layer | Code path | Resource vocabulary | Purpose |
+| --- | --- | --- | --- |
+| Collectible reveal preview | `buildRandomIslandEconomyProfile()` in `engine/world/26-ai-generation.js` | Food, Materials, Commerce, Defense, Charm | Island card readability, rarity, economic potential, highlight steps |
+| Live world / harvest economy | `deriveWorldState()` in `party/index.js`, `deriveResourceStats()` in `netlify/functions/lib/worlds.mjs`, `normalizeWorldResourceSpec()` in `packages/tinyworld-mmo-core/src/economy.js` | fish, ore, plants, meat | Server-authoritative harvest nodes, resource taxes, world-card readiness and pricing |
+| Economy design guide | `docs/economy.md` | wood, ore, crystal, energy, fish, meat, plants, GOLD | Future-facing product vocabulary; not all resources are live yet |
+
+The reveal stats are economic potential. They must not be treated as live
+balances or automatic token yield. Live harvest output is server-derived from
+saved world cells or explicit `economy` metadata.
+
+Current default live mapping:
+
+| Generated asset or terrain | Reveal contribution | Live economy contribution |
+| --- | --- | --- |
+| Connected `water` terrain | Food / Charm potential | One `fish` node per connected water body |
+| `crop`, `corn`, `wheat`, `pumpkin`, `carrot`, `sunflower` | Food potential, sometimes Charm | `plants` node |
+| `cow`, `sheep` | Food potential, sometimes Charm | `meat` hunt target |
+| `stone` terrain | Materials / Defense potential | `ore` node per stone cell |
+| Explicit object `economy` metadata | Whatever the card scoring also sees from terrain/kind | Authoritative override for `fish`, `ore`, `plants`, or `meat` |
+
+Gaps to keep visible:
+
+- Materials preview is broader than live resources. It counts `tree`, `stone`,
+  `ore`, `crystal`, and dormant `logs`, but the live economy currently exposes
+  only `ore` for material extraction unless explicit `economy.resource: "ore"`
+  metadata is attached.
+- `berries` map to `kind: "bush"` and count as Food / Charm in the reveal card,
+  but `bush` is not a live `plants` harvest kind.
+- `crystal` is a visual/materials/charm asset in the reveal card. Live harvest
+  does not have a `crystal` resource yet; a crystal on non-stone terrain needs
+  explicit `economy.resource: "ore"` if it should be harvestable today.
+- Commerce, Defense, and Charm currently have no direct live harvest resource.
+  They are collector/readability stats and future hooks for GOLD/day, upgrades,
+  Battleworlds, events, pricing modifiers, or social/showcase value.
+- The generator does not currently emit explicit `economy` metadata for its
+  native cells. It relies on live derivation from terrain/kind. That is fine for
+  water, stone, crops, and animals, but custom or non-obvious resource assets
+  should use explicit metadata.
+- World-card purchase pricing uses live `fish`, `ore`, `plants`, and `meat`
+  readiness. It does not use reveal `potential`, rarity, Commerce, Defense, or
+  Charm yet.
+- The design guide names future resources such as wood, crystal, and energy.
+  Those should remain design-only until the resource bank, HUD, world stats, tax
+  ledger, and sell/market rules support them.
+
+Recommended next alignment step:
+
+Add a `liveResource` column to this manifest if any generator asset should move
+from preview-only value into the live harvest economy. Prefer explicit
+`economy` metadata for custom/resource-special assets instead of inferring
+economic output from visual material names, colors, or model shape.
 
 ## Current Motif Ownership
 

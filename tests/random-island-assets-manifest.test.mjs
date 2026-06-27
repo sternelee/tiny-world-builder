@@ -31,7 +31,15 @@ test('random island asset manifest is versioned against generator asset source',
 
   assert.match(manifest, /Manifest version: `\d{4}-\d{2}-\d{2}\.\d+`/);
   assert.ok(
+    manifest.includes('Canonical path: `docs/random-island-generation-assets.md`'),
+    'random island asset manifest must name its canonical repo path'
+  );
+  assert.ok(
     manifest.includes('Source digest: `sha256-' + digest + '`'),
     'update docs/random-island-generation-assets.md when generator assets, weights, resource buckets, or mapping change'
+  );
+  assert.ok(
+    manifest.includes('## Economy System Alignment'),
+    'canonical asset manifest must compare preview stats to live economy resources'
   );
 });
