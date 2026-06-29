@@ -36,11 +36,7 @@
     brandHomeBtn.__tvChromeWired = true;
     brandHomeBtn.addEventListener('click', function (event) {
       event.preventDefault();
-      if (typeof window.__tinyworldResumeWelcomeMode === 'function') {
-        window.__tinyworldResumeWelcomeMode();
-        return;
-      }
-      window.location.href = homeUrl();
+      window.location.href = '/';
     });
   }
 

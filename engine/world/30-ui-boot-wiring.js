@@ -2152,18 +2152,14 @@ syncTinyworldOwnerToolControls();
     twPerfMark('boot:start');
     appBooted = true;
     initWelcomeDialog();
-    // Logo home button -> resume last mode; add ?welcome to force the picker.
+    // Logo home button -> marketing landing page (index.html at /).
     try {
       const brandHomeBtn = document.getElementById('brand-home-btn');
       if (brandHomeBtn && !brandHomeBtn.__wired) {
         brandHomeBtn.__wired = true;
         brandHomeBtn.addEventListener('click', (e) => {
           e.preventDefault();
-          if (typeof window.__tinyworldResumeWelcomeMode === 'function') {
-            window.__tinyworldResumeWelcomeMode();
-          } else if (typeof window.__tinyworldShowWelcomeLaunch === 'function') {
-            window.__tinyworldShowWelcomeLaunch();
-          }
+          window.location.href = '/';
         });
       }
     } catch (_) {}

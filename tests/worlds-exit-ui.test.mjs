@@ -76,11 +76,10 @@ test('world room play mode is temporary and exits back to build mode', () => {
   assert.match(universeJs, /function buildDraft\(w\) \{[\s\S]*WS\.leaveRoom\(\)/);
 });
 
-test('logo home control resumes last mode instead of always reopening the launch modal', () => {
+test('logo home control navigates to the marketing landing page', () => {
+  assert.match(bootJs, /brandHomeBtn\.addEventListener\('click', \(e\) => \{[\s\S]*window\.location\.href = '\/'/);
   assert.match(bootJs, /window\.__tinyworldResumeWelcomeMode = resumeWelcomeMode/);
-  assert.match(bootJs, /brandHomeBtn\.addEventListener\('click', \(e\) => \{[\s\S]*__tinyworldResumeWelcomeMode\(\)/);
   assert.match(bootJs, /tinyworld:welcome-mode\.v1/);
-  assert.doesNotMatch(bootJs, /window\.location\.href = '\/'/);
 });
 
 test('owned draft worlds remain buildable from the carousel picker', () => {
