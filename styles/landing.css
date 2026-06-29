@@ -308,8 +308,8 @@ svg {
 /* "HELLO my name is BINKY" badge on her upper-right near the shoulder. */
 .hero-binky-badge {
   position: absolute;
-  top: 62%;
-  left: 29%;
+  top: 63%;
+  left: 33%;
   width: 13%;
   height: auto;
   z-index: 1;
