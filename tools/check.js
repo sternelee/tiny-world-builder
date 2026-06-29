@@ -624,8 +624,8 @@ if (!/if \(typeof clearSelection === 'function'\) clearSelection\(\);[\s\S]*root
 if (!/\.world-menu-foot\s*\{[\s\S]*overflow-x:\s*auto/.test(cssRaw) || !/\.world-menu-foot-btn\s*\{[\s\S]*white-space:\s*nowrap/.test(cssRaw) || !/\.world-menu-foot-btn span\s*\{[\s\S]*text-overflow:\s*ellipsis/.test(cssRaw)) {
   fail('world menu footer buttons must stay single-line and use horizontal overflow instead of wrapping');
 }
-if (!/<div class="brand">\s*<img class="brand-logo" src="assets\/twlogo-wordmark\.png" alt="Tiny World Builder" width="1064" height="403">\s*<\/div>\s*<a class="brand-banner" id="brand-banner"/.test(htmlRaw) || !/\.brand-logo\s*\{[\s\S]*width:\s*250px/.test(cssRaw) || !/\.brand-banner\s*\{[\s\S]*top:\s*28px[\s\S]*left:\s*294px[\s\S]*right:\s*auto/.test(cssRaw)) {
-  fail('top-left brand must use the logo-only Tiny World wordmark with the Autoincentive banner aligned beside it');
+if (!/<button type="button" class="brand brand-home-btn" id="brand-home-btn"[\s\S]*<img class="brand-logo" src="assets\/twlogo-wordmark\.png"[\s\S]*<\/button>\s*<a class="brand-banner" id="brand-banner"/.test(htmlRaw) || !/\.brand-logo\s*\{[\s\S]*width:\s*250px/.test(cssRaw) || !/\.brand-banner\s*\{[\s\S]*top:\s*28px[\s\S]*left:\s*294px[\s\S]*right:\s*auto/.test(cssRaw)) {
+  fail('top-left brand must use the clickable logo-only Tiny World wordmark with the Autoincentive banner aligned beside it');
 }
 if (!fs.existsSync(path.join(root, 'assets', 'twlogo-wordmark.png'))) {
   fail('top-left brand logo-only wordmark asset must exist');

@@ -165,19 +165,35 @@
   .graphics-warning-close:hover { background: rgba(255, 255, 255, 0.22); }
   canvas.dragging { cursor: grabbing; }
 
-  /* Top-left Tiny World Builder wordmark. */
+  /* Top-left Tiny World Builder wordmark — tap to return to the landing screen. */
   .brand {
     position: fixed;
     top: 16px;
     left: 24px;
-    pointer-events: none;
     z-index: 10;
+  }
+  button.brand-home-btn {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    border-radius: 10px;
+    transition: transform 120ms ease, opacity 120ms ease;
+  }
+  button.brand-home-btn:hover { transform: translateY(-1px); opacity: 0.92; }
+  button.brand-home-btn:active { transform: translateY(0); opacity: 0.86; }
+  button.brand-home-btn:focus-visible {
+    outline: 2px solid rgba(90, 140, 255, 0.8);
+    outline-offset: 4px;
   }
   .brand-logo {
     display: block;
     width: 250px;
     height: auto;
     filter: drop-shadow(0 10px 18px rgba(20, 30, 50, 0.18));
+    pointer-events: none;
   }
   /* World menu trigger — top-center rounded pill; menu opens beneath it. */
   .world-pill {

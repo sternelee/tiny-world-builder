@@ -2152,12 +2152,12 @@ syncTinyworldOwnerToolControls();
     twPerfMark('boot:start');
     appBooted = true;
     initWelcomeDialog();
-    // Top-right home button -> resume last mode; add ?welcome to force the picker.
+    // Logo home button -> resume last mode; add ?welcome to force the picker.
     try {
-      const homeBtn = document.getElementById('landing-home-btn');
-      if (homeBtn && !homeBtn.__wired) {
-        homeBtn.__wired = true;
-        homeBtn.addEventListener('click', (e) => {
+      const brandHomeBtn = document.getElementById('brand-home-btn');
+      if (brandHomeBtn && !brandHomeBtn.__wired) {
+        brandHomeBtn.__wired = true;
+        brandHomeBtn.addEventListener('click', (e) => {
           e.preventDefault();
           if (typeof window.__tinyworldResumeWelcomeMode === 'function') {
             window.__tinyworldResumeWelcomeMode();

@@ -31,11 +31,15 @@
   }
 
   function wireHome() {
-    const homeBtn = document.getElementById('landing-home-btn');
-    if (!homeBtn || homeBtn.__tvChromeWired) return;
-    homeBtn.__tvChromeWired = true;
-    homeBtn.addEventListener('click', function (event) {
+    const brandHomeBtn = document.getElementById('brand-home-btn');
+    if (!brandHomeBtn || brandHomeBtn.__tvChromeWired) return;
+    brandHomeBtn.__tvChromeWired = true;
+    brandHomeBtn.addEventListener('click', function (event) {
       event.preventDefault();
+      if (typeof window.__tinyworldResumeWelcomeMode === 'function') {
+        window.__tinyworldResumeWelcomeMode();
+        return;
+      }
       window.location.href = homeUrl();
     });
   }

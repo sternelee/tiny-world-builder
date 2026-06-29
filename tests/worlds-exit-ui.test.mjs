@@ -76,9 +76,9 @@ test('world room play mode is temporary and exits back to build mode', () => {
   assert.match(universeJs, /function buildDraft\(w\) \{[\s\S]*WS\.leaveRoom\(\)/);
 });
 
-test('home control resumes last mode instead of always reopening the launch modal', () => {
+test('logo home control resumes last mode instead of always reopening the launch modal', () => {
   assert.match(bootJs, /window\.__tinyworldResumeWelcomeMode = resumeWelcomeMode/);
-  assert.match(bootJs, /homeBtn\.addEventListener\('click', \(e\) => \{[\s\S]*__tinyworldResumeWelcomeMode\(\)/);
+  assert.match(bootJs, /brandHomeBtn\.addEventListener\('click', \(e\) => \{[\s\S]*__tinyworldResumeWelcomeMode\(\)/);
   assert.match(bootJs, /tinyworld:welcome-mode\.v1/);
   assert.doesNotMatch(bootJs, /window\.location\.href = '\/'/);
 });
