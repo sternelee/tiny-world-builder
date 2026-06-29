@@ -36,7 +36,7 @@ const WATCH_PATHS = [
 const WATCH_ROOT_FILES = [
   'index.html', 'tiny-world-builder.html', 'roadmap.html',
   'features.html', 'community.html', 'terms.html', 'privacy.html', 'code-of-conduct.html',
-  'worlds.html', 'docs.html', 'harvest.html', 'island-viewer.html', 'random-island-preview.html',
+  'worlds.html', 'docs.html', 'harvest.html', 'island-viewer.html', 'random-island-preview.html', 'card_reveal.html',
 ];
 
 function watchDir(dir) {
@@ -225,6 +225,114 @@ function readAiLog(limit = 40) {
 
 const modelStampDefaultsFile = path.resolve(root, 'models', 'stamp-defaults.local.json');
 const tinyworldDefaultsFile = path.resolve(root, 'tinyworld-defaults.json');
+const tinyworldFeatureFlagsFile = path.resolve(root, 'tinyworld-feature-flags.json');
+
+const FEATURE_FLAG_IDS = [
+  'ai', 'settings', 'meshBuilding', 'stamps', 'movableMap', 'buildBrush', 'sunSlider',
+  'weather', 'elapsingTime', 'generatePrompt', 'spotlights', 'connections', 'lamps',
+  'lava', 'developerSettings', 'playersMenu', 'partyCreation', 'playerSearch',
+  'settingsWorkspace', 'settingsRendering', 'settingsWorld', 'settingsMaterials',
+  'settingsEnvironment', 'settingsCrowd', 'settingsAi',
+];
+
+const DEFAULT_FEATURE_FLAGS = {
+  ai: { everyone: false, admin: false },
+  settings: { everyone: false, admin: true },
+  meshBuilding: { everyone: false, admin: false },
+  stamps: { everyone: false, admin: false },
+  movableMap: { everyone: false, admin: false },
+  buildBrush: { everyone: false, admin: false },
+  sunSlider: { everyone: false, admin: false },
+  weather: { everyone: false, admin: false },
+  elapsingTime: { everyone: false, admin: false },
+  generatePrompt: { everyone: false, admin: false },
+  spotlights: { everyone: false, admin: false },
+  connections: { everyone: false, admin: false },
+  lamps: { everyone: false, admin: false },
+  lava: { everyone: false, admin: false },
+  developerSettings: { everyone: false, admin: false },
+  playersMenu: { everyone: false, admin: false },
+  partyCreation: { everyone: false, admin: false },
+  playerSearch: { everyone: false, admin: false },
+  settingsWorkspace: { everyone: false, admin: false },
+  settingsRendering: { everyone: false, admin: false },
+  settingsWorld: { everyone: false, admin: false },
+  settingsMaterials: { everyone: false, admin: false },
+  settingsEnvironment: { everyone: false, admin: false },
+  settingsCrowd: { everyone: false, admin: false },
+  settingsAi: { everyone: false, admin: false },
+};
+
+const WORLD_ADMIN_EMAILS = new Set([
+  'jason@bouncingfish.com',
+  'jason.kneen@bouncingfish.com',
+  'jason.kneen@gmail.com',
+  'simongarthfarmer@gmail.com',
+]);
+
+function cleanFeatureFlagEntry(raw, fallback) {
+  const base = fallback && typeof fallback === 'object' ? fallback : { everyone: true, admin: true };
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    everyone: Object.prototype.hasOwnProperty.call(src, 'everyone') ? src.everyone === true : base.everyone === true,
+    admin: Object.prototype.hasOwnProperty.call(src, 'admin') ? src.admin === true : base.admin === true,
+  };
+}
+
+function sanitizeFeatureFlags(input) {
+  const source = input && typeof input === 'object' ? input : {};
+  const rawFlags = source.flags && typeof source.flags === 'object' ? source.flags : source;
+  const flags = {};
+  for (const id of FEATURE_FLAG_IDS) {
+    flags[id] = cleanFeatureFlagEntry(rawFlags[id], DEFAULT_FEATURE_FLAGS[id]);
+  }
+  return { version: 1, updatedAt: new Date().toISOString(), flags };
+}
+
+function readFeatureFlags() {
+  try {
+    if (!fs.existsSync(tinyworldFeatureFlagsFile)) return sanitizeFeatureFlags({});
+    return sanitizeFeatureFlags(JSON.parse(fs.readFileSync(tinyworldFeatureFlagsFile, 'utf8')));
+  } catch (err) {
+    return sanitizeFeatureFlags({});
+  }
+}
+
+function writeFeatureFlags(input) {
+  const clean = sanitizeFeatureFlags(input);
+  fs.writeFileSync(tinyworldFeatureFlagsFile, JSON.stringify(clean, null, 2) + '\n');
+  return clean;
+}
+
+function featureFlagsEnabled(flags, isAdmin) {
+  const enabled = {};
+  for (const id of FEATURE_FLAG_IDS) {
+    const entry = flags[id] || DEFAULT_FEATURE_FLAGS[id];
+    enabled[id] = !!(entry.everyone || (entry.admin && isAdmin));
+  }
+  return enabled;
+}
+
+function jwtEmailFromAuthHeader(req) {
+  const authHeader = String(req.headers.authorization || '');
+  let token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  if (!token) {
+    const cookie = String(req.headers.cookie || '');
+    const match = cookie.match(/(?:^|;\s*)nf_jwt=([^;]+)/);
+    if (match) token = decodeURIComponent(match[1]);
+  }
+  if (!token) return '';
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return '';
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+    return String(payload.email || '').trim().toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
 
 // Keys we never write to the shipped defaults file even if the dev's local
 // browser has them set. This keeps world saves, credentials, and per-session
@@ -771,6 +879,79 @@ const server = http.createServer((req, res) => {
     res.write(':connected\n\n');
     reloadClients.add(res);
     req.on('close', () => reloadClients.delete(res));
+    return;
+  }
+  if (parsedUrl.pathname === '/api/admin-users' && parsedUrl.searchParams.get('action') === 'tinyverse-access') {
+    if (req.method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    const authHeader = String(req.headers.authorization || '');
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!token) {
+      sendJson(res, 401, { allowed: false, error: 'unauthorized' });
+      return;
+    }
+    const allowlist = new Set([
+      'jason@bouncingfish.com',
+      'simongarthfarmer@gmail.com',
+    ]);
+    let email = '';
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+        const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+        email = String(payload.email || '').trim().toLowerCase();
+      }
+    } catch (_) {}
+    const admin = WORLD_ADMIN_EMAILS.has(email) || allowlist.has(email);
+    const allowed = allowlist.has(email) || !!email;
+    sendJson(res, 200, { allowed, admin, source: 'dev-server' });
+    return;
+  }
+  if (parsedUrl.pathname === '/api/feature-flags') {
+    if (req.method === 'GET') {
+      const email = jwtEmailFromAuthHeader(req);
+      const admin = WORLD_ADMIN_EMAILS.has(email);
+      const doc = readFeatureFlags();
+      sendJson(res, 200, {
+        ok: true,
+        source: 'file',
+        admin,
+        version: doc.version,
+        updatedAt: doc.updatedAt,
+        flags: doc.flags,
+        enabled: featureFlagsEnabled(doc.flags, admin),
+        ids: FEATURE_FLAG_IDS,
+      });
+      return;
+    }
+    if (req.method === 'POST') {
+      const email = jwtEmailFromAuthHeader(req);
+      if (!WORLD_ADMIN_EMAILS.has(email)) {
+        sendJson(res, 403, { ok: false, error: 'Forbidden' });
+        return;
+      }
+      readJsonBody(req, 256 * 1024).then((input) => {
+        const saved = writeFeatureFlags(input);
+        sendJson(res, 200, {
+          ok: true,
+          source: 'file',
+          admin: true,
+          version: saved.version,
+          updatedAt: saved.updatedAt,
+          flags: saved.flags,
+          enabled: featureFlagsEnabled(saved.flags, true),
+          ids: FEATURE_FLAG_IDS,
+        });
+      }).catch((err) => {
+        sendJson(res, 500, { ok: false, error: err.message || String(err) });
+      });
+      return;
+    }
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET, POST' });
     return;
   }
   if (parsedUrl.pathname === '/api/model-stamps') {

@@ -46,6 +46,8 @@ Guidance for AI coding agents working in this repo. Read this before touching
   - `.codex/skills/tinyworld-crowd-layer` — 2.5D people sprites placed at 3D map coordinates.
   - `.codex/skills/tinyworld-lowpoly-world-prompt` — model prompting for coherent low-poly worlds.
   - `.codex/skills/tinyworld-lowpoly-stylized-3d` — low-poly/stylized 3D asset design, imports, materials, scale, and animation.
+  - `.codex/skills/tinyworld-tinyverse-collectibles` — Tinyverse pack reveal (`card_reveal.html`), frozen collectible islands, play-mode visits, archived universe carousel (code kept).
+  - `.codex/skills/tinyworld-island-viewer` — standalone island viewer shell and sequential generator (dev surface; not the collectible visit path).
   - `.codex/skills/tinyworld-integrations` — API, webhook, SSE, MCP, plugin, and automation examples.
   - `.codex/skills/tinyworld-runtime-state` — persisted localStorage, defaults pipeline (`tinyworld-defaults.json` + `/api/save-defaults`), audio, camera, panel positions, inline-script gotcha.
   - `.codex/skills/tinyworld-island-and-planes` — home island layout, sponsor banner drape, plane/crop-duster flight curves, "front" side conventions.

@@ -105,7 +105,12 @@ export function normalizeWorldSelectionGateData(data, gridSizeHint) {
 // EMAIL so it follows the person, not a browser or a draft's ownership row.
 // Mirrors the client allowlist in engine/world/30-ui-boot-wiring.js.
 // Extra admins can be added via a comma-separated TINYWORLD_WORLD_ADMIN_EMAILS env.
-const WORLD_ADMIN_DEFAULT_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
+const WORLD_ADMIN_DEFAULT_EMAILS = [
+  'jason@bouncingfish.com',
+  'jason.kneen@bouncingfish.com',
+  'jason.kneen@gmail.com',
+  'simongarthfarmer@gmail.com',
+];
 export function worldAdminEmails() {
   const extra = String(process.env.TINYWORLD_WORLD_ADMIN_EMAILS || '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);

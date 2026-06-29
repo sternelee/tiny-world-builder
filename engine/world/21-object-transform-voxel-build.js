@@ -192,10 +192,14 @@
     fillMaterialTextureSelect(materialTextureEl);
     fillPartMaterialSelect(materialTargetEl);
 
+    function isSettingsTabVisible(tab) {
+      return !!(tab && !tab.hidden);
+    }
+
     function selectSettingsTab(name, opts = {}) {
       const activeTab = settingsTabs.find(tab => tab.dataset.settingsTab === name);
       const activePanel = settingsPanels.find(panel => panel.dataset.settingsPanel === name);
-      if (!activeTab || !activePanel) return false;
+      if (!activeTab || !activePanel || !isSettingsTabVisible(activeTab)) return false;
       settingsTabs.forEach(tab => {
         const active = tab === activeTab;
         tab.classList.toggle('active', active);
@@ -432,8 +436,21 @@
           : '';
       }
     }
+    function visibleSettingsTabs() {
+      return settingsTabs.filter(isSettingsTabVisible);
+    }
+
+    function selectFirstVisibleSettingsTab() {
+      const first = visibleSettingsTabs()[0];
+      if (first) selectSettingsTab(first.dataset.settingsTab);
+    }
+
+    window.__twSelectSettingsTab = selectSettingsTab;
+    window.__twSelectFirstVisibleSettingsTab = selectFirstVisibleSettingsTab;
+
     settingsTabs.forEach((tab, idx) => {
       tab.addEventListener('click', () => {
+        if (!isSettingsTabVisible(tab)) return;
         selectSettingsTab(tab.dataset.settingsTab);
         updateSettingsSearch({ keepActive: true });
       });
@@ -441,20 +458,23 @@
         const key = e.key;
         if (key !== 'ArrowDown' && key !== 'ArrowRight' && key !== 'ArrowUp' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return;
         e.preventDefault();
-        const last = settingsTabs.length - 1;
-        const nextIdx = key === 'Home' ? 0
-          : key === 'End' ? last
-            : (key === 'ArrowDown' || key === 'ArrowRight') ? (idx + 1) % settingsTabs.length
-              : (idx - 1 + settingsTabs.length) % settingsTabs.length;
-        const next = settingsTabs[nextIdx];
-        if (next) {
-          selectSettingsTab(next.dataset.settingsTab, { focus: true });
+        const vis = visibleSettingsTabs();
+        if (!vis.length) return;
+        const cur = vis.indexOf(tab);
+        const last = vis.length - 1;
+        const nextTab = key === 'Home' ? vis[0]
+          : key === 'End' ? vis[last]
+            : (key === 'ArrowDown' || key === 'ArrowRight')
+              ? vis[(Math.max(0, cur) + 1) % vis.length]
+              : vis[(Math.max(0, cur) - 1 + vis.length) % vis.length];
+        if (nextTab) {
+          selectSettingsTab(nextTab.dataset.settingsTab, { focus: true });
           updateSettingsSearch({ keepActive: true });
         }
       });
     });
     if (settingsSearchEl) settingsSearchEl.addEventListener('input', () => updateSettingsSearch());
-    const initialSettingsTab = (settingsTabs.find(tab => tab.classList.contains('active')) || settingsTabs[0]);
+    const initialSettingsTab = visibleSettingsTabs().find(tab => tab.classList.contains('active')) || visibleSettingsTabs()[0];
     if (initialSettingsTab) selectSettingsTab(initialSettingsTab.dataset.settingsTab);
     updateSettingsSearch({ keepActive: true });
 
@@ -944,6 +964,9 @@
       syncControls();
       if (typeof window.__syncAiSettings === 'function') window.__syncAiSettings();
       openTinyModal(modal, closeBtn);
+      if (window.__tinyworldFeatureFlagsApi && typeof window.__tinyworldFeatureFlagsApi.mountAdminUI === 'function') {
+        window.__tinyworldFeatureFlagsApi.mountAdminUI();
+      }
       setTimeout(() => {
         updateSettingsSearch({ keepActive: true });
         if (settingsSearchEl && settingsSearchEl.focus) settingsSearchEl.focus();

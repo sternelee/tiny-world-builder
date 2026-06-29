@@ -660,8 +660,8 @@ if (!shippedCamera || !shippedCamera.target || shippedCamera.target.x !== 0 || s
 if (!/const RENDER_SETTINGS_VERSION = '28'/.test(html) || !/resolution:\s*'0\.75'/.test(html) || !/dynamicResolution:\s*'1'/.test(html) || !/targetFps:\s*'55'/.test(html) || !/brightness:\s*'1\.18'/.test(html) || !/skyBlueDepth:\s*'0\.82'/.test(html) || !/skyBlueSaturation:\s*'1\.38'/.test(html) || !/tiltBlur:\s*'2\.1'/.test(html) || !/tiltFocus:\s*'65'/.test(html) || !/materialWear:\s*'1'/.test(html)) {
   fail('hard-coded render defaults must match the shipped v28 defaults');
 }
-if (!/<div id="welcome-modal" class="modal launch-modal" hidden aria-hidden="true">[\s\S]*<img class="welcome-logo" src="assets\/twlogo\.png" alt="Tiny World Builder"[\s\S]*id="welcome-tinyverse"[^>]*>Tinyverse<\/button>[\s\S]*id="welcome-battleworlds"[^>]*>Battleworlds<\/button>[\s\S]*id="welcome-build"[^>]*>Build<\/button>[\s\S]*id="welcome-play"[^>]*>Play<\/button>[\s\S]*class="welcome-credit"[\s\S]*Created by Jason Kneen[\s\S]*https:\/\/x\.com\/jasonkneen[\s\S]*@jasonkneen[\s\S]*https:\/\/x\.com\/tinyworldsapp[\s\S]*@tinyworldsapp/.test(htmlRaw)) {
-  fail('welcome launcher must render the Tiny World logo, Tinyverse/Battleworlds/Build/Play buttons, creator credit, and social links');
+if (!/<div id="welcome-modal" class="modal launch-modal" hidden aria-hidden="true">[\s\S]*<img class="welcome-logo" src="assets\/twlogo\.png" alt="Tiny World Builder"[\s\S]*id="welcome-tinyverse"[^>]*>[\s\S]*Discover new Worlds[\s\S]*Explore the Tinyverse[\s\S]*<\/button>[\s\S]*id="welcome-battleworlds"[^>]*>BattleWorlds<\/button>[\s\S]*id="welcome-build"[^>]*>[\s\S]*Creative Mode[\s\S]*Build, share, collaborate[\s\S]*<\/button>[\s\S]*id="welcome-play"[^>]*>Play<\/button>[\s\S]*class="welcome-credit"[\s\S]*Created by Jason Kneen[\s\S]*https:\/\/x\.com\/jasonkneen[\s\S]*@jasonkneen[\s\S]*https:\/\/x\.com\/tinyworldsapp[\s\S]*@tinyworldsapp/.test(htmlRaw)) {
+  fail('welcome launcher must render the Tiny World logo, Discover new Worlds/BattleWorlds/Creative Mode/Play buttons, creator credit, and social links');
 }
 const welcomeDialogBody = sourceFunctionBody(html, 'initWelcomeDialog');
 if (!/modal\.hidden = false;/.test(welcomeDialogBody) || !/welcome-launch-open/.test(welcomeDialogBody) || !/__tinyworldMode/.test(welcomeDialogBody) || !/__tinyworldWorlds/.test(welcomeDialogBody) || !/__tinyworldBattleworlds/.test(welcomeDialogBody) || !/chooseWelcomeMode\('build'\)/.test(welcomeDialogBody) || !/chooseWelcomeMode\('play'\)/.test(welcomeDialogBody)) {
@@ -1092,6 +1092,23 @@ if (!/onConnect\(conn\)/.test(partyServer) || !(/this\.room\.broadcast/.test(par
 const pkgText = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 if (!/"party:dev"\s*:\s*"partykit dev party\/index\.js --port 1999"/.test(pkgText)) {
   fail('package.json missing party:dev script');
+}
+const featureFlagsFunctionPath = path.join(root, 'netlify/functions/feature-flags.mjs');
+if (!fs.existsSync(featureFlagsFunctionPath)) fail('Netlify feature flags function missing');
+const featureFlagsFunction = fs.readFileSync(featureFlagsFunctionPath, 'utf8');
+if (!/export const config = \{ path: '\/api\/feature-flags' \}/.test(featureFlagsFunction) || !/savePersistedFeatureFlags/.test(featureFlagsFunction)) {
+  fail('/api/feature-flags must persist flags for production admin saves');
+}
+if (/const __dirname\s*=/.test(fs.readFileSync(path.join(root, 'netlify/functions/lib/feature-flags-store.mjs'), 'utf8'))) {
+  fail('feature-flags-store must not declare __dirname (esbuild bundle collision)');
+}
+const featureFlagsClient = fs.readFileSync(path.join(root, 'engine/world/00b-feature-flags.js'), 'utf8');
+if (/twSetElementsHidden\(\['#render-settings', '#render-modal'\]/.test(featureFlagsClient)) {
+  fail('feature flags must not set render-modal.hidden=false on apply (auto-opens settings)');
+}
+if (!fs.existsSync(path.join(root, 'tinyworld-feature-flags.json'))) fail('tinyworld-feature-flags.json missing');
+if (!fs.existsSync(path.join(root, 'netlify/database/migrations/20260629120000_site_feature_flags.sql'))) {
+  fail('site_feature_flags migration missing');
 }
 
 // i18n: locale parity (en/fr/es/zh) + referenced-key validation. Runs as part

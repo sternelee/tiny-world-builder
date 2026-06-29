@@ -1,8 +1,13 @@
+  // -------- ARCHIVED (kept in repo) — universe carousel picker --------
+  // Status: archived UI path — NOT removed. Tinyverse collectibles now enter via
+  // card_reveal.html; welcome Tinyverse no longer calls WS.open() here. Module stays
+  // loaded so dev tools, tests, deep links, and future room handoffs can still call
+  // window.__tinyworldWorlds.open() / enterWorld() when needed.
+  //
   // Tinyverse — universe map, buying, and world management (playworlds-style).
   //
   // A NEW mode layered beside the freeform builder: a "🌍 Worlds" launcher opens
   // the universe map (world cards), where players enter owner-held early-preview islands,
-  // the universe map (world cards), where players enter owner-held early-preview islands
   // name/tax/build/publish their drafts, and enter published worlds to play.
   //
   // Reuses existing globals: window.__tinyworldCloudApiCall (cloud API + auth),

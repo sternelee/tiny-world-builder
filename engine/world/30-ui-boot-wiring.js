@@ -47,7 +47,12 @@ function getTestUser() {
   } catch (_) { return null; }
 }
 
-const TINYWORLD_OWNER_TOOL_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
+const TINYWORLD_OWNER_TOOL_EMAILS = [
+  'jason@bouncingfish.com',
+  'jason.kneen@bouncingfish.com',
+  'jason.kneen@gmail.com',
+  'simongarthfarmer@gmail.com',
+];
 let tinyworldOwnerToolEmail = '';
 function tinyworldOwnerToolEmailAllowed(email) {
   const clean = String(email || '').trim().toLowerCase();
@@ -97,6 +102,16 @@ window.__tinyworldOwnerToolsAllowed = tinyworldOwnerToolsAllowed;
 window.__tinyworldRefreshOwnerToolGate = refreshTinyworldOwnerToolGate;
 syncTinyworldOwnerToolControls();
 
+    const WELCOME_MODE_KEY = 'tinyworld:welcome-mode.v1';
+    function getSavedWelcomeMode() {
+      try { return String(localStorage.getItem(WELCOME_MODE_KEY) || '').trim(); } catch (_) { return ''; }
+    }
+    function setSavedWelcomeMode(mode) {
+      try { localStorage.setItem(WELCOME_MODE_KEY, String(mode || '').trim()); } catch (_) {}
+    }
+    function hasCollectibleHandoffQuery() {
+      try { return !!String(new URLSearchParams(window.location.search || '').get('collectible') || '').trim(); } catch (_) { return false; }
+    }
     const modal = document.getElementById('welcome-modal');
     if (!modal) return;
     const tinyverseBtn = document.getElementById('welcome-tinyverse');
@@ -167,10 +182,9 @@ syncTinyworldOwnerToolControls();
       }
       closeWelcome();
     };
-    // Flow: Tinyverse > Login > (if the account has no saved avatar) Select
-    // Avatar > Worlds list. Login wires into the existing auth modal; the avatar
-    // gate is account-scoped (GET /api/avatar) with a localStorage fallback so
-    // local/no-auth dev and cloud outages never strand the flow.
+    // Flow: Tinyverse > Login (if needed) > card_reveal.html pack shop.
+    // Avatar/profile gates are skipped on this path — collectibles visit uses play
+    // mode in the builder after a pack pull, not the archived worlds carousel.
     const AVATAR_LS_KEY = 'tinyworld:multiplayer:avatar-voxel';
     const localHasAvatar = () => {
       try { return !!localStorage.getItem(AVATAR_LS_KEY); } catch (_) { return false; }
@@ -260,11 +274,18 @@ syncTinyworldOwnerToolControls();
     }
     async function applyTinyverseAccessGate() {
       if (!tinyverseBtn) return;
-      
+
       const allowed = await tinyverseAccountAllowed();
-      tinyverseBtn.classList.toggle("is-soon", allowed === false);
-      if (allowed === false) tinyverseBtn.setAttribute("aria-disabled", "true");
-      else tinyverseBtn.removeAttribute("aria-disabled");
+      // null = signed out (keep clickable so allowlisted users can sign in first).
+      const locked = allowed === false;
+      tinyverseBtn.classList.toggle('is-soon', locked);
+      if (locked) {
+        tinyverseBtn.setAttribute('aria-disabled', 'true');
+        tinyverseBtn.disabled = true;
+      } else {
+        tinyverseBtn.removeAttribute('aria-disabled');
+        tinyverseBtn.disabled = false;
+      }
     }
     window.__applyTinyverseGate = applyTinyverseAccessGate;
 
@@ -285,36 +306,17 @@ syncTinyworldOwnerToolControls();
           return;
         }
         // 1b. Server access gate — Tinyverse/lobby/multiplayer is invite-only.
-        if ((await tinyverseAccountAllowed()) === false) {
+        if ((await tinyverseAccountAllowed()) !== true) {
           applyTinyverseAccessGate();
-          if (typeof twToast === "function") twToast("Tinyverse is coming soon");
+          if (typeof twToast === 'function') twToast('Tinyverse is coming soon');
           return;
         }
-        if (typeof window.__tinyworldEnsureProfileComplete === 'function') {
-          const complete = await window.__tinyworldEnsureProfileComplete('Complete your profile before entering Tinyverse: email, full name, Twitter/X, and GitHub.');
-          if (!complete) return;
-        }
         setTinyverseLoading(true);
-        const worlds = await waitForWorldsFrontend();
-        if (!worlds) { setTinyverseLoading(false); showTinyverseUnavailable(); return; }
-        // 2. Avatar gate — first-timers pick a look before seeing the list.
-        let needsAvatar = false;
-        try { needsAvatar = await accountNeedsAvatar(); } catch (_) { needsAvatar = false; }
-        if (needsAvatar) {
-          setTinyverseLoading(false);
-          const picked = await promptAvatarSelection();
-          if (!picked) return; // closed without saving — stay on welcome
-          setTinyverseLoading(true);
-        }
-        // 3. Worlds list.
-        try {
-          worlds.open();
-          closeWelcome();
-        } catch (err) {
-          console.warn('[welcome] Tinyverse failed to open:', err);
-          setTinyverseLoading(false);
-          showTinyverseUnavailable();
-        }
+        // Tinyverse collectibles: straight to pack reveal (canon). Universe carousel
+        // in 46-worlds-universe.js is ARCHIVED — code remains, not opened here.
+        setSavedWelcomeMode('collectables');
+        closeWelcome();
+        window.location.href = '/card_reveal.html';
       } finally {
         tinyverseOpening = false;
       }
@@ -322,6 +324,7 @@ syncTinyworldOwnerToolControls();
     // Let the login-success path (enterApp, another closure) resume this flow.
     window.__tinyverseEnter = openTinyverse;
     const openBattleworlds = () => {
+      setSavedWelcomeMode('battleworlds');
       const battleworlds = window.__tinyworldBattleworlds;
       if (battleworlds && typeof battleworlds.open === 'function') {
         closeWelcome();
@@ -331,6 +334,26 @@ syncTinyworldOwnerToolControls();
         } catch (_) {}
       }
       chooseWelcomeMode('play');
+    };
+    const resumeWelcomeMode = (opts = {}) => {
+      if (opts.forcePicker) {
+        showWelcome(opts);
+        return;
+      }
+      const saved = getSavedWelcomeMode();
+      if (saved === 'collectables') {
+        window.location.href = '/card_reveal.html';
+        return;
+      }
+      if (saved === 'battleworlds') {
+        openBattleworlds();
+        return;
+      }
+      if (saved === 'creative') {
+        chooseWelcomeMode('build');
+        return;
+      }
+      showWelcome(opts);
     };
     const showWelcome = (opts = {}) => {
       if (randomIslandPreviewModeEnabled()) {
@@ -357,10 +380,17 @@ syncTinyworldOwnerToolControls();
       });
     };
     window.__tinyworldShowWelcomeLaunch = showWelcome;
+    window.__tinyworldResumeWelcomeMode = resumeWelcomeMode;
     if (tinyverseBtn) tinyverseBtn.addEventListener('click', openTinyverse);
     if (battleworldsBtn) battleworldsBtn.addEventListener('click', openBattleworlds);
-    if (buildBtn) buildBtn.addEventListener('click', () => chooseWelcomeMode('build'));
-    if (playBtn) playBtn.addEventListener('click', () => chooseWelcomeMode('play'));
+    if (buildBtn) buildBtn.addEventListener('click', () => {
+      setSavedWelcomeMode('creative');
+      chooseWelcomeMode('build');
+    });
+    if (playBtn) playBtn.addEventListener('click', () => {
+      setSavedWelcomeMode('creative');
+      chooseWelcomeMode('play');
+    });
 
     // One-button test login for preview (lockout testing)
     if (isPreviewTest() && tinyverseBtn && tinyverseBtn.parentNode) {
@@ -403,6 +433,18 @@ syncTinyworldOwnerToolControls();
     }
     if (randomIslandPreviewModeEnabled()) {
       closeWelcome();
+      return;
+    }
+    let forceWelcome = false;
+    try { forceWelcome = new URLSearchParams(window.location.search || '').has('welcome'); } catch (_) {}
+    if (!forceWelcome && hasCollectibleHandoffQuery()) {
+      closeWelcome();
+      chooseWelcomeMode('play');
+      return;
+    }
+    if (!forceWelcome && getSavedWelcomeMode()) {
+      closeWelcome();
+      chooseWelcomeMode('build');
       return;
     }
     showWelcome({ skipRoomCleanup: true });
@@ -1604,7 +1646,7 @@ syncTinyworldOwnerToolControls();
       // permanently locked.
       window.__loggedIn = true;
       // Hide sign-in/out/account UI; unhide AI generate; clear locked badge.
-      for (const id of ['auth-login-btn-top', 'auth-logout-btn', 'account-btn']) {
+      for (const id of ['auth-login-btn-top', 'auth-logout-btn', 'language-menu-signout', 'account-btn']) {
         const el = document.getElementById(id);
         if (el) el.hidden = true;
       }
@@ -1827,7 +1869,9 @@ syncTinyworldOwnerToolControls();
     function setLoggedInState(isLoggedIn) {
       window.__loggedIn = !!isLoggedIn;
       const authAvailable = !!window.__tinyworldAuthEnabled;
-      if (logoutBtn) logoutBtn.hidden = !isLoggedIn || !authAvailable;
+      const menuSignOut = document.getElementById('language-menu-signout');
+      if (logoutBtn) logoutBtn.hidden = true;
+      if (menuSignOut) menuSignOut.hidden = !isLoggedIn || !authAvailable;
       if (accountBtn) accountBtn.hidden = !isLoggedIn || !authAvailable;
       const loginBtnTop = document.getElementById('auth-login-btn-top');
       if (loginBtnTop) loginBtnTop.hidden = !!isLoggedIn || !authAvailable;
@@ -1843,36 +1887,15 @@ syncTinyworldOwnerToolControls();
       }
       if (typeof window.syncToolbarAccountButton === 'function') window.syncToolbarAccountButton();
       if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
+      refreshFeatureFlagsForSession();
     }
 
-    // AI interfaces are hidden on prod (the boot script adds html.ai-disabled
-    // unless local / ?ai=1 / stored flag). Unlock them live for allow-listed
-    // accounts when they sign in, and revert on sign-out, so the grant follows
-    // the account rather than the browser.
-    const AI_ACCOUNT_ALLOWLIST = ['jason@bouncingfish.com'];
-    const aiBaseEnabled = !!window.__TWB_AI_INTERFACES_ENABLED__;
-    let aiUnlockedByAccount = false;
-    function setAiInterfacesEnabled(on) {
-      window.__TWB_AI_INTERFACES_ENABLED__ = !!on;
-      document.documentElement.classList.toggle('ai-disabled', !on);
-    }
-    async function applyAccountAiEntitlement() {
-      if (aiBaseEnabled) return; // already enabled for everyone here (local/?ai=1/stored)
-      const A = window.TinyWorldAuth;
-      if (!A || typeof A.getUser !== 'function') return;
-      let email = '';
-      try { const u = await A.getUser(); email = ((u && u.email) || '').trim().toLowerCase(); } catch (_) { return; }
-      if (email && AI_ACCOUNT_ALLOWLIST.indexOf(email) !== -1) {
-        aiUnlockedByAccount = true;
-        setAiInterfacesEnabled(true);
-        setLoggedInState(!!window.__loggedIn); // refresh gated controls (Generate, etc.)
-      }
-    }
-    function revertAccountAiEntitlement() {
-      if (aiUnlockedByAccount && !aiBaseEnabled) {
-        aiUnlockedByAccount = false;
-        setAiInterfacesEnabled(false);
-      }
+    function refreshFeatureFlagsForSession() {
+      const api = window.__tinyworldFeatureFlagsApi;
+      if (!api || typeof api.refreshAdmin !== 'function') return Promise.resolve();
+      return api.refreshAdmin().then(() => {
+        if (typeof api.mountAdminUI === 'function') api.mountAdminUI();
+      });
     }
 
     function openLoginModal(reason) {
@@ -1891,11 +1914,25 @@ syncTinyworldOwnerToolControls();
     // Expose to gated handlers outside this closure.
     window.__openLoginModal = openLoginModal;
 
+    function returnAfterAuthIfRequested() {
+      try {
+        const qs = new URLSearchParams(window.location.search);
+        const returnTo = String(qs.get('return') || '').trim();
+        if (!returnTo || !returnTo.startsWith('/')) return false;
+        if (!/^\/card_reveal\.html(?:[?#].*)?$/.test(returnTo)) return false;
+        window.location.replace(returnTo);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
     function enterApp() {
       closeTinyModal(modal);
       setLoggedInState(true);
       if (typeof window.__applyTinyverseGate === 'function') window.__applyTinyverseGate();  // refresh Tinyverse access once email is known
-      applyAccountAiEntitlement();
+      refreshFeatureFlagsForSession();
+      if (returnAfterAuthIfRequested()) return;
       bootApp();
       if (typeof window.__tinyworldRefreshOwnerToolGate === 'function') window.__tinyworldRefreshOwnerToolGate();
       initAccountModal();
@@ -1997,16 +2034,28 @@ syncTinyworldOwnerToolControls();
     });
 
     // Logout — drop back to anonymous mode, no forced re-login.
-    if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+    async function runLogout() {
       twCloudClearWalletSessionToken();
       try {
         await Auth.logout();
       } catch (_) {}
       twWorldCatalogClear();
       setLoggedInState(false);
-      revertAccountAiEntitlement();
+      refreshFeatureFlagsForSession();
       if (typeof window.__tinyworldWorldMenuRefresh === 'function') window.__tinyworldWorldMenuRefresh();
+    }
+    const menuSignOutBtn = document.getElementById('language-menu-signout');
+    if (menuSignOutBtn) menuSignOutBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const languagePicker = document.getElementById('language-picker');
+      const languageMenu = document.getElementById('language-menu');
+      const languageTrigger = document.getElementById('language-trigger');
+      if (languagePicker) languagePicker.classList.remove('open');
+      if (languageMenu) languageMenu.hidden = true;
+      if (languageTrigger) languageTrigger.setAttribute('aria-expanded', 'false');
+      await runLogout();
     });
+    if (logoutBtn) logoutBtn.addEventListener('click', runLogout);
 
     // Top-bar Sign In button opens the login modal.
     const topLoginBtn = document.getElementById('auth-login-btn-top');
@@ -2058,6 +2107,12 @@ syncTinyworldOwnerToolControls();
         // Anonymous mode by default — boot the app, gate
         // settings / AI / cloud behind a sign-in prompt.
         enterAnonApp();
+        try {
+          const qs = new URLSearchParams(window.location.search);
+          if (qs.get('auth') === 'login' && !identityUnavailable) {
+            openLoginModal('Sign in to open Tinyverse packs');
+          }
+        } catch (_) {}
       }
     })();
   }
@@ -2069,14 +2124,18 @@ syncTinyworldOwnerToolControls();
     twPerfMark('boot:start');
     appBooted = true;
     initWelcomeDialog();
-    // Top-right home button -> in-app launch modal.
+    // Top-right home button -> resume last mode; add ?welcome to force the picker.
     try {
       const homeBtn = document.getElementById('landing-home-btn');
       if (homeBtn && !homeBtn.__wired) {
         homeBtn.__wired = true;
         homeBtn.addEventListener('click', (e) => {
           e.preventDefault();
-          if (typeof window.__tinyworldShowWelcomeLaunch === 'function') window.__tinyworldShowWelcomeLaunch();
+          if (typeof window.__tinyworldResumeWelcomeMode === 'function') {
+            window.__tinyworldResumeWelcomeMode();
+          } else if (typeof window.__tinyworldShowWelcomeLaunch === 'function') {
+            window.__tinyworldShowWelcomeLaunch();
+          }
         });
       }
     } catch (_) {}
@@ -2645,12 +2704,12 @@ syncTinyworldOwnerToolControls();
       try { localStorage.setItem(COLLAPSED_KEY, hidden ? '1' : '0'); } catch (_) {}
     }
 
-    // Restore collapsed state
+    // Restore collapsed state — hidden by default; only show when explicitly opened.
     try {
-      const isCollapsed = localStorage.getItem(COLLAPSED_KEY) === '1';
-      setPanelHidden(isCollapsed);
+      const raw = localStorage.getItem(COLLAPSED_KEY);
+      setPanelHidden(raw !== '0');
     } catch (_) {
-      setPanelHidden(false);
+      setPanelHidden(true);
     }
 
     if (toggle) {
@@ -3125,6 +3184,7 @@ syncTinyworldOwnerToolControls();
     window.__tinyworldIsBuildTimeEditable = isBuildTimeEditable;
     window.addEventListener('tinyworld:mode-changed', syncTimeModeState);
     setInterval(() => {
+      if (window.__tinyworldElapsingTimeEnabled === false) return;
       if (isBuildTimeEditable() && buildTodManual) {
         repaintTimeWeatherPopup();
         return;
@@ -3417,7 +3477,23 @@ syncTinyworldOwnerToolControls();
       if (typeof window.updateToolbarBuildPlayState === 'function') window.updateToolbarBuildPlayState(playModeActive);
     }
 
+    function isCollectibleSessionActive() {
+      return !!(window.__tinyworldCollectible && typeof window.__tinyworldCollectible.isActive === 'function'
+        && window.__tinyworldCollectible.isActive());
+    }
+
+    function syncCollectibleChrome() {
+      const locked = isCollectibleSessionActive();
+      document.body.classList.toggle('tinyverse-collectible', locked);
+      if (buildPlayBtn) {
+        buildPlayBtn.disabled = locked;
+        buildPlayBtn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+      }
+    }
+    window.__tinyworldSyncCollectibleChrome = syncCollectibleChrome;
+
     function setPlayModeActive(on, opts = {}) {
+      if (!on && isCollectibleSessionActive()) on = true;
       playModeActive = !!on;
       document.body.classList.toggle('tw-play-mode', playModeActive);
       syncBuildPlayButton();
@@ -3445,13 +3521,19 @@ syncTinyworldOwnerToolControls();
     window.__tinyworldIsPlayMode = () => playModeActive;
     window.__tinyworldMode = {
       isPlay: () => playModeActive,
-      isBuild: () => !playModeActive,
+      isBuild: () => !playModeActive && !isCollectibleSessionActive(),
       setPlay: () => setPlayModeActive(true),
-      setBuild: () => setPlayModeActive(false),
+      setBuild: () => {
+        if (isCollectibleSessionActive()) return;
+        setPlayModeActive(false);
+      },
       setPlayTemporary: () => setPlayModeActive(true, { persist: false }),
-      toggle: () => setPlayModeActive(!playModeActive),
+      toggle: () => {
+        if (isCollectibleSessionActive()) return;
+        setPlayModeActive(!playModeActive);
+      },
     };
-    if (buildPlayBtn) buildPlayBtn.addEventListener('click', () => setPlayModeActive(!playModeActive));
+    if (buildPlayBtn) buildPlayBtn.addEventListener('click', () => window.__tinyworldMode.toggle());
     setPlayModeActive(playModeActive, { skipEditorCleanup: true });
 
     // -- raise / lower terrain (visible buttons matching R/F keys) --
@@ -4124,51 +4206,71 @@ syncTinyworldOwnerToolControls();
 
     function newWorldRevealMarkerLabelTexture(text, color) {
       if (typeof document === 'undefined' || typeof THREE === 'undefined') return null;
+      const fontPx = 32;
+      const padX = 30;
+      const padY = 18;
+      const font = '800 ' + fontPx + 'px ui-sans-serif, system-ui, -apple-system, sans-serif';
+      const measureCanvas = document.createElement('canvas');
+      const measureCtx = measureCanvas.getContext('2d');
+      if (!measureCtx) return null;
+      measureCtx.font = font;
+      const textWidth = Math.ceil(measureCtx.measureText(text).width);
       const canvas = document.createElement('canvas');
-      canvas.width = 192;
-      canvas.height = 64;
+      canvas.width = textWidth + padX * 2;
+      canvas.height = fontPx + padY * 2;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       const c = new THREE.Color(color);
       const fill = '#' + c.getHexString();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      const w = canvas.width;
+      const h = canvas.height;
+      const r = Math.min(22, Math.floor(h / 2) - 2);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
       ctx.strokeStyle = fill;
-      ctx.lineWidth = 4;
-      const r = 20;
+      ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.moveTo(26 + r, 10);
-      ctx.lineTo(166 - r, 10);
-      ctx.quadraticCurveTo(166, 10, 166, 10 + r);
-      ctx.lineTo(166, 54 - r);
-      ctx.quadraticCurveTo(166, 54, 166 - r, 54);
-      ctx.lineTo(26 + r, 54);
-      ctx.quadraticCurveTo(26, 54, 26, 54 - r);
-      ctx.lineTo(26, 10 + r);
-      ctx.quadraticCurveTo(26, 10, 26 + r, 10);
+      ctx.moveTo(r, 0);
+      ctx.lineTo(w - r, 0);
+      ctx.arcTo(w, 0, w, r, r);
+      ctx.lineTo(w, h - r);
+      ctx.arcTo(w, h, w - r, h, r);
+      ctx.lineTo(r, h);
+      ctx.arcTo(0, h, 0, h - r, r);
+      ctx.lineTo(0, r);
+      ctx.arcTo(0, 0, r, 0, r);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#203047';
-      ctx.font = '700 22px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, 96, 32);
+      ctx.fillStyle = '#142033';
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.85)';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(text, w / 2, h / 2 + 1);
+      ctx.fillText(text, w / 2, h / 2 + 1);
       const texture = new THREE.CanvasTexture(canvas);
       texture.needsUpdate = true;
       texture.generateMipmaps = false;
       texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
       return texture;
     }
 
     function newWorldRevealStatMarkerText(stat) {
-      return ({
+      const fallbacks = {
         food: 'Food',
-        materials: 'Mat',
-        commerce: 'Trade',
-        defense: 'Def',
+        materials: 'Materials',
+        commerce: 'Commerce',
+        defense: 'Defense',
         charm: 'Charm',
-      })[stat] || 'Trait';
+      };
+      return randomIslandStatLabel(stat, fallbacks[stat] || 'Trait');
     }
 
     function paintNewWorldRevealHighlight(step) {
@@ -4217,22 +4319,28 @@ syncTinyworldOwnerToolControls();
         dot.position.set(pos.x + ox, y + 0.28, pos.z + oz);
         group.add(stem);
         group.add(dot);
-        if (markerIndex < 5) {
-          const texture = newWorldRevealMarkerLabelTexture(newWorldRevealStatMarkerText(step.stat), markerColor);
-          if (texture) {
-            const labelMat = new THREE.SpriteMaterial({
-              map: texture,
-              transparent: true,
-              depthWrite: false,
-              depthTest: false,
-            });
-            const sprite = new THREE.Sprite(labelMat);
-            sprite.position.set(pos.x + ox, y + 0.56, pos.z + oz);
-            sprite.scale.set(0.72, 0.24, 1);
-            group.add(sprite);
-          }
-        }
       });
+      const labelText = newWorldRevealStatMarkerText(step.stat);
+      const labelTexture = newWorldRevealMarkerLabelTexture(labelText, markerColor);
+      if (labelTexture) {
+        const labelAspect = labelTexture.image
+          ? labelTexture.image.width / Math.max(1, labelTexture.image.height)
+          : 3.2;
+        const labelHeight = 0.46;
+        const avg = averageNewWorldRevealCells(step.cells);
+        const avgY = step.cells.reduce((sum, cell) => sum + newWorldRevealCellY(cell), 0) / Math.max(1, step.cells.length);
+        const labelMat = new THREE.SpriteMaterial({
+          map: labelTexture,
+          transparent: true,
+          depthWrite: false,
+          depthTest: false,
+        });
+        const sprite = new THREE.Sprite(labelMat);
+        sprite.position.set(avg.x, avgY + 0.68, avg.z);
+        sprite.scale.set(labelHeight * labelAspect, labelHeight, 1);
+        sprite.renderOrder = 999;
+        group.add(sprite);
+      }
       if (!group.children.length) {
         dotGeo.dispose();
         stemGeo.dispose();
@@ -4508,6 +4616,86 @@ syncTinyworldOwnerToolControls();
       renderNewWorldReveal();
     }
 
+    function makeBlankWorldState(gridSize) {
+      const size = typeof coerceGridSize === 'function' ? coerceGridSize(gridSize, GRID) : GRID;
+      const cells = [];
+      for (let x = 0; x < size; x++) {
+        for (let z = 0; z < size; z++) {
+          cells.push({
+            x,
+            z,
+            terrain: 'grass',
+            kind: null,
+            floors: 1,
+            terrainFloors: 1,
+            buildingType: null,
+            fenceSide: null,
+          });
+        }
+      }
+      return { v: 4, gridSize: size, cells };
+    }
+
+    function exitCollectibleSessionIfActive() {
+      if (window.__tinyworldCollectible && typeof window.__tinyworldCollectible.exit === 'function') {
+        window.__tinyworldCollectible.exit();
+      }
+    }
+
+    function createBlankWorldFromMenu() {
+      if (typeof applyState !== 'function') {
+        twToast('Could not create a blank world.', 'err');
+        return;
+      }
+      dismissWelcomeLaunchForNewWorld();
+      leaveWorldRoomForMenuLoad();
+      exitCollectibleSessionIfActive();
+      const data = makeBlankWorldState(GRID);
+      if (!applyState(data)) {
+        twToast('Could not create a blank world.', 'err');
+        return;
+      }
+      if (window.__tinyworldMode && typeof window.__tinyworldMode.setBuild === 'function') {
+        window.__tinyworldMode.setBuild();
+      }
+      const n = readWorldsMeta().length + 1;
+      saveAsNew('New world ' + n);
+      paintLabel();
+      paintList();
+      close();
+    }
+
+    async function createDefaultWorldFromMenu() {
+      if (typeof applyState !== 'function') {
+        twToast('Default template is unavailable.', 'err');
+        return;
+      }
+      dismissWelcomeLaunchForNewWorld();
+      leaveWorldRoomForMenuLoad();
+      exitCollectibleSessionIfActive();
+      let ok = false;
+      if (typeof applyDefaultIslandState === 'function') {
+        ok = applyDefaultIslandState({ keepCamera: false });
+        if (!ok && window.__tinyworldDefaultIslandReady && typeof window.__tinyworldDefaultIslandReady.then === 'function') {
+          try { await window.__tinyworldDefaultIslandReady; } catch (_) {}
+          ok = applyDefaultIslandState({ keepCamera: false });
+        }
+      }
+      if (!ok) {
+        twToast('Default template is unavailable.', 'err');
+        return;
+      }
+      if (typeof resetCameraDefaults === 'function') resetCameraDefaults();
+      if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
+      if (window.__tinyworldMode && typeof window.__tinyworldMode.setBuild === 'function') {
+        window.__tinyworldMode.setBuild();
+      }
+      saveAsNew('Default village');
+      paintLabel();
+      paintList();
+      close();
+    }
+
     function createRandomIslandWorldFromMenu() {
       if (typeof generateProceduralWorld !== 'function' || typeof applyState !== 'function') {
         twToast(worldMenuRevealText('newworld.generatorUnavailable', 'Random island generator is unavailable.'), 'err');
@@ -4538,6 +4726,91 @@ syncTinyworldOwnerToolControls();
       close();
       setTimeout(() => openNewWorldReveal(profile), 180);
     }
+
+    window.__tinyworldCollectible = {
+      active: false,
+      id: null,
+      profile: null,
+      enter(opts = {}) {
+        const world = opts.world;
+        const profile = opts.profile || null;
+        if (!world || typeof applyState !== 'function' || !applyState(world)) return false;
+        this.active = true;
+        this.id = opts.id || opts.collectibleId || null;
+        this.profile = profile;
+        dismissWelcomeLaunchForNewWorld();
+        leaveWorldRoomForMenuLoad();
+        if (window.__tinyworldMode && typeof window.__tinyworldMode.setPlay === 'function') {
+          window.__tinyworldCollectible._resumeBuild = window.__tinyworldMode.isBuild && window.__tinyworldMode.isBuild();
+          window.__tinyworldMode.setPlay();
+        }
+        if (typeof window.__tinyworldSyncCollectibleChrome === 'function') window.__tinyworldSyncCollectibleChrome();
+        if (profile) setTimeout(() => openNewWorldReveal(profile), 180);
+        return true;
+      },
+      exit() {
+        this.active = false;
+        this.id = null;
+        this.profile = null;
+        this._resumeBuild = false;
+        if (typeof window.__tinyworldSyncCollectibleChrome === 'function') window.__tinyworldSyncCollectibleChrome();
+      },
+      isActive() {
+        return !!this.active;
+      },
+      importToBuildCopy(name) {
+        if (!this.active) return false;
+        const state = typeof snapshotCurrentState === 'function' ? snapshotCurrentState() : null;
+        if (!state) return false;
+        const copyName = String(name || (this.profile && this.profile.name) || 'Imported island').trim() || 'Imported island';
+        exitCollectibleSessionIfActive();
+        if (window.__tinyworldMode && typeof window.__tinyworldMode.setBuild === 'function') {
+          window.__tinyworldMode.setBuild();
+        }
+        saveAsNew(copyName + ' (play copy)');
+        paintLabel();
+        paintList();
+        return true;
+      },
+    };
+
+    function bootCollectibleHandoffFromQuery() {
+      const params = new URLSearchParams(window.location.search || '');
+      const id = String(params.get('collectible') || '').trim();
+      if (!id) return;
+
+      const TC = window.TinyverseCollectibles;
+      let pending = TC && typeof TC.consumePendingHandoff === 'function' ? TC.consumePendingHandoff() : null;
+      let rec = TC && typeof TC.get === 'function' ? TC.get(id) : null;
+
+      const world = (pending && pending.id === id && pending.world)
+        || (rec && rec.world)
+        || null;
+      const profile = (pending && pending.profile)
+        || (rec && rec.profile)
+        || null;
+      if (!world || typeof applyState !== 'function') return;
+
+      function tryEnter(attempts) {
+        if (typeof applyState !== 'function' || !window.__tinyworldCollectible) {
+          if (attempts > 0) setTimeout(() => tryEnter(attempts - 1), 200);
+          return;
+        }
+        const ok = window.__tinyworldCollectible.enter({ id, world, profile });
+        if (!ok && attempts > 0) {
+          setTimeout(() => tryEnter(attempts - 1), 200);
+          return;
+        }
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('collectible');
+          window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+        } catch (_) {}
+      }
+
+      setTimeout(() => tryEnter(40), 500);
+    }
+    bootCollectibleHandoffFromQuery();
 
     const RANDOM_ISLAND_PREVIEW_PARENT_SOURCE = 'tinyworld-random-island-preview-control';
     const RANDOM_ISLAND_PREVIEW_APP_SOURCE = 'tinyworld-random-island-preview';
@@ -5002,8 +5275,10 @@ syncTinyworldOwnerToolControls();
     menu.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-action');
-        if (action === 'new') {
-          createRandomIslandWorldFromMenu();
+        if (action === 'new-blank') {
+          createBlankWorldFromMenu();
+        } else if (action === 'new-default') {
+          createDefaultWorldFromMenu();
         } else if (action === 'duplicate') {
           const active = findMenuActiveWorld();
           const baseName = (active && active.name) || 'World';
@@ -5067,14 +5342,22 @@ syncTinyworldOwnerToolControls();
         if (el && !el.hidden) el.click();
       };
     }
+    function ffEnabled(id) {
+      try {
+        const api = window.__tinyworldFeatureFlagsApi;
+        if (api && typeof api.isEnabled === 'function') return api.isEnabled(id);
+      } catch (_) {}
+      return true;
+    }
+
     function settingsTab(name) {
       return () => {
+        if (!ffEnabled('settings')) return;
         const btn = document.getElementById('render-settings');
-        if (btn) btn.click();
-        // After modal opens, switch the tab.
+        if (btn && !btn.hidden) btn.click();
         requestAnimationFrame(() => {
           const tab = document.querySelector('.settings-tab[data-settings-tab="' + name + '"]');
-          if (tab) tab.click();
+          if (tab && !tab.hidden) tab.click();
         });
       };
     }
@@ -5120,9 +5403,11 @@ syncTinyworldOwnerToolControls();
       } });
       // Scene
       const ownerFileTools = !!(window.__tinyworldOwnerToolsAllowed && window.__tinyworldOwnerToolsAllowed());
-      items.push({ group: 'Scene', label: 'Time & weather…', hint: 'tint, season, weather', run: topBtnAction('time-weather') });
+      if (ffEnabled('weather') || ffEnabled('elapsingTime')) {
+        items.push({ group: 'Scene', label: 'Time & weather…', hint: 'tint, season, weather', run: topBtnAction('time-weather') });
+      }
       items.push({ group: 'Scene', label: 'Toggle developer overlay', hint: 'FPS / draws / tris', kbd: '`', run: topBtnAction('dev-mode') });
-      items.push({ group: 'World', label: 'Generate Canyon Landscape…', hint: 'infinite terraced canyon procedural mesh', run: () => {
+      if (ffEnabled('ai')) items.push({ group: 'World', label: 'Generate Canyon Landscape…', hint: 'infinite terraced canyon procedural mesh', run: () => {
         const btn = document.getElementById('ai-generate');
         if (btn) btn.click();
         requestAnimationFrame(() => {
@@ -5186,11 +5471,13 @@ syncTinyworldOwnerToolControls();
         const btn = document.querySelector('#world-menu [data-action="collaborate"]');
         if (btn) btn.click();
       } });
-      items.push({ group: 'World', label: 'Generate from prompt…', hint: 'AI generation panel', kbd: '⌘G', run: () => {
-        if (typeof openGenerateModal === 'function') openGenerateModal();
-        else topBtnAction('generate')();
-      } });
-      items.push({ group: 'World', label: 'Generate random island (offline)', hint: 'seeded archetype island, no LLM', run: () => {
+      if (ffEnabled('generatePrompt')) {
+        items.push({ group: 'World', label: 'Generate from prompt…', hint: 'AI generation panel', kbd: '⌘G', run: () => {
+          if (typeof openGenerateModal === 'function') openGenerateModal();
+          else topBtnAction('generate')();
+        } });
+      }
+      if (ffEnabled('ai')) items.push({ group: 'World', label: 'Generate random island (offline)', hint: 'seeded archetype island, no LLM', run: () => {
         try {
           const state = (typeof window.__genState === 'function') ? window.__genState() : null;
           const seed = (state && state.seed) || randomSeed();
@@ -5202,13 +5489,28 @@ syncTinyworldOwnerToolControls();
         } catch (err) { console.warn('[palette] procedural failed:', err); }
       } });
       // Settings tabs (router into the Settings modal)
-      items.push({ group: 'Settings', label: 'Settings — App',          run: settingsTab('app') });
-      items.push({ group: 'Settings', label: 'Settings — Rendering',    run: settingsTab('rendering') });
-      items.push({ group: 'Settings', label: 'Settings — World',        run: settingsTab('world') });
-      items.push({ group: 'Settings', label: 'Settings — Materials',    run: settingsTab('materials') });
-      items.push({ group: 'Settings', label: 'Settings — Environment',  run: settingsTab('environment') });
-      items.push({ group: 'Settings', label: 'Settings — Crowd',        run: settingsTab('crowd') });
-      items.push({ group: 'Settings', label: 'Settings — AI Config',    run: settingsTab('ai') });
+      if (ffEnabled('settings')) {
+        const settingsPalette = [
+          { name: 'app', label: 'Settings — Workspace', flag: 'settingsWorkspace' },
+          { name: 'rendering', label: 'Settings — Rendering', flag: 'settingsRendering' },
+          { name: 'world', label: 'Settings — World', flag: 'settingsWorld' },
+          { name: 'materials', label: 'Settings — Materials', flag: 'settingsMaterials' },
+          { name: 'environment', label: 'Settings — Environment', flag: 'settingsEnvironment' },
+          { name: 'crowd', label: 'Settings — Crowd', flag: 'settingsCrowd' },
+          { name: 'ai', label: 'Settings — AI Config', flag: 'settingsAi' },
+        ];
+        settingsPalette.forEach((entry) => {
+          if (ffEnabled(entry.flag)) {
+            items.push({ group: 'Settings', label: entry.label, run: settingsTab(entry.name) });
+          }
+        });
+        try {
+          const st = window.__tinyworldFeatureFlagsApi && window.__tinyworldFeatureFlagsApi.state();
+          if (st && st.admin) {
+            items.push({ group: 'Settings', label: 'Settings — Feature flags', run: settingsTab('feature-flags') });
+          }
+        } catch (_) {}
+      }
       if (window.__tinyworldAuthEnabled) {
         items.push({ group: 'Account', label: 'Open account / My Worlds', run: topBtnAction('account-btn') });
         items.push({ group: 'Account', label: 'Sign in', run: () => {
@@ -5216,7 +5518,7 @@ syncTinyworldOwnerToolControls();
           if (top && !top.hidden) top.click();
           else if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to unlock AI, settings & cloud saves');
         } });
-        items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
+        items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('language-menu-signout') });
       }
       return items;
     }

@@ -1,7 +1,6 @@
 const TINYVERSE_ACCESS_DEFAULT_EMAILS = [
   'jason@bouncingfish.com',
-  'jason.kneen@bouncingfish.com',
-  'jason.kneen@gmail.com',
+  'simongarthfarmer@gmail.com',
 ];
 
 function cleanTinyverseEmail(value) {

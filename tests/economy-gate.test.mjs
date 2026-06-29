@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { requireTinyverseAccess, isTinyverseAccessEmail } from '../netlify/functions/lib/tinyverse-access.mjs';
 
 test('owner emails pass the economy gate (null = allowed)', () => {
-  for (const e of ['jason@bouncingfish.com', 'JASON.KNEEN@GMAIL.COM', '  jason.kneen@bouncingfish.com ']) {
+  for (const e of ['jason@bouncingfish.com', 'simongarthfarmer@gmail.com', '  SimonGarthFarmer@Gmail.com ']) {
     assert.equal(requireTinyverseAccess({ email: e }, 'https://x'), null);
   }
 });

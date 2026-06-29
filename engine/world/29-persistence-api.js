@@ -132,6 +132,8 @@
 
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
+    if (window.__tinyworldCollectible && typeof window.__tinyworldCollectible.isActive === 'function'
+        && window.__tinyworldCollectible.isActive()) return;
     if (suppressSave) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {

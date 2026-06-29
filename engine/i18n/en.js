@@ -107,6 +107,11 @@
     'minimap.toggle': 'Hide/show map (N)',
 
     // ---- top app bar (tooltips / aria) ----
+    'chrome.menu': 'Menu',
+    'chrome.home': 'Home',
+    'chrome.menuSignIn': 'Sign in',
+    'chrome.menuSignOut': 'Sign out',
+
     'appbar.github': 'View on GitHub',
     'appbar.controls': 'Keyboard & mouse controls',
     'appbar.settings': 'Settings',
@@ -165,8 +170,10 @@
     'worldmenu.namePlaceholder': 'Whispering Vale',
     'worldmenu.nameAria': 'World name',
     'worldmenu.saveName': 'Save name',
-    'worldmenu.new': 'New world',
-    'worldmenu.new.hint': 'random island',
+    'worldmenu.newBlank': 'Create new',
+    'worldmenu.newBlank.hint': 'blank grass island',
+    'worldmenu.newDefault': 'Create default',
+    'worldmenu.newDefault.hint': 'starter village',
     'worldmenu.duplicate': 'Duplicate',
     'worldmenu.duplicate.hint': 'copy of this world',
     'worldmenu.myWorlds': 'My worlds',
@@ -265,6 +272,11 @@
     'layers.propsEmpty': 'Select an item in World Items to see its properties.',
 
     // ---- welcome / how-to ----
+    'welcome.collectables': 'Discover new Worlds',
+    'welcome.collectablesTagline': 'Explore the Tinyverse',
+    'welcome.battleworlds': 'BattleWorlds',
+    'welcome.creativeMode': 'Creative Mode',
+    'welcome.creativeModeTagline': 'Build, share, collaborate',
     'welcome.subtitle': "Choose how you'd like to begin",
     'welcome.tip1.title': 'Tap or click to build',
     'welcome.tip1.body': 'Select a tool, then tap any tile to place it.',

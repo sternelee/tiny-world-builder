@@ -13,6 +13,8 @@ test('isWorldAdminEmail allows the default world-admin accounts (case/space-inse
   assert.equal(isWorldAdminEmail('jason@bouncingfish.com'), true);
   assert.equal(isWorldAdminEmail('  JASON@BouncingFish.com  '), true);
   assert.equal(isWorldAdminEmail('jason.kneen@bouncingfish.com'), true);
+  assert.equal(isWorldAdminEmail('simongarthfarmer@gmail.com'), true);
+  assert.equal(isWorldAdminEmail('  SimonGarthFarmer@Gmail.com  '), true);
 });
 
 test('isWorldAdminEmail rejects non-admin and empty emails', () => {

@@ -7,38 +7,39 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300..700&family=Space+Grotesk:wght@300..700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Noto+Sans+Thai:wght@300..700&family=Space+Grotesk:wght@300..700&display=swap" />
   <link rel="stylesheet" href="vendor/driverjs/driver.css">
   <link rel="stylesheet" href="styles/tiny-world.css">
   <link rel="stylesheet" href="styles/countdown.css">
 <script src="engine/world/00-custom-confirm.js"></script>
-<script type="text/javascript">
-  // AI interfaces are a dev/flagged feature. Production hosts default to no
-  // prompt boxes, Generate buttons, Auto/AI settings, or floating agent UI.
-  // Enable explicitly with window.__TWB_ENABLE_AI_INTERFACES__ = true before
-  // this script, or via ?ai=1 / localStorage tinyworld:features:ai=1.
+<script id="tinyworld-feature-flags-bootstrap" type="text/javascript">
+  // Feature flags bootstrap — sync load before first paint. Full apply runs in
+  // engine/world/00b-feature-flags.js after auth is known (admin preview).
   (function () {
-    const host = window.location.hostname;
-    const isLocal = window.location.protocol === 'file:'
+    var doc = { flags: {} };
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'tinyworld-feature-flags.json', false);
+      xhr.send(null);
+      if (xhr.status >= 200 && xhr.status < 300) doc = JSON.parse(xhr.responseText || '{}');
+    } catch (_) {}
+    window.__tinyworldFeatureFlagsBootstrap = doc;
+    var host = window.location.hostname;
+    var isLocal = window.location.protocol === 'file:'
       || host === 'localhost'
       || host === '127.0.0.1'
       || host === '[::1]'
-      || host.endsWith('.local');
-    let enabled = isLocal;
+      || (host && host.slice(-6) === '.local');
+    var ai = (doc.flags && doc.flags.ai) || {};
+    var aiEnabled = ai.everyone === true;
     try {
-      const flag = window.__TWB_ENABLE_AI_INTERFACES__;
-      if (typeof flag === 'boolean') enabled = flag;
-      const qs = new URLSearchParams(window.location.search);
-      if (qs.get('ai') === '1') enabled = true;
-      if (qs.get('ai') === '0') enabled = false;
-      const stored = window.localStorage && window.localStorage.getItem('tinyworld:features:ai');
-      if (stored === '1') enabled = true;
-      if (stored === '0') enabled = false;
+      var qs = new URLSearchParams(window.location.search);
+      if (qs.get('ai') === '1') aiEnabled = true;
+      if (qs.get('ai') === '0') aiEnabled = false;
     } catch (_) {}
-    window.__TWB_AI_INTERFACES_ENABLED__ = !!enabled;
-    document.documentElement.classList.toggle('ai-disabled', !enabled);
+    window.__TWB_AI_INTERFACES_ENABLED__ = !!aiEnabled;
+    document.documentElement.classList.toggle('ai-disabled', !aiEnabled);
   }());
-
 </script>
 </head>
 <body>
@@ -49,7 +50,7 @@
   <div id="tod-tint" aria-hidden="true"></div>
 
   <!-- Minimap (top-down repaint of the home grid) -->
-  <div class="minimap-wrap" id="minimap-wrap">
+  <div class="minimap-wrap" id="minimap-wrap" data-feature-flag="movable-map">
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
@@ -60,7 +61,7 @@
     </div>
   </div>
 
-  <div class="crowd-panel" id="crowd-panel">
+  <div class="crowd-panel hidden" id="crowd-panel">
     <div class="crowd-panel-head">
       <h3 data-i18n="crowd.title">Crowd controls</h3>
       <button type="button" class="crowd-panel-toggle" id="crowd-panel-toggle" aria-label="Close crowd controls" data-i18n-aria-label="crowd.close">×</button>
@@ -116,7 +117,7 @@
     </button>
   </div>
 
-  <label class="sun-strength-control" aria-label="Directional sun strength">
+  <label class="sun-strength-control" data-feature-flag="sun-slider" aria-label="Directional sun strength">
     <span>Sun</span>
     <input id="directional-light-strength" type="range" min="0" max="1000" step="5" value="100" />
     <output id="directional-light-strength-readout">100%</output>
@@ -186,7 +187,7 @@
         <button class="pill" data-season="winter" data-i18n="season.winter">Winter</button>
       </div>
     </div>
-    <div class="time-row time-row-pills">
+    <div class="time-row time-row-pills" data-feature-weather>
       <span class="time-row-label" data-i18n="time.weather">Weather</span>
       <div class="pill-row" id="weather-pills">
         <button class="pill" data-weather="clear" data-i18n="weather.clear">Clear</button>
@@ -196,12 +197,12 @@
         <button class="pill" data-weather="snow" data-i18n="weather.snow">Snow</button>
       </div>
     </div>
-    <label class="time-row">
+    <label class="time-row" data-feature-weather>
       <span class="time-row-label" data-i18n="time.intensity">Weather intensity</span>
       <input id="weather-intensity" type="range" min="25" max="300" step="5" value="25" />
       <span class="time-row-val" id="weather-intensity-readout">25%</span>
     </label>
-    <label class="time-row">
+    <label class="time-row" data-feature-weather>
       <span class="time-row-label" data-i18n="time.splashes">Splashes / buildup</span>
       <input id="weather-splashes" type="range" min="0" max="300" step="5" value="150" />
       <span class="time-row-val" id="weather-splashes-readout">150%</span>
@@ -220,17 +221,22 @@
       </button>
     </div>
     <div class="world-menu-section">
-      <button class="world-menu-item" data-action="new" role="menuitem">
+      <button class="world-menu-item" data-action="new-blank" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
-        <span class="world-menu-label" data-i18n="worldmenu.new">New world</span>
-        <span class="world-menu-hint" data-i18n="worldmenu.new.hint">random island</span>
+        <span class="world-menu-label" data-i18n="worldmenu.newBlank">Create new</span>
+        <span class="world-menu-hint" data-i18n="worldmenu.newBlank.hint">blank grass island</span>
+      </button>
+      <button class="world-menu-item" data-action="new-default" role="menuitem">
+        <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></span>
+        <span class="world-menu-label" data-i18n="worldmenu.newDefault">Create default</span>
+        <span class="world-menu-hint" data-i18n="worldmenu.newDefault.hint">starter village</span>
       </button>
       <button class="world-menu-item" data-action="duplicate" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
         <span class="world-menu-label" data-i18n="worldmenu.duplicate">Duplicate</span>
         <span class="world-menu-hint" data-i18n="worldmenu.duplicate.hint">copy of this world</span>
       </button>
-      <button class="world-menu-item" data-action="generate" role="menuitem" data-ai-interface>
+      <button class="world-menu-item" data-action="generate" role="menuitem" data-feature-flag="generate-prompt">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span>
         <span class="world-menu-label">Generate from prompt…</span>
         <span class="world-menu-hint">⌘G</span>
@@ -271,16 +277,16 @@
     <span id="unsaved-banner-text" data-i18n="unsaved.banner">Areas outside your home grid aren't saved</span>
   </div>
 
-  <!-- Top-right chrome: sign out + back to the marketing landing page. -->
+  <!-- Top-right chrome: menu (sign in / sign out) + home. -->
   <div id="top-corner-chrome" class="top-corner-chrome">
-    <button type="button" id="auth-login-btn-top" class="corner-chrome-btn" data-pos-type="neutral" data-tooltip="Sign in" aria-label="Sign in" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+    <button type="button" id="auth-login-btn-top" class="corner-chrome-btn corner-chrome-btn--label" data-pos-type="neutral" data-tooltip="Menu" data-i18n-tooltip="chrome.menu" aria-label="Sign in" data-i18n-aria-label="chrome.menuSignIn" hidden>
+      <span class="corner-chrome-label" data-i18n="chrome.menu">Menu</span>
     </button>
-    <button type="button" id="auth-logout-btn" class="corner-chrome-btn" data-pos-type="neutral" data-tooltip="Sign out" aria-label="Sign out" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+    <button type="button" id="auth-logout-btn" class="corner-chrome-btn corner-chrome-btn--label" data-pos-type="neutral" data-tooltip="Menu" data-i18n-tooltip="chrome.menu" aria-label="Sign out" data-i18n-aria-label="chrome.menuSignOut" hidden>
+      <span class="corner-chrome-label" data-i18n="chrome.menu">Menu</span>
     </button>
-    <button type="button" id="landing-home-btn" class="corner-chrome-btn" data-pos-type="neutral" data-tooltip="Home" aria-label="Back to the home page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg>
+    <button type="button" id="landing-home-btn" class="corner-chrome-btn corner-chrome-btn--label" data-pos-type="neutral" data-tooltip="Home" data-i18n-tooltip="chrome.home" aria-label="Home" data-i18n-aria-label="chrome.home">
+      <span class="corner-chrome-label" data-i18n="chrome.home">Home</span>
     </button>
   </div>
 
@@ -424,11 +430,13 @@
           </span>
           <span class="language-label">ไทย</span>
         </button>
+        <div class="language-menu-divider" role="separator" aria-hidden="true"></div>
+        <button class="language-menu-action" type="button" id="language-menu-signout" role="menuitem" data-i18n="chrome.menuSignOut" hidden>Sign out</button>
       </div>
     </div>
   </div>
 
-  <div class="brush-mode-dock" id="brush-mode-dock" role="group" aria-label="Brush shape quick palette">
+  <div class="brush-mode-dock" id="brush-mode-dock" data-feature-flag="build-brush" role="group" aria-label="Brush shape quick palette">
     <div class="brush-mode-dock-head">
       <span class="brush-mode-dock-kicker">Build Brush</span>
       <span class="brush-mode-dock-help">Pick paint first. Drag on the island; release paints.</span>
@@ -504,7 +512,7 @@
         <span>Scatter</span>
       </button>
     </div>
-    <button class="btn icon" id="generate" data-pos-type="tertiary" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-ai-interface hidden>
+    <button class="btn icon" id="generate" data-pos-type="tertiary" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-feature-flag="generate-prompt" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
     </button>
     <button class="btn icon" id="tips-toggle" data-pos-type="primary" data-tooltip="Keyboard &amp; mouse controls" data-i18n-tooltip="appbar.controls" aria-label="Show keyboard controls">
@@ -714,7 +722,7 @@
         <div class="profile-section">
           <div class="players-stats" id="players-stats"></div>
         </div>
-        <div class="profile-section">
+        <div class="profile-section" data-feature-flag="player-search">
           <label>Find players
             <div class="players-search-row">
               <input type="text" id="players-search" autocomplete="off" placeholder="username or display name" />
@@ -723,7 +731,7 @@
           </label>
           <ul class="players-list" id="players-list"></ul>
         </div>
-        <div class="profile-section">
+        <div class="profile-section" data-feature-flag="party-creation">
           <label>Party
             <div class="players-search-row">
               <input type="text" id="party-name" maxlength="80" placeholder="Party name" />
@@ -893,9 +901,15 @@
       <h1 class="sr-only" id="welcome-title">Tiny World Builder</h1>
       <img class="welcome-logo" src="assets/twlogo.png" alt="Tiny World Builder" width="1254" height="1254">
       <div class="welcome-actions" aria-label="Choose mode">
-        <button class="welcome-mode-btn welcome-tinyverse" id="welcome-tinyverse" type="button" data-pos-type="primary">Tinyverse</button>
-        <button class="welcome-mode-btn welcome-battleworlds is-soon" id="welcome-battleworlds" type="button" data-pos-type="shield" disabled aria-disabled="true">Battleworlds</button>
-        <button class="welcome-mode-btn welcome-build" id="welcome-build" type="button" data-pos-type="tertiary">Build</button>
+        <button class="welcome-mode-btn welcome-tinyverse has-tagline" id="welcome-tinyverse" type="button" data-pos-type="primary">
+          <span class="welcome-mode-label" data-i18n="welcome.collectables">Discover new Worlds</span>
+          <span class="welcome-mode-tag" data-i18n="welcome.collectablesTagline">Explore the Tinyverse</span>
+        </button>
+        <button class="welcome-mode-btn welcome-battleworlds is-soon" id="welcome-battleworlds" type="button" data-pos-type="shield" disabled aria-disabled="true" data-i18n="welcome.battleworlds">BattleWorlds</button>
+        <button class="welcome-mode-btn welcome-build has-tagline" id="welcome-build" type="button" data-pos-type="tertiary">
+          <span class="welcome-mode-label" data-i18n="welcome.creativeMode">Creative Mode</span>
+          <span class="welcome-mode-tag" data-i18n="welcome.creativeModeTagline">Build, share, collaborate</span>
+        </button>
         <button class="welcome-mode-btn welcome-play" id="welcome-play" type="button" data-pos-type="terrain">Play</button>
       </div>
       <p class="welcome-credit">
@@ -906,7 +920,7 @@
     </form>
   </div>
 
-  <div id="gen-modal" class="modal" data-ai-interface hidden>
+  <div id="gen-modal" class="modal" data-feature-flag="generate-prompt" hidden>
     <form class="modal-card gen-card" role="dialog" aria-modal="true" aria-labelledby="gen-title" onsubmit="return false">
       <div class="modal-head">
         <strong id="gen-title">Generate Tiny World</strong>
@@ -1095,6 +1109,7 @@
           <button type="button" class="settings-tab" id="settings-tab-environment" role="tab" aria-selected="false" aria-controls="settings-panel-environment" tabindex="-1" data-settings-tab="environment" data-settings-description="Sky and atmosphere" data-settings-keywords="environment weather sky clouds atmosphere mist backdrop vignette undercloud" data-i18n="settings.tab.environment">Environment</button>
           <button type="button" class="settings-tab" id="settings-tab-crowd" role="tab" aria-selected="false" aria-controls="settings-panel-crowd" tabindex="-1" data-settings-tab="crowd" data-settings-description="People and motion" data-settings-keywords="crowd people mechanics movement animation zones debug paths" data-i18n="settings.tab.crowd">Crowd</button>
           <button type="button" class="settings-tab" id="settings-tab-ai" role="tab" aria-selected="false" aria-controls="settings-panel-ai" tabindex="-1" data-settings-tab="ai" data-settings-description="Provider and model" data-settings-keywords="ai config generate auto provider model api key openai anthropic grok xai gemini" data-ai-interface>AI</button>
+          <button type="button" class="settings-tab" id="settings-tab-feature-flags" role="tab" aria-selected="false" aria-controls="settings-panel-feature-flags" tabindex="-1" data-settings-tab="feature-flags" data-settings-description="Rollout toggles" data-settings-keywords="feature flags admin rollout everyone admins" hidden>Feature flags</button>
         </nav>
         <div class="settings-panels">
           <section class="settings-panel active" id="settings-panel-app" role="tabpanel" aria-labelledby="settings-tab-app" data-settings-panel="app" data-settings-keywords="app workspace defaults board grid size home sponsors partners autoincentive">
@@ -1610,6 +1625,18 @@
             </label>
             <div class="help-line">Used by Generate, Auto, and the floating agent. The prompt tells models to assemble requests from Tiny World primitives: terrain, paths, fences, rocks, crops, bridges, trees, tufts, and building clusters.</div>
           </section>
+
+          <section class="settings-panel" id="settings-panel-feature-flags" role="tabpanel" aria-labelledby="settings-tab-feature-flags" data-settings-panel="feature-flags" data-settings-keywords="feature flags admin rollout everyone admins" hidden>
+            <div class="feature-flags-admin-section" id="feature-flags-admin-section" hidden>
+              <div class="settings-section-title">Admin · Feature flags</div>
+              <p class="feature-flags-admin-help" id="feature-flags-admin-help">Toggle rollout per feature. <strong>Everyone</strong> ships to all signed-in users. <strong>Admins</strong> keeps it visible for world-admin accounts only. Scroll the list — save applies every row.</p>
+              <div class="feature-flags-admin-grid" id="feature-flags-admin-grid"></div>
+              <div class="feature-flags-admin-foot">
+                <button type="button" class="btn dev-defaults-btn" id="feature-flags-admin-save">Save feature flags</button>
+                <span class="dev-defaults-status" id="feature-flags-admin-status" role="status" aria-live="polite"></span>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
       <div class="modal-foot">
@@ -1674,7 +1701,7 @@
     </div>
   </section>
 
-  <div id="agent-panel" class="agent-panel" data-ai-interface aria-live="polite">
+  <div id="agent-panel" class="agent-panel collapsed" data-ai-interface aria-live="polite" hidden>
     <div class="agent-panel-resizer" id="agent-panel-resizer" role="separator" aria-orientation="vertical" aria-label="Resize AI chat"></div>
     <div class="agent-panel-head">
       <span id="agent-panel-title">AI chat</span>
@@ -1830,6 +1857,7 @@
   <script defer src="scripts/countdown.js"></script>
   <script defer src="vendor/driverjs/driver.js.iife.js"></script>
   <script defer src="engine/world/00-prelude.js"></script>
+  <script defer src="engine/world/00b-feature-flags.js"></script>
   <script defer src="engine/world/01-render-core.js"></script>
   <script defer src="engine/world/02-cameras-lighting.js"></script>
   <script defer src="engine/world/03-geometry-materials.js"></script>
@@ -1860,6 +1888,7 @@
   <script defer src="engine/world/27-landscape-engine.js"></script>
   <script defer src="engine/world/28-generate-panel-agent.js"></script>
   <script defer src="engine/world/29-persistence-api.js"></script>
+  <script defer src="scripts/tinyverse-collectibles.js"></script>
   <script defer src="engine/world/30-ui-boot-wiring.js"></script>
   <script defer src="engine/world/31-cloud-sea.js"></script>
   <script defer src="engine/world/32-layers-panel.js"></script>
@@ -1877,6 +1906,7 @@
   <script defer src="engine/world/44-sub-object-edit.js"></script>
   <script defer src="engine/world/45-shader-fx.js"></script>
   <script defer src="engine/world/46-mesh-terrain.js"></script>
+  <!-- ARCHIVED UI path: universe carousel (46). Still loaded — do not delete core code. -->
   <script defer src="engine/world/46-worlds-universe.js"></script>
   <script defer src="engine/world/47-worlds-room.js"></script>
   <script defer src="engine/world/48-worlds-harvest-hud.js"></script>

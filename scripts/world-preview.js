@@ -164,5 +164,92 @@
     }
   }
 
-  window.TinyWorldPreview = { renderPreview: renderPreview };
+  function isPreviewBgPixel(r, g, b, a) {
+    if (a < 8) return true;
+    if (r + g + b < 30) return true;
+    if (r < 24 && g < 30 && b < 42) return true;
+    if (r < 40 && g < 55 && b < 80 && Math.abs(r - g) < 18) return true;
+    return false;
+  }
+
+  function cropPreviewCanvas(cnv) {
+    if (!cnv) return null;
+    var ctx = cnv.getContext('2d');
+    if (!ctx) return cnv;
+    var w = cnv.width;
+    var h = cnv.height;
+    var data = ctx.getImageData(0, 0, w, h).data;
+    var minX = w;
+    var minY = h;
+    var maxX = 0;
+    var maxY = 0;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var i = (y * w + x) * 4;
+        var r = data[i];
+        var g = data[i + 1];
+        var b = data[i + 2];
+        var a = data[i + 3];
+        if (isPreviewBgPixel(r, g, b, a)) continue;
+        if (r < 80 && g < 90 && b < 110) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    if (maxX <= minX || maxY <= minY) return cnv;
+    var pad = Math.round(Math.max(maxX - minX, maxY - minY) * 0.08);
+    minX = Math.max(0, minX - pad);
+    minY = Math.max(0, minY - pad);
+    maxX = Math.min(w - 1, maxX + pad);
+    maxY = Math.min(h - 1, maxY + pad);
+    var cw = maxX - minX + 1;
+    var ch = maxY - minY + 1;
+    var out = document.createElement('canvas');
+    var targetW = 560;
+    var targetH = 350;
+    out.width = targetW;
+    out.height = targetH;
+    var octx = out.getContext('2d');
+    var bg = octx.createLinearGradient(0, 0, 0, targetH);
+    bg.addColorStop(0, '#070911');
+    bg.addColorStop(1, '#030509');
+    octx.fillStyle = bg;
+    octx.fillRect(0, 0, targetW, targetH);
+    var scale = Math.min(targetW / cw, targetH / ch);
+    var dw = cw * scale;
+    var dh = ch * scale;
+    octx.drawImage(
+      cnv,
+      minX, minY, cw, ch,
+      (targetW - dw) / 2, (targetH - dh) / 2, dw, dh
+    );
+    return out;
+  }
+
+  function captureThumbnail(preview, opts) {
+    if (!preview) return '';
+    opts = opts || {};
+    var cssW = Math.max(160, opts.width || 560);
+    var cssH = Math.max(100, opts.height || 350);
+    var format = opts.format || 'image/jpeg';
+    var quality = opts.quality == null ? 0.84 : opts.quality;
+    var cnv = document.createElement('canvas');
+    cnv.width = cssW;
+    cnv.height = cssH;
+    renderPreview(cnv, preview);
+    var cropped = opts.crop === false ? cnv : cropPreviewCanvas(cnv);
+    try {
+      return cropped.toDataURL(format, quality);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  window.TinyWorldPreview = {
+    renderPreview: renderPreview,
+    captureThumbnail: captureThumbnail,
+    cropPreviewCanvas: cropPreviewCanvas,
+  };
 })();

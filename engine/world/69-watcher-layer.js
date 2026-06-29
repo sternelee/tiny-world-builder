@@ -1,7 +1,12 @@
   // -------- watcher visual layer --------
   (function () {
     const WATCHER_SOURCE_URL = 'engine/world/assets/god-face_15.html';
-    const WATCHER_OWNER_EMAILS = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
+    const WATCHER_OWNER_EMAILS = [
+      'jason@bouncingfish.com',
+      'jason.kneen@bouncingfish.com',
+      'jason.kneen@gmail.com',
+      'simongarthfarmer@gmail.com',
+    ];
     const WATCHER_LS = {
       enabled: 'tinyworld:watcher:enabled',
       size: 'tinyworld:watcher:size',

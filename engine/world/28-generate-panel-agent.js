@@ -1059,7 +1059,7 @@
     const PANEL_MIN_WIDTH = 320;
     const PANEL_MAX_WIDTH = 560;
     const AUTO_HIDE_MS = 3500; // retained for placeholder decay timing only
-    let pinnedOpen = true;
+    let pinnedOpen = false;
     let hasAgentActivity = false;
     let panelWidth = PANEL_DEFAULT_WIDTH;
 
@@ -1092,6 +1092,7 @@
         localStorage.setItem(PANEL_POS_KEY, JSON.stringify({
           width: panelWidth,
           collapsed: panel.classList.contains('collapsed'),
+          visible: !panel.classList.contains('hidden'),
         }));
       } catch (_) {}
     }
@@ -1131,10 +1132,11 @@
     function showPanel() {
       panel.classList.remove('hidden');
       syncAgentStackState();
+      savePanelState();
     }
 
     function setPanelCollapsed(collapsed, opts) {
-      panel.classList.remove('hidden');
+      if (!collapsed) panel.classList.remove('hidden');
       panel.classList.toggle('collapsed', !!collapsed);
       pinnedOpen = !collapsed;
       syncAgentStackState();
@@ -1231,7 +1233,7 @@
     }
 
     window.__tinyworldAgent = {
-      open() { setPanelCollapsed(false, { pin: true }); },
+      open() { showPanel(); setPanelCollapsed(false, { pin: true }); },
       // Adds a message to the conversation history. Assistant text is
       // mirrored in the input placeholder as a live progress hint. No
       // toast is fired — that's reserved for `done()`.
@@ -1268,15 +1270,20 @@
     };
 
     function applyStoredPanelState() {
-      let collapsed = false;
+      let collapsed = true;
+      let visible = false;
       try {
         const raw = localStorage.getItem(PANEL_POS_KEY);
         if (raw) {
           const p = JSON.parse(raw);
           if (Number.isFinite(p.width)) applyPanelWidth(p.width);
-          collapsed = !!p.collapsed;
+          if (typeof p.collapsed === 'boolean') collapsed = p.collapsed;
+          if (typeof p.visible === 'boolean') visible = p.visible;
+          else if (p.collapsed === false) visible = true;
         }
       } catch (_) {}
+      if (visible) panel.classList.remove('hidden');
+      else panel.classList.add('hidden');
       setPanelCollapsed(collapsed, { noSave: true });
     }
 

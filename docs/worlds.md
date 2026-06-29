@@ -1,5 +1,11 @@
 # Worlds — on-chain MMO mode
 
+> **ARCHIVED product path (code kept in repo).** Player-facing Tinyverse collectibles
+> now use `card_reveal.html` + pack reveals + `window.__tinyworldCollectible` play-mode
+> visits. This document and `engine/world/46-worlds-universe.js` describe the legacy
+> universe carousel / buy-publish MMO loop — retained for reference and programmatic
+> access, not the default Tinyverse entry.
+
 A playworlds.io-style layer added **beside** the freeform Tiny World Builder: players
 own land (worlds), build them, publish them, and earn a permanent tax cut when visitors
 harvest resources. The freeform builder is unchanged and remains the default; a floating

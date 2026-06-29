@@ -79,6 +79,10 @@ cp collabs.html "$DIST/collabs.html"
 cp harvest.html "$DIST/harvest.html"
 cp island-viewer.html "$DIST/island-viewer.html"
 cp random-island-preview.html "$DIST/random-island-preview.html"
+cp card_reveal.html "$DIST/card_reveal.html"
+if [[ -f cards.jpeg ]]; then
+  cp cards.jpeg "$DIST/cards.jpeg"
+fi
 cp builder.html "$DIST/builder.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
@@ -87,6 +91,11 @@ cp world.schema.json "$DIST/world.schema.json"
 # if absent the app silently falls back to its hard-coded defaults.
 if [[ -f tinyworld-defaults.json ]]; then
   cp tinyworld-defaults.json "$DIST/tinyworld-defaults.json"
+fi
+if [[ -f tinyworld-feature-flags.json ]]; then
+  cp tinyworld-feature-flags.json "$DIST/tinyworld-feature-flags.json"
+  mkdir -p netlify/functions/data
+  cp tinyworld-feature-flags.json netlify/functions/data/tinyworld-feature-flags.json
 fi
 
 # Default island — the starter world loaded for a fresh session + Reset.
