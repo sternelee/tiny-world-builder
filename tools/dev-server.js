@@ -36,7 +36,7 @@ const WATCH_PATHS = [
 const WATCH_ROOT_FILES = [
   'index.html', 'tiny-world-builder.html', 'roadmap.html',
   'features.html', 'community.html', 'terms.html', 'privacy.html', 'code-of-conduct.html',
-  'worlds.html', 'docs.html', 'harvest.html', 'random-island-preview.html',
+  'worlds.html', 'docs.html', 'harvest.html', 'island-viewer.html', 'random-island-preview.html',
 ];
 
 function watchDir(dir) {
@@ -743,6 +743,9 @@ function routeForRequest(reqUrl) {
   if (pathname === '/') return { file: path.resolve(root, 'index.html') };
   if (pathname === '/tiny-world-builder' || pathname === '/tiny-world-builder/') {
     return { file: path.resolve(root, 'tiny-world-builder.html') };
+  }
+  if (pathname === '/island-viewer' || pathname === '/island-viewer/') {
+    return { file: path.resolve(root, 'island-viewer.html') };
   }
 
   const resolved = path.resolve(root, '.' + pathname);

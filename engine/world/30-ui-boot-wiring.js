@@ -1597,6 +1597,7 @@ syncTinyworldOwnerToolControls();
       return;
     }
     window.__tinyworldAuthEnabled = !!Auth;
+    window.__tinyworldAuthUnavailable = false;
     if (!Auth) {
       // No auth library — single-user local mode. Hide all auth UI
       // and treat the user as logged in so settings/AI aren't
@@ -1629,6 +1630,20 @@ syncTinyworldOwnerToolControls();
     const logoutBtn = document.getElementById('auth-logout-btn');
     const accountBtn = document.getElementById('account-btn');
     const walletLoginBtn = document.getElementById('auth-wallet-login');
+    let identityUnavailable = false;
+
+    function authUnavailableMessage() {
+      return localDev
+        ? 'Email sign-in needs Netlify dev. Run npx netlify dev and open http://localhost:8888/tiny-world-builder.'
+        : 'Sign-in is not available on this host. Open the Netlify deployment with Identity enabled.';
+    }
+
+    function authErrorLooksUnavailable(err) {
+      const status = Number(err && err.status);
+      const message = String((err && err.message) || '');
+      return status === 404 || status === 405 ||
+        /Method Not Allowed|Not Found|Netlify Identity is not available|Could not determine the Identity endpoint URL/i.test(message);
+    }
 
     function showError(msg) {
       errorEl.textContent = msg;
@@ -1645,6 +1660,34 @@ syncTinyworldOwnerToolControls();
     function clearMessages() {
       errorEl.hidden = true;
       successEl.hidden = true;
+    }
+
+    function disableUnavailableAuthUi(keepModalOpen) {
+      identityUnavailable = true;
+      window.__tinyworldAuthUnavailable = true;
+      window.__tinyworldAuthEnabled = false;
+      setLoggedInState(true);
+      if (!keepModalOpen) closeTinyModal(modal);
+      bootApp();
+      const menu = document.getElementById('world-menu');
+      if (menu) {
+        ['manage', 'share', 'collaborate'].forEach(action => {
+          const btn = menu.querySelector('[data-action="' + action + '"]');
+          if (btn) btn.hidden = true;
+        });
+      }
+      if (typeof window.syncToolbarAccountButton === 'function') window.syncToolbarAccountButton();
+    }
+
+    function showAuthFailure(err, authMessage) {
+      if (identityUnavailable || err instanceof Auth.MissingIdentityError || authErrorLooksUnavailable(err)) {
+        disableUnavailableAuthUi(true);
+        showError(authUnavailableMessage());
+      } else if (err instanceof Auth.AuthError) {
+        showError(authMessage || err.message);
+      } else {
+        showError('Something went wrong. Please try again.');
+      }
     }
 
     function showForm(name) {
@@ -1774,17 +1817,20 @@ syncTinyworldOwnerToolControls();
       });
       document.getElementById('auth-oauth-login').hidden = enabled.length === 0;
       document.getElementById('auth-oauth-signup').hidden = enabled.length === 0;
-    }).catch(() => {});
+    }).catch(err => {
+      if (authErrorLooksUnavailable(err)) disableUnavailableAuthUi(false);
+    });
 
     // Tracks the live login state so gated controls can react to it.
     // Anonymous users get the app, settings/AI/cloud are locked.
     window.__loggedIn = false;
     function setLoggedInState(isLoggedIn) {
       window.__loggedIn = !!isLoggedIn;
-      if (logoutBtn) logoutBtn.hidden = !isLoggedIn;
-      if (accountBtn) accountBtn.hidden = !isLoggedIn;
+      const authAvailable = !!window.__tinyworldAuthEnabled;
+      if (logoutBtn) logoutBtn.hidden = !isLoggedIn || !authAvailable;
+      if (accountBtn) accountBtn.hidden = !isLoggedIn || !authAvailable;
       const loginBtnTop = document.getElementById('auth-login-btn-top');
-      if (loginBtnTop) loginBtnTop.hidden = !!isLoggedIn;
+      if (loginBtnTop) loginBtnTop.hidden = !!isLoggedIn || !authAvailable;
       // Lock badges + tooltips for the gated buttons.
       const settingsBtn = document.getElementById('render-settings');
       const generateBtn = document.getElementById('generate');
@@ -1830,6 +1876,12 @@ syncTinyworldOwnerToolControls();
     }
 
     function openLoginModal(reason) {
+      if (identityUnavailable) {
+        showForm('login');
+        showError(authUnavailableMessage());
+        openTinyModal(modal, errorEl);
+        return;
+      }
       clearMessages();
       const subtitle = modal.querySelector('.auth-subtitle');
       if (subtitle && reason) subtitle.textContent = reason;
@@ -1874,13 +1926,7 @@ syncTinyworldOwnerToolControls();
         await Auth.login(email, password);
         enterApp();
       } catch (err) {
-        if (err instanceof Auth.AuthError) {
-          showError(err.status === 401 ? 'Invalid email or password.' : err.message);
-        } else if (err instanceof Auth.MissingIdentityError) {
-          showError('Identity is not enabled on this site.');
-        } else {
-          showError('Something went wrong. Please try again.');
-        }
+        showAuthFailure(err, err && err.status === 401 ? 'Invalid email or password.' : '');
       } finally {
         setLoading(btn, false);
       }
@@ -1911,13 +1957,7 @@ syncTinyworldOwnerToolControls();
           }
         }
       } catch (err) {
-        if (err instanceof Auth.AuthError) {
-          showError(err.status === 403 ? 'Signups are not allowed.' : err.message);
-        } else if (err instanceof Auth.MissingIdentityError) {
-          showError('Identity is not enabled on this site.');
-        } else {
-          showError('Something went wrong. Please try again.');
-        }
+        showAuthFailure(err, err && err.status === 403 ? 'Signups are not allowed.' : '');
       } finally {
         setLoading(btn, false);
       }
@@ -1933,11 +1973,7 @@ syncTinyworldOwnerToolControls();
         await Auth.requestPasswordRecovery(email);
         showSuccess('Check your email for a password reset link.');
       } catch (err) {
-        if (err instanceof Auth.AuthError) {
-          showError(err.message);
-        } else {
-          showError('Something went wrong. Please try again.');
-        }
+        showAuthFailure(err, '');
       } finally {
         setLoading(btn, false);
       }
@@ -1954,11 +1990,7 @@ syncTinyworldOwnerToolControls();
         showSuccess('Password updated. You are now signed in.');
         setTimeout(enterApp, 1200);
       } catch (err) {
-        if (err instanceof Auth.AuthError) {
-          showError(err.message);
-        } else {
-          showError('Something went wrong. Please try again.');
-        }
+        showAuthFailure(err, '');
       } finally {
         setLoading(btn, false);
       }
@@ -2005,7 +2037,7 @@ syncTinyworldOwnerToolControls();
             return true;
         }
       } catch (err) {
-        if (err instanceof Auth.AuthError) showError(err.message);
+        showAuthFailure(err, '');
       }
       return false;
     }
@@ -2013,11 +2045,14 @@ syncTinyworldOwnerToolControls();
     // Check existing session or callback
     (async () => {
       const handled = await processCallback();
+      if (identityUnavailable) return;
       if (handled) return;
       const user = await Auth.getUser();
+      if (identityUnavailable) return;
       if (user) {
         enterApp();
       } else if (await twCloudRestoreWalletSession()) {
+        if (identityUnavailable) return;
         enterApp();
       } else {
         // Anonymous mode by default — boot the app, gate
@@ -3616,9 +3651,9 @@ syncTinyworldOwnerToolControls();
     const manageBtn = menu.querySelector('[data-action="manage"]');
     const shareBtn = menu.querySelector('[data-action="share"]');
     const collaborateBtn = menu.querySelector('[data-action="collaborate"]');
-    if (!window.TinyWorldAuth && manageBtn) manageBtn.hidden = true;
-    if (!window.TinyWorldAuth && shareBtn) shareBtn.hidden = true;
-    if (!window.TinyWorldAuth && collaborateBtn) collaborateBtn.hidden = true;
+    if (!window.__tinyworldAuthEnabled && manageBtn) manageBtn.hidden = true;
+    if (!window.__tinyworldAuthEnabled && shareBtn) shareBtn.hidden = true;
+    if (!window.__tinyworldAuthEnabled && collaborateBtn) collaborateBtn.hidden = true;
     let sharedRoomsLoading = false;
 
     function menuWorlds() {
@@ -4711,9 +4746,13 @@ syncTinyworldOwnerToolControls();
     }
 
     async function createCurrentWorldShare(options = {}) {
-      if (!window.TinyWorldAuth || !window.__loggedIn) {
+      if (!twCloudLoggedIn()) {
         if (!options.keepMenuOpen) close();
-        if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to save and share worlds');
+        if (window.__tinyworldAuthEnabled && typeof window.__openLoginModal === 'function') {
+          window.__openLoginModal('Sign in to save and share worlds');
+        } else {
+          twToast('Cloud sharing is not available on this host.', 'warn');
+        }
         return null;
       }
       updateActiveSnapshot();
@@ -4762,8 +4801,12 @@ syncTinyworldOwnerToolControls();
     }
 
     function openInviteDialog() {
-      if (!window.TinyWorldAuth || !window.__loggedIn) {
-        if (typeof window.__openLoginModal === 'function') window.__openLoginModal('Sign in to invite collaborators');
+      if (!twCloudLoggedIn()) {
+        if (window.__tinyworldAuthEnabled && typeof window.__openLoginModal === 'function') {
+          window.__openLoginModal('Sign in to invite collaborators');
+        } else {
+          twToast('Collaboration invites are not available on this host.', 'warn');
+        }
         return;
       }
       const back = document.createElement('div');
@@ -5166,7 +5209,7 @@ syncTinyworldOwnerToolControls();
       items.push({ group: 'Settings', label: 'Settings — Environment',  run: settingsTab('environment') });
       items.push({ group: 'Settings', label: 'Settings — Crowd',        run: settingsTab('crowd') });
       items.push({ group: 'Settings', label: 'Settings — AI Config',    run: settingsTab('ai') });
-      if (window.TinyWorldAuth) {
+      if (window.__tinyworldAuthEnabled) {
         items.push({ group: 'Account', label: 'Open account / My Worlds', run: topBtnAction('account-btn') });
         items.push({ group: 'Account', label: 'Sign in', run: () => {
           const top = document.getElementById('auth-login-btn-top');

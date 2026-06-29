@@ -64,6 +64,12 @@ backend:
   `vendor/tinyworld-auth.js` with an import map to vendored
   `@netlify/identity` / `gotrue-js`; do not reintroduce a remote identity
   widget script.
+- The builder should not show working-looking account UI on hosts that cannot
+  serve Netlify Identity. Treat 404/405 `/.netlify/identity/*` failures from
+  the browser `getSettings()` probe or login calls as "auth unavailable": hide
+  sign-in/account commands, keep local/static building usable, and leave cloud
+  save/share/collab actions gated off. For local account work, use Netlify dev
+  at `http://localhost:8888/tiny-world-builder`.
 - Profile image fields stored through `/api/profile`, `/api/admin-users`, or
   community preset-avatar saves must be absolute `http(s)` URLs. Preset avatar
   paths under `assets/avatars/*.png` are normalized with the trusted site origin

@@ -5,6 +5,12 @@ const zlib = require('zlib');
 
 const root = path.resolve(__dirname, '..');
 const htmlPath = path.join(root, 'tiny-world-builder.html');
+const islandViewerHtmlPath = path.join(root, 'island-viewer.html');
+const islandViewerScriptPath = path.join(root, 'scripts', 'island-viewer.js');
+const islandViewerGeneratorPath = path.join(root, 'scripts', 'island-viewer-sequential-generator.js');
+const islandViewerPreludePath = path.join(root, 'scripts', 'island-viewer-engine-prelude.js');
+const islandViewerRuntimePath = path.join(root, 'scripts', 'island-viewer-engine-runtime.js');
+const randomIslandPreviewPath = path.join(root, 'random-island-preview.html');
 const cssPath = path.join(root, 'styles', 'tiny-world.css');
 const schemaPath = path.join(root, 'world.schema.json');
 const vercelPath = path.join(root, 'vercel.json');
@@ -13,6 +19,12 @@ const partykitPath = path.join(root, 'partykit.json');
 const publishPath = path.join(root, 'publish.sh');
 const readText = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 const htmlRaw = readText(htmlPath);
+const islandViewerHtmlRaw = fs.existsSync(islandViewerHtmlPath) ? readText(islandViewerHtmlPath) : '';
+const islandViewerScriptRaw = fs.existsSync(islandViewerScriptPath) ? readText(islandViewerScriptPath) : '';
+const islandViewerGeneratorRaw = fs.existsSync(islandViewerGeneratorPath) ? readText(islandViewerGeneratorPath) : '';
+const islandViewerPreludeRaw = fs.existsSync(islandViewerPreludePath) ? readText(islandViewerPreludePath) : '';
+const islandViewerRuntimeRaw = fs.existsSync(islandViewerRuntimePath) ? readText(islandViewerRuntimePath) : '';
+const randomIslandPreviewRaw = fs.existsSync(randomIslandPreviewPath) ? readText(randomIslandPreviewPath) : '';
 const cssRaw = readText(cssPath);
 const publishRaw = fs.existsSync(publishPath) ? readText(publishPath) : '';
 const defaultsPath = path.join(root, 'tinyworld-defaults.json');
@@ -364,6 +376,58 @@ if (/<link[^>]+rel=["']stylesheet["'][^>]+href=["']styles\//.test(htmlRaw)) {
   if (!/dist\/styles/.test(fs.readFileSync(path.join(root, 'publish.sh'), 'utf8'))) {
     fail('referenced styles/ stylesheet must be copied to dist/styles by publish.sh');
   }
+}
+if (!islandViewerHtmlRaw || !islandViewerScriptRaw || !islandViewerGeneratorRaw || !islandViewerPreludeRaw || !islandViewerRuntimeRaw) {
+  fail('island viewer shell, controller, generator, prelude, and runtime files must be present');
+}
+if (/<iframe\b/.test(islandViewerHtmlRaw) || /scripts\/tinyworld-island-core\.js|scripts\/island-viewer-renderer\.js/.test(islandViewerHtmlRaw)) {
+  fail('island viewer must be standalone and must not load the old core bundle or temporary renderer');
+}
+if (!/scripts\/island-viewer-engine-prelude\.js/.test(islandViewerHtmlRaw)
+    || !/scripts\/island-viewer-sequential-generator\.js/.test(islandViewerHtmlRaw)
+    || !/scripts\/island-viewer-engine-runtime\.js/.test(islandViewerHtmlRaw)
+    || !/scripts\/island-viewer\.js/.test(islandViewerHtmlRaw)
+    || !/engine\/world\/17-tile-renderers\.js/.test(islandViewerHtmlRaw)) {
+  fail('island viewer must load the sequential generator and builder-engine runtime stack');
+}
+if (!/TinyWorldIslandGenerator/.test(islandViewerScriptRaw) || !/TinyWorldIslandRenderer\.mount/.test(islandViewerScriptRaw)) {
+  fail('island viewer controller must call the generator API and mount the renderer runtime');
+}
+if (/water-bridge|bridgeAxis/.test(islandViewerGeneratorRaw)
+    || !/function pathWaterPathBridgeAxis\(cells, index\)/.test(islandViewerGeneratorRaw)
+    || !/function placePathWaterPathBridgesLayer\(cells\)/.test(islandViewerGeneratorRaw)) {
+  fail('island viewer generator must use local bridge detection without legacy bridge metadata');
+}
+if (!/function waterPathComponents\(cells\)/.test(islandViewerGeneratorRaw)
+    || !/return Number\.isFinite\(componentId\) && !crossedComponents\.has\(componentId\);/.test(islandViewerGeneratorRaw)) {
+  fail('island viewer water routing must limit crossings to one cell per connected path area');
+}
+if (!/if \(hasPath\(cell\)\) return 'path';/.test(islandViewerGeneratorRaw) || /entry\.path = true/.test(islandViewerGeneratorRaw)) {
+  fail('island viewer generator must export public paths as terrain:path cells');
+}
+if (!/const cropIds = \['wheat', 'corn', 'carrot', 'pumpkin', 'sunflower'\];/.test(islandViewerGeneratorRaw)
+    || !/roll < 0\.25 \? null/.test(islandViewerGeneratorRaw)
+    || !/crop-area-fill/.test(islandViewerGeneratorRaw)) {
+  fail('island viewer crop plot must roll 25% empty, then evenly across the five crop kinds');
+}
+if (!/function placeStrategicLampLayer\(cells, seed\)/.test(islandViewerGeneratorRaw)
+    || !/function placeManorLayer\(cells, seed\)/.test(islandViewerGeneratorRaw)
+    || !/function placeTreeBushLayer\(cells, seed\)/.test(islandViewerGeneratorRaw)
+    || !/function placeProbabilisticInfillLayer\(cells, seed\)/.test(islandViewerGeneratorRaw)) {
+  fail('island viewer generator must keep lantern, manor, tree/bush, and weighted infill layers');
+}
+if (!/if \(cell\.path === true && terrain !== 'water'\) terrain = 'path';/.test(islandViewerRuntimeRaw)
+    || !/function clearViewerWorld\(\)/.test(islandViewerRuntimeRaw)
+    || /path: cell\.path|path: false/.test(islandViewerRuntimeRaw)) {
+  fail('island viewer runtime must normalize legacy path booleans, clear stale cells, and export schema-native paths');
+}
+if (!/meta http-equiv="refresh" content="0; url=island-viewer\.html"/.test(randomIslandPreviewRaw)
+    || !/location\.replace\('island-viewer\.html' \+ location\.search \+ location\.hash\)/.test(randomIslandPreviewRaw)) {
+  fail('random-island-preview.html must stay a compatibility redirect to island-viewer.html');
+}
+if (!/cp island-viewer\.html "\$DIST\/island-viewer\.html"/.test(publishRaw)
+    || !/cp random-island-preview\.html "\$DIST\/random-island-preview\.html"/.test(publishRaw)) {
+  fail('publish.sh must copy the island viewer shell and preview compatibility redirect');
 }
 if (/function makeCustomPartsStamp[\s\S]*?\n\s*addVoxelBuildTrimFrame\(g, trimBounds, voxelTrimMaterial\(trimBase\)\);\n\s*g\.userData/.test(html)) {
   fail('custom voxel part stamps must not render bounding trim frames by default');
@@ -912,6 +976,8 @@ for (const [needle, label] of [
   ['publish = "dist"', 'Netlify publish directory'],
   ['NODE_VERSION = "22"', 'Netlify Node version'],
   ['directory = "netlify/functions"', 'Netlify functions directory'],
+  ['from = "/island-viewer"', 'Island Viewer route'],
+  ['to = "/island-viewer.html"', 'Island Viewer static shell target'],
   ['Content-Security-Policy = "default-src', 'Netlify CSP header'],
   ['script-src \'self\'', 'Netlify self-hosted script policy'],
 ]) {
