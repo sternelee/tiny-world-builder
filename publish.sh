@@ -17,7 +17,8 @@ Creates a clean dist/ folder for publishing Tiny World Builder.
 Outputs:
   dist/index.html                 Landing page entry point
   dist/tiny-world-builder.html    Original app filename
-  dist/random-island-preview.html Private Netlify-function route, not a public static copy
+  dist/island-viewer.html          First-class island viewer shell
+  dist/random-island-preview.html  Compatibility redirect to island-viewer
   dist/world.schema.json
   dist/README.md
   dist/LICENSE
@@ -76,6 +77,8 @@ cp code-of-conduct.html "$DIST/code-of-conduct.html"
 cp worlds.html "$DIST/worlds.html"
 cp collabs.html "$DIST/collabs.html"
 cp harvest.html "$DIST/harvest.html"
+cp island-viewer.html "$DIST/island-viewer.html"
+cp random-island-preview.html "$DIST/random-island-preview.html"
 cp builder.html "$DIST/builder.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"

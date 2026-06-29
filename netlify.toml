@@ -27,6 +27,16 @@
   status = 200
 
 [[redirects]]
+  from = "/island-viewer"
+  to = "/island-viewer.html"
+  status = 200
+
+[[redirects]]
+  from = "/island-viewer/"
+  to = "/island-viewer.html"
+  status = 200
+
+[[redirects]]
   from = "/random-island-preview"
   to = "/.netlify/functions/random-island-preview"
   status = 200
