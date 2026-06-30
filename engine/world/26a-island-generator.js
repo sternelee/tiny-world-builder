@@ -1136,6 +1136,31 @@
         ensureGateForGeneratedComponent(cells, component, cell => isAnimalObjectId(cell && cell.object), { level: 2, style: 'wood' });
       }
     }
+    function ensurePastoralCropPlot(cells) {
+      if (archetypeKey !== 'pastoral') return;
+      const cropCount = cells.reduce((count, cell) => count + (cell && isCropObjectId(cell.object) ? 1 : 0), 0);
+      if (cropCount >= 4) return;
+      applyCropPlotMotif(cells);
+      const cropIds = cropObjectIdsForArchetype();
+      const placedPlot = cells
+        .map((cell, index) => ({ cell, index }))
+        .filter(({ cell }) => cell && isCropObjectId(cell.object))
+        .map(({ index }) => index);
+      if (placedPlot.length >= 4) return;
+      const anchor = cropPlotAnchor(cells);
+      const candidates = featureIndexesNear(anchor, Math.max(2, Math.floor(size * 0.28)))
+        .filter(index => cells[index] && cells[index].terrain !== 'water' && !isAnimalObjectId(cells[index].object) && !isMainHabitationObject(cells[index].object));
+      for (const index of candidates) {
+        if (placedPlot.length >= 4) break;
+        if (placedPlot.indexOf(index) !== -1) continue;
+        if (!setFeatureTerrain(cells, index, 'dirt')) continue;
+        if (forcePlaceObject(cells, index, cropIds[placedPlot.length % cropIds.length], 'dirt')) {
+          cells[index].motif = 'crop-plot';
+          placedPlot.push(index);
+        }
+      }
+      applyGeneratedFenceEnclosure(cells, placedPlot, { level: 1, style: 'garden' });
+    }
     function towerCountForSeed() {
       const roll = islandRngFromSeed(effectiveSeed + '|corner-tower-count')();
       if (roll < 0.0625) return 0;
@@ -2353,6 +2378,7 @@
       applyPathsideHomeMotif(cells);
       placeBridgeCandidates(cells, archetypeKey === 'river' || archetypeKey === 'harbor' ? 1 : 0.35);
       placeObjects(cells);
+      ensurePastoralCropPlot(cells);
       limitLampPlacements(cells);
       repairGeneratedFenceGatePaths(cells);
       repairGeneratedFenceOpenings(cells);
@@ -2520,6 +2546,41 @@
       if (Number.isFinite(mapped.rotationY)) entry.transform = { rotationY: mapped.rotationY };
       out.cells.push(entry);
     }
+    if (archetypeKey === 'pastoral') {
+      const cropKinds = ['wheat', 'corn', 'crop', 'sunflower'];
+      const cropCells = out.cells.filter(cell => isCropObjectId(cell.kind));
+      const candidates = out.cells
+        .filter(cell => cell.terrain !== 'water' && !isCropObjectId(cell.kind) && !isAnimalObjectId(cell.kind) && cell.kind !== 'house')
+        .sort((a, b) => {
+          const da = Math.abs(a.x - size * 0.36) + Math.abs(a.z - size * 0.58);
+          const db = Math.abs(b.x - size * 0.36) + Math.abs(b.z - size * 0.58);
+          return da - db;
+        });
+      while (cropCells.length < 4 && candidates.length) {
+        const cell = candidates.shift();
+        cell.terrain = 'dirt';
+        cell.kind = cropKinds[cropCells.length % cropKinds.length];
+        cell.floors = 1;
+        cell.buildingType = null;
+        cell.fenceSide = null;
+        cropCells.push(cell);
+      }
+      const cropCoords = new Set(cropCells.map(cell => cell.x + ',' + cell.z));
+      const exportSideDeltas = { n: { x: 0, y: -1 }, e: { x: 1, y: 0 }, s: { x: 0, y: 1 }, w: { x: -1, y: 0 } };
+      for (const cell of cropCells) {
+        const extras = Array.isArray(cell.extras) ? cell.extras.filter(extra => !(extra && extra.kind === 'fence')) : [];
+        for (const side of generatedFenceSides) {
+          const delta = exportSideDeltas[side];
+          const nx = cell.x + delta.x;
+          const nz = cell.z + delta.y;
+          if (cropCoords.has(nx + ',' + nz)) continue;
+          const neighbor = out.cells.find(other => other.x === nx && other.z === nz);
+          const extra = { kind: 'fence', fenceSide: side, floors: 1, appearance: { fenceStyle: 'garden' } };
+          if (neighbor && neighbor.terrain === 'path') extra.appearance.fenceStyle = 'gate';
+          extras.push(extra);
+        }
+        if (extras.length) cell.extras = extras;
+      }
+    }
     return out;
   }
-
