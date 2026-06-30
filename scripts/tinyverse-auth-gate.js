@@ -142,9 +142,14 @@
     await ensureAuthBoot();
     // Match builder local preview: pack economy is localStorage-only on dev hosts.
     if (isLocalDevHost()) return { ok: true };
-    // Pack opening is open to everyone — no admin/invite allowlist. Sign-in is the
-    // only requirement, so opened islands persist to the player's own profile.
-    if (!(await isLoggedIn())) return { ok: false, reason: 'login' };
+    const email = await getUserEmail();
+    if (!email && !(await isLoggedIn())) return { ok: false, reason: 'login' };
+    const allowed = await tinyverseAllowed();
+    if (allowed === false) return { ok: false, reason: 'access' };
+    if (allowed === true || clientAllowlisted(email)) return { ok: true };
+    if (!email) return { ok: false, reason: 'login' };
+    if (allowed === null && clientAllowlisted(email)) return { ok: true };
+    if (allowed === null) return { ok: false, reason: 'access' };
     return { ok: true };
   }
 

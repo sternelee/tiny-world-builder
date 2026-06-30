@@ -40,6 +40,10 @@ function loadCollectibles(storage, extras) {
     window: Object.assign({ TinyWorldIslandGenerator: mockGenerator }, extras || {}),
     localStorage,
     console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
   };
   context.window.window = context.window;
   const src = readFileSync(new URL('../scripts/tinyverse-collectibles.js', import.meta.url), 'utf8');
@@ -59,6 +63,10 @@ function createMemoryStorage(storage) {
 function loadCollectiblesWithRealGenerator(storage) {
   const context = {
     console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
     localStorage: createMemoryStorage(storage),
     sessionStorage: createMemoryStorage({}),
   };
