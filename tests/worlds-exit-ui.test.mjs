@@ -6,6 +6,7 @@ const universeJs = readFileSync(new URL('../engine/world/46-worlds-universe.js',
 const toolbarJs = readFileSync(new URL('../engine/world/19-tools-toolbar.js', import.meta.url), 'utf8');
 const bootJs = readFileSync(new URL('../engine/world/30-ui-boot-wiring.js', import.meta.url), 'utf8');
 const roomJs = readFileSync(new URL('../engine/world/47-worlds-room.js', import.meta.url), 'utf8');
+const nameLabelJs = readFileSync(new URL('../engine/world/47c-worlds-name-labels.js', import.meta.url), 'utf8');
 const hudJs = readFileSync(new URL('../engine/world/48-worlds-harvest-hud.js', import.meta.url), 'utf8');
 const playChatJs = readFileSync(new URL('../engine/world/50-worlds-play-chat.js', import.meta.url), 'utf8');
 const worldsFunctionJs = readFileSync(new URL('../netlify/functions/worlds.mjs', import.meta.url), 'utf8');
@@ -179,11 +180,11 @@ test('mobile rendering and stamp thumbnails stay under compact-screen budgets', 
 });
 
 test('multiplayer name tags scale to a fixed screen size across zoom levels', () => {
-  assert.match(roomJs, /const NAME_TAG_SCREEN_HEIGHT = 30/);
-  assert.match(roomJs, /function updateNameLabelScale\(sprite\)/);
-  assert.match(roomJs, /camera\.isOrthographicCamera/);
-  assert.match(roomJs, /camera\.isPerspectiveCamera/);
-  assert.match(roomJs, /worldPerPixel \* NAME_TAG_SCREEN_HEIGHT/);
-  assert.match(roomJs, /s\.position\.set\(ent\.sprite\.position\.x, ent\.sprite\.position\.y \+ NAME_HEAD_Y, ent\.sprite\.position\.z\)/);
-  assert.match(roomJs, /updateNameLabelScale\(s\)/);
+  assert.match(nameLabelJs, /const NAME_TAG_SCREEN_HEIGHT = 30/);
+  assert.match(nameLabelJs, /function updateNameLabelScale\(sprite\)/);
+  assert.match(nameLabelJs, /camera\.isOrthographicCamera/);
+  assert.match(nameLabelJs, /camera\.isPerspectiveCamera/);
+  assert.match(nameLabelJs, /worldPerPixel \* NAME_TAG_SCREEN_HEIGHT/);
+  assert.match(nameLabelJs, /s\.position\.set\(ent\.sprite\.position\.x, ent\.sprite\.position\.y \+ NAME_HEAD_Y, ent\.sprite\.position\.z\)/);
+  assert.match(nameLabelJs, /updateNameLabelScale\(s\)/);
 });
