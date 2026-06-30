@@ -2856,253 +2856,18 @@ function tryEnterGate() {
       updateCamera();
     }
 
-    // ---- speech bubbles: a chat line shown above an avatar in an 8-bit pixel
-    // font (Press Start 2P, vendored). Rendered to a CanvasTexture on a billboard
-    // sprite so it always faces the camera and rides the jump arc. Auto-fades. ----
-    const BUBBLE_FONT = "'Press Start 2P'";
-    const BUBBLE_MS = 5200;        // visible before fade
-    const BUBBLE_FADE_MS = 700;    // fade-out tail
-    const BUBBLE_MAX_CHARS = 90;   // cap the shown text
-    const BUBBLE_HEAD_Y = 1.24;    // world-units above the avatar's feet; tail sits just above the head
-    let bubbleFontReady = false;
-    (function preloadBubbleFont() {
-      try {
-        if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
-          document.fonts.load('16px ' + BUBBLE_FONT).then(() => {
-            bubbleFontReady = true;
-            // Re-render any live bubble that was drawn with the fallback font.
-            const redraw = (e) => { if (e && e.bubble && e.bubble.text != null) renderBubble(e, e.bubble.text); };
-            if (selfEnt) redraw(selfEnt);
-            peerEnts.forEach(redraw);
-          }).catch(() => {});
-        }
-      } catch (_) {}
-    })();
+    // ---- speech bubbles + name labels extracted to 47b/47c ----
+    // The IIFE-local showChatBubble/updateBubble/removeBubble and
+    // ensureNameLabel/updateNameLabel/removeNameLabel are now provided
+    // by 47b-worlds-chat-bubbles.js and 47c-worlds-name-labels.js via
+    // the WS namespace. Forward the calls so existing IIFE references work.
 
-    function roundRectPath(ctx, x, y, w, h, r) {
-      r = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + w, y, x + w, y + h, r);
-      ctx.arcTo(x + w, y + h, x, y + h, r);
-      ctx.arcTo(x, y + h, x, y, r);
-      ctx.arcTo(x, y, x + w, y, r);
-      ctx.closePath();
-    }
-    function speechBubblePath(ctx, x, y, w, h, r, tailHalf, tailH) {
-      r = Math.min(r, w / 2, h / 2);
-      const right = x + w;
-      const bottom = y + h;
-      const cx = x + w / 2;
-      // Body and pointer are one path, so neither the tail base nor the body
-      // bottom stroke draws a visible seam between the arrow and the bubble.
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(right - r, y);
-      ctx.quadraticCurveTo(right, y, right, y + r);
-      ctx.lineTo(right, bottom - r);
-      ctx.quadraticCurveTo(right, bottom, right - r, bottom);
-      ctx.lineTo(cx + tailHalf, bottom);
-      ctx.lineTo(cx, bottom + tailH);
-      ctx.lineTo(cx - tailHalf, bottom);
-      ctx.lineTo(x + r, bottom);
-      ctx.quadraticCurveTo(x, bottom, x, bottom - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    }
-    function wrapBubbleLines(ctx, text, maxW) {
-      const words = String(text).split(/\s+/).filter(Boolean);
-      const lines = []; let line = '';
-      for (const w of words) {
-        const probe = line ? line + ' ' + w : w;
-        if (ctx.measureText(probe).width > maxW && line) { lines.push(line); line = w; }
-        else line = probe;
-        if (lines.length >= 4) break;   // cap height at 4 lines
-      }
-      if (line && lines.length < 4) lines.push(line);
-      return lines.length ? lines : [String(text)];
-    }
-    function renderBubble(ent, text) {
-      if (!ent || !ent.bubble || typeof THREE === 'undefined') return;
-      const S = 3;                 // device px per logical px (keeps the pixels crisp)
-      const FS = 9 * S, LH = 15 * S, PAD = 9 * S, TAIL = 9 * S, MAXW = 150 * S, R = 7 * S, LW = 2 * S;
-      const font = FS + "px " + BUBBLE_FONT + ", 'Courier New', monospace";
-      const cv = ent.bubble.canvas, ctx = cv.getContext('2d');
-      ctx.font = font;
-      const lines = wrapBubbleLines(ctx, text, MAXW);
-      let textW = 0; for (const l of lines) textW = Math.max(textW, ctx.measureText(l).width);
-      const cw = Math.ceil(textW) + PAD * 2;
-      const bodyH = lines.length * LH + PAD * 2;
-      const ch = bodyH + TAIL;
-      cv.width = cw; cv.height = ch;
-      // Resizing the canvas resets the context state; re-set the font.
-      ctx.font = font; ctx.textBaseline = 'top';
-      ctx.clearRect(0, 0, cw, ch);
-      ctx.fillStyle = '#fdfcf7'; ctx.strokeStyle = '#1b2a4a'; ctx.lineWidth = LW;
-      speechBubblePath(ctx, LW, LW, cw - LW * 2, bodyH - LW * 2, R, TAIL, TAIL);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#1b2a4a';
-      for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], PAD, PAD + i * LH);
-      if (ent.bubble.texture) ent.bubble.texture.dispose();
-      const tex = new THREE.CanvasTexture(cv);
-      tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-      twSetTextureSRGB(tex);
-      tex.needsUpdate = true;
-      ent.bubble.sprite.material.map = tex;
-      ent.bubble.sprite.material.needsUpdate = true;
-      ent.bubble.texture = tex;
-      const K = 0.011;             // logical px -> world units
-      ent.bubble.sprite.scale.set((cw / S) * K, (ch / S) * K, 1);
-    }
-    function showChatBubble(id, rawText) {
-      let text = String(rawText == null ? '' : rawText).trim();
-      if (!text) return;
-      if (text.length > BUBBLE_MAX_CHARS) text = text.slice(0, BUBBLE_MAX_CHARS - 1).trimEnd() + '…';
-      const ent = (id != null && id === myId) ? selfEnt : (peerEnts ? peerEnts.get(id) : null);
-      if (!ent || !ent.sprite) return;  // avatar not spawned yet — drop silently
-      if (!ent.bubble) {
-        if (typeof THREE === 'undefined') return;
-        const canvas = document.createElement('canvas');
-        const mat = new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false });
-        const sprite = new THREE.Sprite(mat);
-        sprite.center.set(0.5, 0);     // anchor at the tail tip; grows upward
-        sprite.renderOrder = 12;       // above avatars (renderOrder 10)
-        const par = avatarParent(); if (par) par.add(sprite);
-        ent.bubble = { canvas: canvas, sprite: sprite, texture: null, text: null, start: 0 };
-      }
-      ent.bubble.text = text;
-      ent.bubble.start = Date.now();
-      ent.bubble.sprite.visible = true;
-      ent.bubble.sprite.material.opacity = 1;
-      renderBubble(ent, text);
-    }
-    function updateBubble(ent) {
-      if (!ent || !ent.bubble || !ent.bubble.sprite) return;
-      const b = ent.bubble;
-      const age = Date.now() - b.start;
-      if (age >= BUBBLE_MS) { removeBubble(ent); return; }
-      if (ent.sprite) b.sprite.position.set(ent.sprite.position.x, ent.sprite.position.y + BUBBLE_HEAD_Y, ent.sprite.position.z);
-      const fadeIn = age > (BUBBLE_MS - BUBBLE_FADE_MS) ? Math.max(0, (BUBBLE_MS - age) / BUBBLE_FADE_MS) : 1;
-      b.sprite.material.opacity = fadeIn;
-    }
-    function removeBubble(ent) {
-      if (!ent || !ent.bubble) return;
-      const b = ent.bubble; ent.bubble = null;
-      if (b.sprite && b.sprite.parent) b.sprite.parent.remove(b.sprite);
-      if (b.texture) b.texture.dispose();
-      if (b.sprite && b.sprite.material) b.sprite.material.dispose();
-    }
-    WS.showChatBubble = showChatBubble;
-
-    // ---- name labels: a persistent pill with the player's name floating above the
-    // avatar's head. Rendered to a CanvasTexture on a THREE.Sprite, so it always
-    // faces the camera (the viewer) without any per-frame rotation. Same visual as
-    // the 2D-map peer labels (makeNameSprite in 38-multiplayer-partykit). ----
-    const NAME_HEAD_Y = 1.15;   // world-units above the avatar's feet; pill center sits just over the head
-    const NAME_TAG_SCREEN_HEIGHT = 30;   // CSS pixels; keep labels readable regardless of zoom
-    const NAME_TAG_ASPECT = 4;
-    const NAME_TAG_TMP_POS = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
-    const NAME_TAG_TMP_CAM = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
-    function roundRectLabel(ctx, x, y, w, h, r) {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-    }
-    function makeNameLabel(name, color) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '700 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-      const label = String(name || 'Builder').slice(0, 28);
-      const width = Math.min(230, Math.max(72, ctx.measureText(label).width + 28));
-      ctx.fillStyle = 'rgba(24, 28, 38, 0.84)';
-      roundRectLabel(ctx, (256 - width) / 2, 12, width, 36, 12);
-      ctx.fill();
-      ctx.fillStyle = color || '#3c82f7';
-      ctx.beginPath();
-      ctx.arc((256 - width) / 2 + 18, 30, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, 128, 31);
-      const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
-      const sprite = new THREE.Sprite(material);
-      sprite.scale.set(1.55, 0.38, 1);
-      sprite.userData.nameTagAspect = canvas.width / canvas.height || NAME_TAG_ASPECT;
-      sprite.renderOrder = 13;   // above avatars (10) and chat bubbles (12)
-      return sprite;
-    }
-    function nameTagViewportHeight() {
-      try {
-        if (typeof renderer !== 'undefined' && renderer && renderer.domElement) {
-          return renderer.domElement.clientHeight || renderer.domElement.height || window.innerHeight || 720;
-        }
-      } catch (_) {}
-      return (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 720;
-    }
-    function updateNameLabelScale(sprite) {
-      if (!sprite || typeof camera === 'undefined' || !camera) return;
-      const viewH = Math.max(1, nameTagViewportHeight());
-      let worldPerPixel = 0;
-      if (camera.isOrthographicCamera) {
-        const zoom = camera.zoom || 1;
-        worldPerPixel = Math.abs((camera.top - camera.bottom) / zoom) / viewH;
-      } else if (camera.isPerspectiveCamera && NAME_TAG_TMP_POS && NAME_TAG_TMP_CAM) {
-        sprite.getWorldPosition(NAME_TAG_TMP_POS);
-        camera.getWorldPosition(NAME_TAG_TMP_CAM);
-        const dist = Math.max(0.05, NAME_TAG_TMP_POS.distanceTo(NAME_TAG_TMP_CAM));
-        const fov = (typeof THREE !== 'undefined' && THREE.MathUtils)
-          ? THREE.MathUtils.degToRad(camera.fov || 50)
-          : (camera.fov || 50) * Math.PI / 180;
-        worldPerPixel = (2 * Math.tan(fov / 2) * dist) / viewH;
-      }
-      if (!(worldPerPixel > 0)) return;
-      const h = worldPerPixel * NAME_TAG_SCREEN_HEIGHT;
-      const aspect = (sprite.userData && sprite.userData.nameTagAspect) || NAME_TAG_ASPECT;
-      sprite.scale.set(h * aspect, h, 1);
-    }
-    function ensureNameLabel(ent, name, color) {
-      if (!ent || !ent.sprite || typeof THREE === 'undefined') return;
-      const text = String(name == null ? '' : name).trim() || 'Builder';
-      const col = color || '#3c82f7';
-      ent.name = text;
-      if (ent.nameTag && ent.nameTag.text === text && ent.nameTag.color === col) return;  // unchanged — keep texture
-      removeNameLabel(ent);
-      const sprite = makeNameLabel(text, col);
-      const par = avatarParent(); if (par) par.add(sprite);
-      ent.nameTag = { sprite: sprite, text: text, color: col };
-    }
-    function updateNameLabel(ent) {
-      if (!ent || !ent.nameTag || !ent.nameTag.sprite) return;
-      const s = ent.nameTag.sprite;
-      // Hide while the avatar is hidden (travel/skyfall) or a chat bubble is showing,
-      // so the pill never floats over empty space or collides with the bubble.
-      const bubbleUp = !!(ent.bubble && ent.bubble.sprite && ent.bubble.sprite.visible);
-      const show = !!ent.sprite && ent.sprite.visible !== false && !bubbleUp;
-      s.visible = show;
-      if (show) {
-        s.position.set(ent.sprite.position.x, ent.sprite.position.y + NAME_HEAD_Y, ent.sprite.position.z);
-        updateNameLabelScale(s);
-      }
-    }
-    function removeNameLabel(ent) {
-      if (!ent || !ent.nameTag) return;
-      const s = ent.nameTag.sprite; ent.nameTag = null;
-      if (s && s.parent) s.parent.remove(s);
-      if (s && s.material) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); }
-    }
+    function showChatBubble(id, text) { if (WS.showChatBubble) WS.showChatBubble(id, text); }
+    function updateBubble(ent) { if (WS._updateBubble) WS._updateBubble(ent); }
+    function removeBubble(ent) { if (WS._removeBubble) WS._removeBubble(ent); }
+    function ensureNameLabel(ent, name, color) { if (WS._ensureNameLabel) WS._ensureNameLabel(ent, name, color); }
+    function updateNameLabel(ent) { if (WS._updateNameLabel) WS._updateNameLabel(ent); }
+    function removeNameLabel(ent) { if (WS._removeNameLabel) WS._removeNameLabel(ent); }
 
     // Live subject feed for the CCTV/Truman cameras: every avatar currently in the
     // room (self + peers) as { pos, name }. The cameras use this to pan and look at
@@ -3125,6 +2890,10 @@ function tryEnterGate() {
     };
     // The parent the cameras should attach to (shared avatar/lobby frame).
     WS.avatarParent = function () { return avatarParent(); };
+    // Expose entity accessors so extracted modules (chat bubbles, name labels)
+    // can read the self/peer entity state without IIFE closure access.
+    WS.selfEnt = function () { return selfEnt; };
+    WS.peerEnts = function () { return peerEnts; };
 
     function updateSelfAvatar() {
       if (!selfEnt) selfEnt = createAvatar(getSelfAvatarDescriptor());
