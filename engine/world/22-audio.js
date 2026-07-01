@@ -445,6 +445,141 @@
     }
   }
 
+  // --- flyable-plane engine synth (propeller drone + wind rush) ----------
+  // A continuous, synthesised propeller-plane loop driven from 34-flight-sim.js
+  // (start on flight entry, stop on exit, update(throttle, speed) each frame).
+  // No audio files: two detuned sawtooth oscillators through a throttle-swept
+  // lowpass form the engine drone; a slow LFO on the drone gain gives the
+  // propeller "chop"; looped white noise through a speed-swept bandpass is the
+  // wind rush. Everything routes through a private channel gain that mirrors the
+  // shared "engines" volume/mute into the same master as the positional
+  // sources. stop() halts and disconnects every node so nothing leaks.
+  let _flightEngine = null;
+
+  function _flightEngineNoiseBuffer(ctx) {
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  function startFlightEngineAudio() {
+    // Only ever runs inside an active flight, which itself begins from a user
+    // gesture, so the shared context is already unlocked by this point. This is
+    // never the first thing to create/resume the context on its own — the
+    // ensure/resume calls below are a defensive fallback, not a forced start.
+    const ctx = ensureAudioCtx();
+    if (!ctx) return;
+    resumeAudioCtxIfNeeded();
+    if (_flightEngine) stopFlightEngineAudio();
+
+    const now = ctx.currentTime;
+    const channel = ctx.createGain();
+    channel.gain.value = 0;                 // update() sets the real level
+    channel.connect(_audioMaster);
+
+    // engine drone -------------------------------------------------------
+    const droneGain = ctx.createGain();
+    droneGain.gain.value = 0.0001;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 320;
+    lp.Q.value = 0.7;
+    lp.connect(droneGain).connect(channel);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.value = 48;
+    osc1.connect(lp);
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sawtooth';
+    osc2.frequency.value = 96;
+    osc2.detune.value = 6;
+    const osc2Gain = ctx.createGain();
+    osc2Gain.gain.value = 0.5;
+    osc2.connect(osc2Gain).connect(lp);
+
+    // propeller chop: an LFO amplitude-modulates the drone gain AudioParam.
+    const chop = ctx.createOscillator();
+    chop.type = 'sine';
+    chop.frequency.value = 9;
+    const chopGain = ctx.createGain();
+    chopGain.gain.value = 0.0001;
+    chop.connect(chopGain).connect(droneGain.gain);
+
+    // wind rush ----------------------------------------------------------
+    const noise = ctx.createBufferSource();
+    noise.buffer = _flightEngineNoiseBuffer(ctx);
+    noise.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 500;
+    bp.Q.value = 0.7;
+    const windGain = ctx.createGain();
+    windGain.gain.value = 0.0001;
+    noise.connect(bp).connect(windGain).connect(channel);
+
+    try { osc1.start(now); } catch (_) {}
+    try { osc2.start(now); } catch (_) {}
+    try { chop.start(now); } catch (_) {}
+    try { noise.start(now); } catch (_) {}
+
+    _flightEngine = {
+      // Every node created above is listed in `nodes` (disconnected on stop);
+      // every startable source is listed in `sources` (stopped on stop). Keep
+      // both exhaustive so stop() can never leak a running node.
+      nodes: [channel, droneGain, lp, osc1, osc2, osc2Gain, chop, chopGain, noise, bp, windGain],
+      sources: [osc1, osc2, chop, noise],
+      channel, droneGain, lp, osc1, osc2, chop, chopGain, bp, windGain,
+    };
+  }
+
+  function updateFlightEngineAudio(throttle, speed) {
+    const e = _flightEngine;
+    if (!e || !_audioCtx || _audioCtx.state === 'suspended') return;
+    const now = _audioCtx.currentTime;
+    const thr = Math.max(0, Math.min(1, throttle || 0));
+    const spdN = Math.min(1, Math.max(0, speed || 0) / 110);
+
+    // Drone pitch + brightness rise with throttle.
+    const f = 48 + thr * 46;
+    e.osc1.frequency.setTargetAtTime(f, now, 0.06);
+    e.osc2.frequency.setTargetAtTime(f * 2, now, 0.06);
+    e.lp.frequency.setTargetAtTime(320 + thr * 1500, now, 0.08);
+
+    // Drone loudness + propeller chop rate/depth rise with throttle. The chop
+    // LFO swings +/- chopDepth around the gain param, so the base value is
+    // offset down by chopDepth to keep the modulated gain strictly positive.
+    const droneAmp = 0.10 + thr * 0.22;
+    const chopDepth = droneAmp * (0.20 + thr * 0.22);
+    e.droneGain.gain.setTargetAtTime(droneAmp - chopDepth, now, 0.08);
+    e.chopGain.gain.setTargetAtTime(chopDepth, now, 0.08);
+    e.chop.frequency.setTargetAtTime(8 + thr * 13, now, 0.1);
+
+    // Wind rush rises with airspeed.
+    e.bp.frequency.setTargetAtTime(420 + spdN * 1200, now, 0.1);
+    e.windGain.gain.setTargetAtTime(spdN * spdN * 0.14, now, 0.1);
+
+    // Mirror the shared "engines" channel volume/mute, read fresh each frame
+    // exactly like the positional sources track their bus.
+    const level = audioEnginesMuted ? 0 : audioEnginesVolume;
+    e.channel.gain.setTargetAtTime(level, now, 0.05);
+  }
+
+  function stopFlightEngineAudio() {
+    const e = _flightEngine;
+    _flightEngine = null;
+    if (!e) return;
+    for (const s of e.sources) { try { s.stop(); } catch (_) {} }
+    for (const n of e.nodes) { try { n.disconnect(); } catch (_) {} }
+  }
+
+  window.__flightEngineAudio = {
+    start: startFlightEngineAudio,
+    update: updateFlightEngineAudio,
+    stop: stopFlightEngineAudio,
+  };
+
   // First-gesture initialiser — Web Audio contexts can't start until the
   // page has been interacted with. We piggy-back the existing music
   // autostart by listening for the same first gesture.

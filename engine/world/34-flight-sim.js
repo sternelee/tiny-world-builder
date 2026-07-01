@@ -30,12 +30,15 @@
   // Tuned flight constants lifted verbatim from ships/flight-sim3.html.
   const FCFG = {
     GRAVITY: 9.81,
-    MAX_THRUST: 45,
+    // Cruise speed scales ~sqrt(MAX_THRUST / DRAG_PARASITE); +25% thrust and
+    // -20% parasite drag together lift steady-state airspeed ~25% (77 -> ~96 m/s)
+    // while leaving the tuned handling (induced drag, lift, rates) untouched.
+    MAX_THRUST: 56,
     IDLE_THRUST_FRAC: 0.13,
     LIFT_K: 0.080,
     CL0: 0.14,
     CL_ALPHA: 4.5,
-    DRAG_PARASITE: 0.025,
+    DRAG_PARASITE: 0.020,
     DRAG_INDUCED: 0.030,
     GEAR_DRAG: 0.00020,
     GEAR_HEIGHT: 2.3,
@@ -729,31 +732,66 @@
 
   function flightPrepareNamedProp(node) {
     if (!node || !node.isMesh || node.userData.__twFlightPropPrepared) return null;
-    let sweepR = 0;
+    // Derive the spin axis and disc centre from the mesh's own bounding box.
+    // The stunt_plane prop is modelled off-origin and flat in Y (not Z), so the
+    // old hardcoded local-Z spin through the node origin made the disc visibly
+    // orbit instead of spin. A propeller disc is thin along its rotation axis, so
+    // the geometry's smallest extent is the spin axis and the two wide extents
+    // give the sweep radius and the pivot the disc must turn about.
     const geo = node.geometry;
     if (geo && !geo.boundingBox && typeof geo.computeBoundingBox === 'function') geo.computeBoundingBox();
+    let center = null;
+    let sizeV = null;
     if (geo && geo.boundingBox && !geo.boundingBox.isEmpty()) {
-      geo.boundingBox.getSize(_flpropSizeLocal);
-      sweepR = Math.max(_flpropSizeLocal.x, _flpropSizeLocal.y) * 0.5;
-    }
-    if (!(sweepR > 0.08)) {
+      center = geo.boundingBox.getCenter(new THREE.Vector3());
+      sizeV = geo.boundingBox.getSize(_flpropSizeLocal.set(0, 0, 0));
+    } else {
       node.updateMatrixWorld(true);
       _flpropBox.setFromObject(node);
       if (_flpropBox.isEmpty()) return null;
       _flpropBox.getSize(_flpropSizeWorld);
-      sweepR = Math.max(_flpropSizeWorld.x, _flpropSizeWorld.y) * 0.5;
+      sizeV = _flpropSizeWorld;
+      // World-space fallback: spin about the node origin (can't safely recentre).
     }
+    let axis = 'z';
+    if (sizeV.y <= sizeV.x && sizeV.y <= sizeV.z) axis = 'y';
+    else if (sizeV.x <= sizeV.y && sizeV.x <= sizeV.z) axis = 'x';
+    const radial = axis === 'y' ? [sizeV.x, sizeV.z] : axis === 'x' ? [sizeV.y, sizeV.z] : [sizeV.x, sizeV.y];
+    const sweepR = Math.max(radial[0], radial[1]) * 0.5;
     node.traverse(child => {
       if (!child || !child.isMesh || !child.material) return;
       child.material = Array.isArray(child.material)
         ? child.material.map(flightClonePropMaterial)
         : flightClonePropMaterial(child.material);
     });
-    node.userData.__propAxis = 'z';
-    node.userData.__isNamedProp = true;
-    flightAddPropDisc(node, sweepR);
+    // Wrap the prop in a pivot centred on the disc so it spins in place. The
+    // pivot inherits the node's placement; the node is offset back by the disc
+    // centre on the two radial axes only (the spin-axis component is untouched).
+    let spinner = node;
+    const parent = node.parent;
+    if (parent && center) {
+      const pivot = new THREE.Group();
+      pivot.name = 'tw_flight_prop_pivot';
+      pivot.position.copy(node.position);
+      pivot.quaternion.copy(node.quaternion);
+      pivot.scale.copy(node.scale);
+      parent.add(pivot);
+      pivot.add(node);
+      node.position.set(0, 0, 0);
+      node.quaternion.identity();
+      node.scale.set(1, 1, 1);
+      if (axis === 'y') node.position.set(-center.x, 0, -center.z);
+      else if (axis === 'x') node.position.set(0, -center.y, -center.z);
+      else node.position.set(-center.x, -center.y, 0);
+      spinner = pivot;
+    }
+    spinner.userData.__propAxis = axis;
+    spinner.userData.__isNamedProp = true;
+    spinner.userData.__propMesh = node;
+    flightAddPropDisc(spinner, sweepR);
     node.userData.__twFlightPropPrepared = true;
-    return node;
+    spinner.userData.__twFlightPropPrepared = true;
+    return spinner;
   }
 
   function flightPreparePropellers(root) {
@@ -820,8 +858,11 @@
   // activate the planet underlay/poser surface or thin the clouds — only an
   // actual descent past the island layer does, keeping the heavier rendering
   // off until the player chooses to dive down.
-  const FLIGHT_VEIL_TOP_Y = FLIGHT_PLANET_LAYER_Y;       // at/above: normal resting veil, no planet needed
-  const FLIGHT_VEIL_CLEAR_Y = FLIGHT_PLANET_LAYER_Y - 8; // at/below: veil fully clear, ground visible
+  const FLIGHT_VEIL_TOP_Y = FLIGHT_PLANET_LAYER_Y;        // at/above: normal resting veil, no planet needed
+  const FLIGHT_VEIL_CLEAR_Y = FLIGHT_PLANET_LAYER_Y - 16; // at/below: veil fully clear, ground visible
+  // The land is fully unwrapped only after descending most of the band, so the
+  // ground emerges through gradually thinning cloud instead of snapping clear at
+  // the boundary. Paired with the smoothstep easing in flightUpdateCloudVeil.
   const FLIGHT_VEIL_DROP = 60;                      // matches FLY_DOWN_DEFAULT_DROP in 54-fly-down.js
   // Hysteresis band above FLIGHT_VEIL_TOP_Y: once active, the veil only ends
   // after climbing this far back above the boundary. Without it, hovering or
@@ -875,9 +916,11 @@
       || (flightVeilActive && scenePos.y < FLIGHT_VEIL_TOP_Y + FLIGHT_VEIL_END_MARGIN);
     if (shouldBeActive) {
       flightBeginVeil();
-      const t = flightClamp01((FLIGHT_VEIL_TOP_Y - scenePos.y) / (FLIGHT_VEIL_TOP_Y - FLIGHT_VEIL_CLEAR_Y));
+      // Smoothstep (ease-in-out) the clear factor across the widened band so the
+      // reveal has no hard linear edge — clouds melt away rather than wipe.
+      const t = flightSmoothstepRange(FLIGHT_VEIL_CLEAR_Y, FLIGHT_VEIL_TOP_Y, scenePos.y);
       if (typeof setCloudSeaVeilOpacity === 'function') {
-        setCloudSeaVeilOpacity(Math.max(0, (flightVeilCloudWasEnabled ? 0.9 : 1) * (1 - t)));
+        setCloudSeaVeilOpacity(Math.max(0, (flightVeilCloudWasEnabled ? 0.9 : 1) * t));
       }
     } else if (flightVeilActive) {
       flightEndVeil();
@@ -896,6 +939,11 @@
       flightJet.quaternion.copy(_fljetQuat.copy(flightYawQuat).multiply(flightPlane.quat).multiply(FLIGHT_MODEL_FWD_FIX));
       updateFlightPropellers(dt);
       flightUpdateCloudVeil(_fljetScenePos);
+    }
+    // Engine audio tracks flight state, not the visual mesh: pitch/volume rise
+    // with throttle, wind rush rises with airspeed (plane.vel length, sim m/s).
+    if (window.__flightEngineAudio && typeof window.__flightEngineAudio.update === 'function') {
+      window.__flightEngineAudio.update(flightPlane.throttle, flightPlane.vel.length());
     }
     updateFlightCameras(dt);
     // Multiplayer: broadcast the live plane transform so peers see a ghost. The
@@ -1003,6 +1051,9 @@
     showFlightHud(true);
     if (window.__flightCombat && typeof window.__flightCombat.onEnter === 'function') {
       window.__flightCombat.onEnter(jet);
+    }
+    if (window.__flightEngineAudio && typeof window.__flightEngineAudio.start === 'function') {
+      window.__flightEngineAudio.start();
     }
   }
 
@@ -1130,6 +1181,11 @@
     if (!flightActive) return;
     flightActive = false;
     flightEndVeil();
+    // Stop + disconnect the synthesised engine loop so no oscillator/noise node
+    // keeps running or stays connected after landing/exit.
+    if (window.__flightEngineAudio && typeof window.__flightEngineAudio.stop === 'function') {
+      window.__flightEngineAudio.stop();
+    }
     // Multiplayer: tell peers to drop our flight ghost (sent immediately,
     // bypassing the broadcast throttle). Guarded so single-player no-ops.
     const mp = window.__tinyworldMultiplayer;

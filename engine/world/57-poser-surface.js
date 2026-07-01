@@ -605,8 +605,23 @@
     // units: sea half-extent is 120, mountain ring 216 (fog:false so it stays). Fog
     // reaches full haze by FOG_FAR, hiding the sea's plane edge.
     const FOG_NEAR = 55, FOG_FAR = 150, FOG_HAZE = 0xc3d4e6;
+    const _HAZE_BASE = new THREE.Color(FOG_HAZE);   // soft haze tint blended into the live sky colour
 
     let _savedFar = null, _savedFog = null, _surfFog = null;
+    // The surface haze should read as the same time of day as the sky above the
+    // clouds. 30-ui-boot-wiring writes the live day/night + weather sky colour to
+    // scene.background every frame, so tint the fog toward it (kept slightly
+    // hazier than the raw sky so the distant sea/land edge still fades softly).
+    const _hazeCol = new THREE.Color(FOG_HAZE);
+    function surfaceHazeColor(out) {
+      const c = out || _hazeCol;
+      if (typeof scene !== 'undefined' && scene && scene.background && scene.background.isColor) {
+        c.copy(scene.background).lerp(_HAZE_BASE, 0.22);
+      } else {
+        c.setHex(FOG_HAZE);
+      }
+      return c;
+    }
     function show() {
       build();
       const par = parentNode();
@@ -629,6 +644,7 @@
       if (typeof scene !== 'undefined' && scene) {
         if (_savedFog === null) _savedFog = scene.fog || false;   // false marks "was null"
         _surfFog = new THREE.Fog(FOG_HAZE, FOG_NEAR, FOG_FAR);
+        surfaceHazeColor(_surfFog.color);   // start on the current time-of-day sky
         scene.fog = _surfFog;
       }
       startTick();
@@ -662,6 +678,9 @@
         }
         // Re-assert our haze fog in case fly-down cleared it (it drops distant fog on descend).
         if (typeof scene !== 'undefined' && scene && _surfFog && scene.fog !== _surfFog) scene.fog = _surfFog;
+        // Track the live time-of-day sky colour so the surface haze shifts with
+        // dawn/day/dusk/night while the player roams or flies the surface.
+        if (_surfFog) surfaceHazeColor(_surfFog.color);
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
