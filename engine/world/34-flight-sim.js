@@ -77,6 +77,10 @@
     gear: 1,
     brake: 0,
     onGround: true,
+    // Wheel-to-surface gap from the previous physics tick (scene units, +ve = clear
+    // above the nearest surface). Used to tell "just touched down from above" apart
+    // from "already flying underneath a floating island" — see flightHandleSceneCollision.
+    _flPrevGap: Infinity,
   };
   const flightCtl = { pitch: 0, roll: 0, yaw: 0, throttleUp: 0, throttleDown: 0 };
   let flightActive = false;
@@ -271,20 +275,32 @@
     const hit = flightSurfaceAtScene(_flcolScenePos);
     if (!hit) {
       p.onGround = false;
+      p._flPrevGap = Infinity;
       return;
     }
     const clearance = FLIGHT_SCENE_BELLY_CLEARANCE + (FLIGHT_SCENE_GEAR_CLEARANCE - FLIGHT_SCENE_BELLY_CLEARANCE) * (p.gear || 1);
     const wheelSceneY = _flcolScenePos.y - clearance;
-    if (wheelSceneY > hit.surfaceY + 0.018) {
+    const gap = wheelSceneY - hit.surfaceY;
+    if (gap > 0.018) {
       p.onGround = false;
+      p._flPrevGap = gap;
       return;
     }
-    if (hit.surfaceY - wheelSceneY > FLIGHT_MAX_SNAP_DROP) {
-      // Surface is far above the plane (flying underneath a floating island) —
-      // not real contact, so don't snap the plane up into it.
+    // Only treat this as real ground contact if the plane was already resting on
+    // a surface (still grounded from a prior tick), or the wheel was clearly
+    // above the surface last tick (i.e. it just crossed down onto it). If it was
+    // airborne AND already at/below the surface last tick too, the plane has been
+    // flying underneath it the whole time (e.g. under a floating island's
+    // underside, which can sit arbitrarily deep below its top surface) — that's
+    // not a landing, so don't snap the plane up into it. This replaces a
+    // fixed-distance heuristic that still teleported the plane onto low or
+    // deep-hulled islands from below.
+    if (!p.onGround && !(p._flPrevGap > 0.018)) {
       p.onGround = false;
+      p._flPrevGap = gap;
       return;
     }
+    p._flPrevGap = gap;
 
     const speed = p.vel.length();
     const descent = Math.max(0, -p.vel.y);
