@@ -19,6 +19,11 @@
   const FLIGHT_LAND_MAX_DESCENT = 8.5;
   const FLIGHT_LAND_MAX_SPEED = 62;
   const FLIGHT_LAND_MIN_UP = 0.45;
+  // A candidate surface this far below the plane's belly is not real contact —
+  // e.g. an island's top registers as the tallest candidate at that XZ even
+  // when the plane is flying deep underneath it. Without this, the plane got
+  // snapped straight up into the island's underside every time.
+  const FLIGHT_MAX_SNAP_DROP = 6;
   // The stunt_plane GLB's nose is +Z (the crop-duster aligns +Z with travel),
   // but the ships physics forward is -Z. Rotate the rendered model 180 about Y
   // so its visual nose matches the physics nose / direction of motion.
@@ -271,6 +276,12 @@
     const clearance = FLIGHT_SCENE_BELLY_CLEARANCE + (FLIGHT_SCENE_GEAR_CLEARANCE - FLIGHT_SCENE_BELLY_CLEARANCE) * (p.gear || 1);
     const wheelSceneY = _flcolScenePos.y - clearance;
     if (wheelSceneY > hit.surfaceY + 0.018) {
+      p.onGround = false;
+      return;
+    }
+    if (hit.surfaceY - wheelSceneY > FLIGHT_MAX_SNAP_DROP) {
+      // Surface is far above the plane (flying underneath a floating island) —
+      // not real contact, so don't snap the plane up into it.
       p.onGround = false;
       return;
     }
@@ -809,6 +820,11 @@
   const FLIGHT_VEIL_TOP_Y = FLIGHT_PLANET_LAYER_Y;       // at/above: normal resting veil, no planet needed
   const FLIGHT_VEIL_CLEAR_Y = FLIGHT_PLANET_LAYER_Y - 8; // at/below: veil fully clear, ground visible
   const FLIGHT_VEIL_DROP = 60;                      // matches FLY_DOWN_DEFAULT_DROP in 54-fly-down.js
+  // Hysteresis band above FLIGHT_VEIL_TOP_Y: once active, the veil only ends
+  // after climbing this far back above the boundary. Without it, hovering or
+  // porpoising right at the boundary flipped the planet underlay/poser-surface
+  // on and off every frame — a visible flicker.
+  const FLIGHT_VEIL_END_MARGIN = 1.5;
   let flightVeilActive = false;
   let flightVeilCloudWasEnabled = false;
   let flightVeilManaged = false;
@@ -852,7 +868,9 @@
   // Called once per tick with the plane's current SCENE-space position (reuses
   // the scratch vector tickFlight already computed this frame).
   function flightUpdateCloudVeil(scenePos) {
-    if (scenePos.y < FLIGHT_VEIL_TOP_Y) {
+    const shouldBeActive = scenePos.y < FLIGHT_VEIL_TOP_Y
+      || (flightVeilActive && scenePos.y < FLIGHT_VEIL_TOP_Y + FLIGHT_VEIL_END_MARGIN);
+    if (shouldBeActive) {
       flightBeginVeil();
       const t = flightClamp01((FLIGHT_VEIL_TOP_Y - scenePos.y) / (FLIGHT_VEIL_TOP_Y - FLIGHT_VEIL_CLEAR_Y));
       if (typeof setCloudSeaVeilOpacity === 'function') {

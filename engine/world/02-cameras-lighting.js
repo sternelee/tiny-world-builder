@@ -175,8 +175,8 @@
   //      the home board origin.
   // Environment multiplier lifts all non-shadowing scene light without making
   // the sun harsher or increasing shadow-map cost.
-  const ENVIRONMENT_LIGHT_MULTIPLIER = 2.0;
-  const DIRECTIONAL_SUN_INTENSITY_MULTIPLIER = 1.4;
+  const ENVIRONMENT_LIGHT_MULTIPLIER = 4.0;
+  const DIRECTIONAL_SUN_INTENSITY_MULTIPLIER = 0.7;
 
   // Low ambient floor — just enough so shadowed sides aren't pitch black.
   const ambient = new THREE.AmbientLight(0xffffff, 0.06);

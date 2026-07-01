@@ -3243,6 +3243,8 @@ syncTinyworldOwnerToolControls();
     }
     window.__tinyworldTickIslandViewTime = tickIslandViewTime;
     window.__tinyworldIsTimeElapsingActive = isTimeElapsingActive;
+    window.__tinyworldBeginIslandViewTimeCycle = beginIslandViewTimeCycle;
+    window.__tinyworldEndIslandViewTimeCycle = endIslandViewTimeCycle;
     function restoreBuildTodIfNeeded() {
       if (!isBuildTimeEditable() || !buildTodManual) return false;
       applyTodMinutes(buildTodMinutes);
@@ -4626,7 +4628,7 @@ syncTinyworldOwnerToolControls();
           window.__tinyworldCollectible._resumeBuild = window.__tinyworldMode.isBuild && window.__tinyworldMode.isBuild();
           window.__tinyworldMode.setPlay();
         }
-        beginIslandViewTimeCycle();
+        if (typeof window.__tinyworldBeginIslandViewTimeCycle === 'function') window.__tinyworldBeginIslandViewTimeCycle();
         return true;
       },
       exit() {
@@ -4635,7 +4637,7 @@ syncTinyworldOwnerToolControls();
         this.profile = null;
         this._resumeBuild = false;
         if (typeof window.__tinyworldSyncCollectibleChrome === 'function') window.__tinyworldSyncCollectibleChrome();
-        endIslandViewTimeCycle();
+        if (typeof window.__tinyworldEndIslandViewTimeCycle === 'function') window.__tinyworldEndIslandViewTimeCycle();
       },
       isActive() {
         return !!this.active;
@@ -4768,7 +4770,7 @@ syncTinyworldOwnerToolControls();
       dismissWelcomeLaunchForNewWorld();
       leaveWorldRoomForMenuLoad();
       document.body.classList.add('random-island-preview-mode');
-      beginIslandViewTimeCycle();
+      if (typeof window.__tinyworldBeginIslandViewTimeCycle === 'function') window.__tinyworldBeginIslandViewTimeCycle();
       randomIslandPreviewForceEnhancedWater();
       randomIslandPreviewCurrent = {
         seed: meta.seed || profile && profile.seed || '',
