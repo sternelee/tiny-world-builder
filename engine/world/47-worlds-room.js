@@ -265,7 +265,7 @@ function computeTaxCooldown(lastTaxChangeAt) {
         // Mirror 38's shape: include the peer id (map KEY) and filter to visible ghosts,
         // or 41-flight-combat targets every ghost as id:undefined (hit routing + speed
         // tracking break, and stale/hidden ghosts get targeted).
-        flightGhosts: () => { const out = []; flightGhosts.forEach((ghost, id) => { if (ghost && ghost.group && ghost.group.visible) out.push({ id, group: ghost.group }); }); return out; },
+        flightGhosts: () => { const out = []; flightGhosts.forEach((ghost, id) => { if (ghost && ghost.group && ghost.group.visible) out.push({ id, group: ghost.group, name: peerNames.get(id) || 'Pilot' }); }); return out; },
         canInteract: () => connected,
         roomId: () => 'world-' + (w ? w.slug : ''),
         send,
@@ -515,6 +515,31 @@ function computeTaxCooldown(lastTaxChangeAt) {
       return g;
     }
 
+    // Sibling of ghost.group, not a child — ghost.group carries the plane's
+    // full flight rotation, and a child sprite would inherit that as a
+    // world-position offset, swinging sideways during rolls/loops instead of
+    // holding steady above the plane.
+    const FLIGHT_GHOST_LABEL_Y = 1.6;
+    function _flightGhostDisposeSprite(sprite) {
+      if (!sprite) return;
+      if (sprite.parent) sprite.parent.remove(sprite);
+      if (sprite.material) { if (sprite.material.map) sprite.material.map.dispose(); sprite.material.dispose(); }
+    }
+    function _updateFlightGhostLabel(ghost, id, px, py, pz) {
+      if (typeof WS._makeNameLabelSprite !== 'function') return;
+      const name = peerNames.get(id) || 'Pilot';
+      if (ghost.labelName !== name) {
+        _flightGhostDisposeSprite(ghost.label);
+        const p = peers.get(id);
+        const color = p && p.color;
+        ghost.label = WS._makeNameLabelSprite(name, color);
+        const par = avatarParent();
+        if (par) par.add(ghost.label);
+        ghost.labelName = name;
+      }
+      if (ghost.label) ghost.label.position.set(px, py + FLIGHT_GHOST_LABEL_Y, pz);
+    }
+
     function _removeFlightGhost(id) {
       const ghost = flightGhosts.get(id);
       if (!ghost) return;
@@ -529,6 +554,7 @@ function computeTaxCooldown(lastTaxChangeAt) {
           }
         });
       }
+      _flightGhostDisposeSprite(ghost.label);
       flightGhosts.delete(id);
     }
 
@@ -560,7 +586,7 @@ function computeTaxCooldown(lastTaxChangeAt) {
         group.add(model);
         const par = avatarParent();
         if (par) par.add(group);
-        ghost = { group };
+        ghost = { group, label: null, labelName: '' };
         flightGhosts.set(id, ghost);
       }
       const p = msg.p || {};
@@ -576,6 +602,7 @@ function computeTaxCooldown(lastTaxChangeAt) {
         'XYZ'
       );
       ghost.group.visible = true;
+      _updateFlightGhostLabel(ghost, id, ghost.group.position.x, ghost.group.position.y, ghost.group.position.z);
       _renderWorldRoster();
     }
 

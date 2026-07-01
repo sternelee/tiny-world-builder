@@ -17,6 +17,9 @@
     // planet is active yet. Kept shallower than the 100m proof default so the
     // surface is reachable/visible without an enormous far plane.
     const FLY_DOWN_DEFAULT_DROP = 60;
+    // How far above the orbit target the J-key test plane spawns (scene units)
+    // — clears tall multi-floor builds and leaves real altitude for the dive.
+    const FLIGHT_SPAWN_HEIGHT_BOOST = 8;
     // Ease durations (seconds).
     const FLY_DOWN_DURATION = 2.1;
     const FLY_UP_DURATION = 1.8;
@@ -313,7 +316,11 @@
           const lookDir = target.clone().sub(camera.position);
           lookDir.y = 0;
           if (lookDir.lengthSq() < 1e-6) lookDir.set(0, 0, -1); else lookDir.normalize();
-          window.enterFlightSpawn(target.clone(), lookDir);
+          // Spawn well above the orbit target (clears tall builds/islands) so
+          // there's real altitude to dive through before the ground reveal.
+          const spawnPos = target.clone();
+          spawnPos.y += FLIGHT_SPAWN_HEIGHT_BOOST;
+          window.enterFlightSpawn(spawnPos, lookDir);
         }
         e.preventDefault();
       }

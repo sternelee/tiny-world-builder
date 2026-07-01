@@ -953,7 +953,7 @@
   // the { x, z } parking spot to respawn into on exit, or null when there is
   // none — exitFlight already disposes flightJet cleanly whenever the parked
   // entry doesn't match it, so a null cell needs no extra cleanup logic.
-  function finishFlightEntry(jet, scenePos, yawQuat, cell) {
+  function finishFlightEntry(jet, scenePos, yawQuat, cell, initialThrottle) {
     flightActive = true;
     flightCell = cell;
     flightJet = jet;
@@ -972,8 +972,9 @@
     flightPlane.vel.set(0, 0, -34);     // initial cruise speed along the nose (-Z)
     flightPlane.angVel.set(0, 0, 0);
     flightPlane.quat.identity();
-    flightPlane.throttle = 0.6;
-    flightPlane.throttleTarget = 0.6;
+    const throttle = (typeof initialThrottle === 'number') ? initialThrottle : 0.6;
+    flightPlane.throttle = throttle;
+    flightPlane.throttleTarget = throttle;
     flightPlane.gear = 1;
     flightPlane.brake = 0;
     flightPlane.onGround = false;
@@ -1119,7 +1120,7 @@
       jet.position.copy(scenePos);
       xrWorldRoot.add(jet);
       const yawQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), lookDir);
-      finishFlightEntry(jet, scenePos, yawQuat, null);
+      finishFlightEntry(jet, scenePos, yawQuat, null, 0.5); // J-key test spawn: half throttle
     });
     return true;
   }

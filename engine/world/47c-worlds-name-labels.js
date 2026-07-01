@@ -111,4 +111,7 @@
     WS._ensureNameLabel = ensureNameLabel;
     WS._updateNameLabel = updateNameLabel;
     WS._removeNameLabel = removeNameLabel;
+    // Raw sprite factory, for callers that need a standalone billboard (not
+    // tied to an avatar `ent`) — e.g. flight-ghost name tags in 47-worlds-room.js.
+    WS._makeNameLabelSprite = makeNameLabel;
   })();

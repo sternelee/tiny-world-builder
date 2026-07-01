@@ -1664,6 +1664,20 @@ export default class TinyWorldParty {
       return;
     }
 
+    if (type === 'combat.hit') {
+      // PvP damage report, relayed through the world-room path. MUST live here
+      // (see the 'entity' comment above — same dead-in-world-rooms trap).
+      // Routed ONLY to the targeted peer (not broadcast); the server stamps
+      // by = id so a peer cannot spoof the shooter.
+      if (!this.admitted.has(id)) return;
+      const to = cleanText(data.to, 96);
+      if (!to || !this.admitted.has(to)) return;
+      const damage = Math.max(0, Math.min(10000, cleanNumber(data.damage, 0)));
+      const source = cleanText(data.source, 24) || 'gun';
+      this.sendTo(to, { type: 'combat.hit', to, by: id, damage, source });
+      return;
+    }
+
   }
 
   handleMove(id, data) {

@@ -42,7 +42,7 @@
       getWorldPos(out) { return (out || new THREE.Vector3()).copy(this._pos); },
       radius: 1.6,
       isAlive() { return true; }, // players don't die locally; handled by hit messaging later
-      label() { return 'PLAYER'; },
+      label() { return g.name || 'PLAYER'; },
       speedKts() { return speed * 1.94; },
       applyDamage(amount, hitPos, source) { onHitPlayer(g.id, amount, source); },
     };

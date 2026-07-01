@@ -2226,11 +2226,45 @@
       return g;
     }
 
+    // Label sits well above the model regardless of which plane asset loaded
+    // (real stunt_plane stamp vs. the placeholder cone), so it always clears
+    // the fuselage/wings.
+    const FLIGHT_GHOST_LABEL_Y = 1.6;
+    function flightGhostDisplayName(id) {
+      const peer = peers.get(id);
+      const name = peer && peer.presence && peer.presence.name;
+      return (name && String(name).trim()) || 'Pilot';
+    }
+    // The label is a peerRoot SIBLING of ghost.group, not a child — ghost.group
+    // carries the plane's full flight rotation (roll/pitch/yaw), and a child
+    // sprite would inherit that as a world-position offset, swinging sideways
+    // during rolls/loops instead of holding steady above the plane. Its
+    // position is refreshed in world space every applyRemoteEntity call.
+    function updateFlightGhostLabel(ghost, id, px, py, pz) {
+      const name = flightGhostDisplayName(id);
+      if (ghost.labelName !== name) {
+        if (ghost.label) {
+          peerRoot.remove(ghost.label);
+          disposeObject3d(ghost.label);
+        }
+        const peer = peers.get(id);
+        const color = (peer && peer.color) || colorForId(id);
+        ghost.label = makeNameSprite(name, color);
+        peerRoot.add(ghost.label);
+        ghost.labelName = name;
+      }
+      if (ghost.label) ghost.label.position.set(px, py + FLIGHT_GHOST_LABEL_Y, pz);
+    }
+
     function removeFlightGhost(id) {
       const ghost = flightGhosts.get(id);
       if (!ghost) return;
       peerRoot.remove(ghost.group);
       disposeObject3d(ghost.group);
+      if (ghost.label) {
+        peerRoot.remove(ghost.label);
+        disposeObject3d(ghost.label);
+      }
       flightGhosts.delete(id);
     }
 
@@ -2256,7 +2290,7 @@
         const model = buildFlightGhostModel();
         group.add(model);
         peerRoot.add(group);
-        ghost = { group };
+        ghost = { group, label: null, labelName: '' };
         flightGhosts.set(id, ghost);
       }
       const p = msg.p || {};
@@ -2272,6 +2306,7 @@
         'XYZ'
       );
       ghost.group.visible = true;
+      updateFlightGhostLabel(ghost, id, ghost.group.position.x, ghost.group.position.y, ghost.group.position.z);
     }
 
     // ---- live flight broadcast (called from file-34's tickFlight/exitFlight) ----
@@ -2707,7 +2742,9 @@
       flightGhosts: () => {
         const out = [];
         flightGhosts.forEach((ghost, id) => {
-          if (ghost && ghost.group && ghost.group.visible) out.push({ id, group: ghost.group });
+          if (ghost && ghost.group && ghost.group.visible) {
+            out.push({ id, group: ghost.group, name: flightGhostDisplayName(id) });
+          }
         });
         return out;
       },
