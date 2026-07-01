@@ -8,6 +8,9 @@
   const MODEL_STAMP_SUPPORTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx', 'vox', 'vdb']);
   const MODEL_STAMP_DETECTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx', 'vox', 'vdb']);
   const MODEL_STAMP_TEXTURE_FORMATS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+  const MODEL_STAMP_WARN_BYTES = 20 * 1024 * 1024;
+  const MODEL_STAMP_WARN_TRIANGLES = 120000;
+  const MODEL_STAMP_SHADOW_TRIANGLES = 200000;
   let MODEL_STAMP_ASSETS = [];
   let selectedModelStampId = null;
   let modelStampDefaults = loadModelStampDefaults();
@@ -235,11 +238,29 @@
     return out;
   }
 
+  function modelStampAssetHeavy(asset) {
+    if (!asset) return false;
+    const stats = asset.renderStats;
+    return (stats && stats.triangles > MODEL_STAMP_WARN_TRIANGLES) || Number(asset.size) > MODEL_STAMP_WARN_BYTES;
+  }
+
+  function modelStampAssetShadowHeavy(asset) {
+    if (!asset) return false;
+    const stats = asset.renderStats;
+    return (stats && stats.triangles > MODEL_STAMP_SHADOW_TRIANGLES) || Number(asset.size) > MODEL_STAMP_WARN_BYTES;
+  }
+
   function modelStampAssetWarning(asset) {
     if (!asset) return '';
     if (asset.materialWarning) return asset.materialWarning;
     if (Array.isArray(asset.warnings) && asset.warnings.length) return String(asset.warnings[0] || '').slice(0, 96);
     return '';
+  }
+
+  function modelStampInitialWarnings(raw, size) {
+    const warnings = Array.isArray(raw && raw.warnings) ? raw.warnings.map(item => String(item || '').slice(0, 120)).filter(Boolean) : [];
+    if (Number(size) > MODEL_STAMP_WARN_BYTES) warnings.push('Large model: ' + (Number(size) / 1048576).toFixed(1) + ' MB');
+    return Array.from(new Set(warnings));
   }
 
   function normalizeModelStampAsset(raw) {
@@ -250,6 +271,7 @@
     const url = String(raw.url || '').trim();
     if (!id || !url) return null;
     const label = String(raw.label || raw.name || id).trim().slice(0, 64) || id;
+    const size = Number(raw.size) || 0;
     return {
       id,
       label,
@@ -257,13 +279,13 @@
       url,
       format,
       supported: raw.supported !== false && MODEL_STAMP_SUPPORTED_FORMATS.has(format),
-      size: Number(raw.size) || 0,
+      size,
       mtimeMs: Number(raw.mtimeMs) || 0,
       sidecars: normalizeModelStampSidecars(raw.sidecars),
       frames: Array.isArray(raw.frames) && raw.frames.length > 1
         ? raw.frames.map(f => ({ url: String((f && f.url) || '').trim(), name: String((f && f.name) || '').slice(0, 96) })).filter(f => f.url)
         : null,
-      warnings: Array.isArray(raw.warnings) ? raw.warnings.map(item => String(item || '').slice(0, 120)).filter(Boolean) : [],
+      warnings: modelStampInitialWarnings(raw, size),
       dropped: !!raw.dropped,
       transient: !!raw.transient,
       localFiles: raw.localFiles && typeof raw.localFiles === 'object' ? raw.localFiles : null,
@@ -1223,6 +1245,52 @@
     return applied;
   }
 
+  function collectModelStampRenderStats(root, asset) {
+    const stats = { meshes: 0, triangles: 0, materials: 0, textures: 0, animations: 0, heavy: false, shadowHeavy: false };
+    const materials = new Set();
+    const textures = new Set();
+    root.traverse(node => {
+      if (!node.isMesh) return;
+      stats.meshes++;
+      const geo = node.geometry;
+      const pos = geo && geo.attributes && geo.attributes.position;
+      if (geo && pos) stats.triangles += geo.index ? Math.floor(geo.index.count / 3) : Math.floor(pos.count / 3);
+      for (const mat of modelStampMaterialList(node.material)) {
+        if (!mat) continue;
+        materials.add(mat);
+        ['map', 'alphaMap', 'aoMap', 'emissiveMap', 'lightMap', 'normalMap', 'roughnessMap', 'metalnessMap'].forEach(key => {
+          if (mat[key]) textures.add(mat[key]);
+        });
+      }
+    });
+    stats.materials = materials.size;
+    stats.textures = textures.size;
+    stats.heavy = stats.triangles > MODEL_STAMP_WARN_TRIANGLES || (asset && Number(asset.size) > MODEL_STAMP_WARN_BYTES);
+    stats.shadowHeavy = stats.triangles > MODEL_STAMP_SHADOW_TRIANGLES || (asset && Number(asset.size) > MODEL_STAMP_WARN_BYTES);
+    if (asset) {
+      asset.renderStats = stats;
+      if (stats.triangles > MODEL_STAMP_WARN_TRIANGLES) {
+        const warning = 'High triangle count: ' + stats.triangles.toLocaleString();
+        asset.warnings = Array.from(new Set([...(asset.warnings || []), warning]));
+      }
+    }
+    return stats;
+  }
+
+  function applyModelStampShadowPolicy(root, asset) {
+    const shadowHeavy = modelStampAssetShadowHeavy(asset);
+    root.traverse(node => {
+      if (!node.isMesh) return;
+      node.castShadow = !shadowHeavy;
+      node.receiveShadow = true;
+      if (shadowHeavy) node.userData.modelStampShadowDisabled = true;
+    });
+    if (asset && shadowHeavy) {
+      asset.shadowStatus = 'shadows disabled for heavy model';
+      asset.warnings = Array.from(new Set([...(asset.warnings || []), 'Heavy model: shadows disabled']));
+    }
+  }
+
   function hydrateModelStampScene(root, asset, opts = {}) {
     if (!root) return root;
     let textured = 0;
@@ -1231,8 +1299,6 @@
     const materialAdaptCache = new WeakMap();
     root.traverse(node => {
       if (!node.isMesh) return;
-      node.castShadow = true;
-      node.receiveShadow = true;
       const adapted = adaptModelStampMaterialForTinyWorld(node.material, materialAdaptCache);
       node.material = adapted.material;
       litMaterials += adapted.adapted;
@@ -1247,11 +1313,14 @@
       }
       if (modelStampMeshNeedsPalette(node) && applyModelStampVertexPalette(node, asset, palette)) palette++;
     });
+    const stats = collectModelStampRenderStats(root, asset);
+    applyModelStampShadowPolicy(root, asset);
     if (asset) {
       if (textured) asset.materialStatus = 'sidecar texture';
       else if (palette) asset.materialStatus = 'TinyWorld palette fallback';
       else if (litMaterials) asset.materialStatus = 'TinyWorld lit materials';
       else asset.materialStatus = 'original materials';
+      asset.renderStatsLabel = stats.triangles ? (stats.triangles >= 1000 ? Math.round(stats.triangles / 1000) + 'k tris' : stats.triangles + ' tris') : '';
       if (!asset.materialWarning && Array.isArray(asset.warnings) && asset.warnings.length) asset.materialWarning = asset.warnings[0];
     }
     return root;
@@ -1280,7 +1349,6 @@
     clone.traverse(node => {
       if (!node.isMesh) return;
       if (node.geometry && node.geometry.clone) node.geometry = node.geometry.clone();
-      node.castShadow = true;
       node.receiveShadow = true;
       prepareModelStampTextureMaterial(node.material);
     });
@@ -1302,7 +1370,16 @@
     wrapper.add(root);
     wrapper.scale.setScalar(scale);
     wrapper.userData = { kind: 'model-stamp', modelStampId: asset && asset.id, name: asset && asset.label, chimneyTops: [] };
-    castReceive(wrapper);
+    if (asset && modelStampAssetShadowHeavy(asset)) {
+      wrapper.traverse(node => {
+        if (!node.isMesh) return;
+        node.castShadow = false;
+        node.receiveShadow = true;
+        node.userData.modelStampShadowDisabled = true;
+      });
+    } else {
+      castReceive(wrapper);
+    }
     return wrapper;
   }
 
@@ -1310,6 +1387,8 @@
     const g = new THREE.Group();
     const baseMat = new THREE.MeshLambertMaterial({ color: asset && asset.supported === false ? 0xb48c73 : 0xb5b8aa });
     const topMat = new THREE.MeshLambertMaterial({ color: asset && asset.format === 'obj' ? 0x8aa4b8 : 0x9b8bb8 });
+    baseMat.userData.ownMaterial = true;
+    topMat.userData.ownMaterial = true;
     const base = new THREE.Mesh(getBoxGeometry(0.54, 0.12, 0.54), baseMat);
     base.position.y = 0.06;
     const body = new THREE.Mesh(getDodecahedronGeometry(0.30), topMat);
@@ -1317,6 +1396,8 @@
     body.scale.set(1.06, 0.72, 0.92);
     const cap = new THREE.Mesh(getBoxGeometry(0.34, 0.04, 0.18), M.wallTrim);
     cap.position.y = 0.61;
+    base.userData.ownMaterial = true;
+    body.userData.ownMaterial = true;
     g.add(base, body, cap);
     g.userData = { kind: 'model-stamp', modelStampId: asset && asset.id, placeholder: true, message: message || 'Loading model' };
     castReceive(g);

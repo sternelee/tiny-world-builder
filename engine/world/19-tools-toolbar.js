@@ -1391,10 +1391,13 @@
         const fmt = (tool.modelAsset && tool.modelAsset.format ? tool.modelAsset.format : 'model').toUpperCase();
         const warning = modelStampAssetWarning(tool.modelAsset);
         const hasTexture = !!(tool.modelAsset && tool.modelAsset.sidecars && tool.modelAsset.sidecars.textures && tool.modelAsset.sidecars.textures.length);
+        const heavy = typeof modelStampAssetHeavy === 'function' && modelStampAssetHeavy(tool.modelAsset);
         meta.appendChild(stampCardChip(fmt, unsupported ? 'warn' : 'model'));
         meta.appendChild(stampCardChip(unsupported ? 'detected' : 'model', unsupported ? 'warn' : 'model'));
-        if (!unsupported && warning) meta.appendChild(stampCardChip('fallback', 'warn'));
+        if (!unsupported && heavy) meta.appendChild(stampCardChip('heavy', 'warn'));
+        if (!unsupported && warning) meta.appendChild(stampCardChip('warn', 'warn'));
         else if (!unsupported && hasTexture) meta.appendChild(stampCardChip('texture', 'model'));
+        if (!unsupported && tool.modelAsset && tool.modelAsset.renderStatsLabel) meta.appendChild(stampCardChip(tool.modelAsset.renderStatsLabel, heavy ? 'warn' : 'model'));
       } else if (tool.isAssetTemplate) {
         const count = tool.assetTemplate && tool.assetTemplate.clipboard ? tool.assetTemplate.clipboard.cells.length : 0;
         const size = tool.assetTemplate && tool.assetTemplate.clipboard && tool.assetTemplate.clipboard.size;
