@@ -235,6 +235,9 @@
     'settings.language': '语言',
     'settings.showGroups': '显示分组',
     'settings.showGroups.hint': '关闭后，将分组工具栏替换为包含所有方块的浮动调色板',
+    'settings.controls': '控制',
+    'settings.invertY': '反转视角（Y 轴）',
+    'settings.invertY.hint': '向上移动鼠标即可向下看 — 适用于第一人称和漫游摄像机',
 
     'tool.auto': '自动',
     'tool.select': '选择',

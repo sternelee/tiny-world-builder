@@ -259,6 +259,9 @@
     'settings.language': 'Language',
     'settings.showGroups': 'Show groups',
     'settings.showGroups.hint': 'off swaps the grouped toolbar for a floating palette of every block',
+    'settings.controls': 'Controls',
+    'settings.invertY': 'Invert look (Y axis)',
+    'settings.invertY.hint': 'move the mouse up to look down — applies to first-person and walk-around camera',
 
     // ---- tool labels (key = 'tool.' + tool.id) ----
     'tool.auto': 'Auto',

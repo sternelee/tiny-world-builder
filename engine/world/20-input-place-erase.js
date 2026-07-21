@@ -2308,7 +2308,8 @@
     fpLastPointerY = e.clientY;
     markCameraMoving();
     fp.yaw -= dx * 0.005;
-    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - dy * 0.005));
+    const fpPitchDir = window.__twInvertLookY ? -1 : 1;
+    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - dy * 0.005 * fpPitchDir));
   }
   function fpOnPointerUp() {
     fpDragActive = false;
@@ -2326,7 +2327,8 @@
     if (!fp.active || document.pointerLockElement !== renderer.domElement) return;
     markCameraMoving();
     fp.yaw -= e.movementX * 0.0022;
-    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - e.movementY * 0.0022));
+    const fpLockPitchDir = window.__twInvertLookY ? -1 : 1;
+    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - e.movementY * 0.0022 * fpLockPitchDir));
   }, { passive: true });
   window.addEventListener('keydown', e => {
     if (!fp.active) return;

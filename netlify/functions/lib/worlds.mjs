@@ -345,7 +345,9 @@ export function worldPreview(data, max = 1500) {
   return out;
 }
 
-export function worldDto(row, { includeData = false } = {}) {
+// ownerEmail is PII and is OPT-IN only (includeOwnerEmail) — never expose it on paths a
+// non-owner/non-admin can reach (e.g. the now-public early-preview starter worlds).
+export function worldDto(row, { includeData = false, includeOwnerEmail = false } = {}) {
   if (!row) return null;
   const out = {
     id: Number(row.id),
@@ -360,7 +362,7 @@ export function worldDto(row, { includeData = false } = {}) {
     activePlayers: Number(row.active_players) || 0,
     ownerProfileId: row.owner_profile_id != null ? Number(row.owner_profile_id) : null,
     ownerName: row.owner_name || '',
-    ownerEmail: row.owner_email || '',
+    ownerEmail: includeOwnerEmail ? (row.owner_email || '') : '',
     resourceStats: deriveResourceStats(row.data, row.grid_size),
     publishedAt: row.published_at || null,
   };

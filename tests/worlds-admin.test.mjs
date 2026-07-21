@@ -80,7 +80,7 @@ test('worldDto includes owner email and resource stats for cards', () => {
     owner_email: 'jason@bouncingfish.com',
     data: { v: 4, gridSize: 4, cells: [[1, 1, 'stone']] },
     published_at: '2026-06-21T09:00:00.000Z',
-  });
+  }, { includeOwnerEmail: true });
   assert.equal(dto.ownerEmail, 'jason@bouncingfish.com');
   assert.equal(dto.resourceStats.ore, 1);
   assert.equal(dto.resourceStats.mineable, 1);

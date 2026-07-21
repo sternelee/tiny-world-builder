@@ -1515,7 +1515,8 @@ function tryEnterGate() {
       _srYaw -= dx * SR_DRAG_SENS;
       const lo = _srFirstPerson ? SR_FP_PITCH_MIN : SR_PITCH_MIN;
       const hi = _srFirstPerson ? SR_FP_PITCH_MAX : SR_PITCH_MAX;
-      _srPitch = Math.max(lo, Math.min(hi, _srPitch + dy * SR_DRAG_SENS));
+      const _srPitchDir = window.__twInvertLookY ? -1 : 1;
+      _srPitch = Math.max(lo, Math.min(hi, _srPitch + dy * SR_DRAG_SENS * _srPitchDir));
       e.stopPropagation();
     }
 

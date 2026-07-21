@@ -2014,8 +2014,11 @@
     vbox(g, 0.18, 0.10, 0.025, 0.10, y + 0.32, 0, M.flagRed);
     vbox(g, 0.13, 0.06, 0.13, 0, y + 0.42, 0, roofD);
     vbox(g, 0.10, 0.10, 0.10, 0, y + 0.50, 0, M.windowLit);
+    // Side banners: keep them inside the ±0.5 cell footprint. At x=±0.44 the
+    // tilted (rz) box reaches |X| ~= 0.484, so it no longer pokes past the tile
+    // edge into the neighbouring cell / void.
     for (const side of [-1, 1]) {
-      vbox(g, 0.075, 0.30, 0.026, side * 0.48, balconyY - 0.18, 0.10, side < 0 ? M.flagRed : roof, {
+      vbox(g, 0.075, 0.30, 0.026, side * 0.44, balconyY - 0.18, 0.10, side < 0 ? M.flagRed : roof, {
         noGap: true,
         rz: side * 0.045,
       });

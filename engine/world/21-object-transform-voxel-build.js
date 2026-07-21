@@ -204,9 +204,135 @@
         panel.classList.toggle('active', active);
         panel.hidden = !active;
       });
+      // Scope the footer Reset button to the active tab (see RESET_GROUPS below).
+      // Workspace/AI have nothing resettable, so the button hides there.
+      if (resetBtn) {
+        if (RESET_GROUPS[name]) {
+          const labelEl = activeTab.querySelector('.settings-tab-label');
+          const label = ((labelEl && labelEl.textContent) || activeTab.dataset.settingsLabel || name).trim();
+          resetBtn.hidden = false;
+          resetBtn.textContent = 'Reset ' + label;
+        } else {
+          resetBtn.hidden = true;
+        }
+      }
       if (opts.focus && activeTab.focus) activeTab.focus();
       return true;
     }
+
+    // -------- per-tab settings reset --------
+    // Each function resets only the settings owned by its tab/panel. The footer
+    // Reset button (see its click handler) dispatches to the active tab's group
+    // so it no longer wipes every setting across all tabs at once.
+    function resetRenderingSettings() {
+      setShadowQuality('balanced');
+      setRenderResolutionScale(0.75);
+      setRenderVisibleDistance(0);
+      setRenderVisibleSize(0);
+      renderBrightness = 0.80;
+      renderLighting = 0.50;
+      renderAmbientFill = 1.00;
+      renderFrontFill = 0.10;
+      renderSideFill = 0.10;
+      renderBackFill = 0.10;
+      applyLightingSettings();
+      renderSaturation = 1.09;
+      renderContrast = 1.20;
+      renderPixelSize = 1;
+      renderPixelDepthEdge = 0;
+      renderPixelNormalEdge = 0;
+      renderShaderAntialias = 0;
+      renderTiltBlur = 10.5;
+      renderTiltFocus = 21;
+      applyTiltShiftSettings();
+    }
+    function resetWorldSettings() {
+      renderGhostOpacity = 0;
+      renderFloorOpacity = 0;
+      renderObjectOpacity = 0;
+      renderVoxelGap = 0;
+      renderVoxelBevel = parseFloat(RENDER_DEFAULTS.voxelBevel);
+      renderVoxelTerrain = true;
+      renderTexturedGrass = true;
+      showCrowns = false;
+      renderTerrainVoxelResolution = 'mixed';
+      if (voxelTerrainEl) voxelTerrainEl.checked = true;
+      if (terrainVoxelResolutionEl) terrainVoxelResolutionEl.value = renderTerrainVoxelResolution;
+    }
+    function resetMaterialsSettings() {
+      renderSurfaceLinkedMaterials = true;
+      renderTerrainMaterialAdjustments = {};
+      renderTerrainColorTarget = 'grass';
+      renderPartMaterialAdjustments = {};
+      renderMaterialTarget = 'walls';
+      renderMaterialWear = 0;
+      if (typeof texCottageGrass !== 'undefined') {
+        applySurfaceTextureDefaults();
+      }
+      commitTerrainMaterialAdjustments();
+      commitPartMaterialAdjustments();
+      customMaterialCache.clear();
+    }
+    function resetEnvironmentSettings() {
+      renderCloudAmount = 0.40;
+      renderCloudSpeed = 0.35;
+      renderCloudHeight = 9.5;
+      renderCloudShadow = 0;
+      renderCloudSea = true;
+      renderCloudStyle = 'soft';
+      renderPlanesEnabled = false;
+      if (typeof setPlanesEnabled === 'function') setPlanesEnabled(false);
+      renderEnhancedWater = true;
+      if (typeof refreshWaterShaderMaterials === 'function') refreshWaterShaderMaterials();
+      if (landscapeEngineInstance && landscapeEngineInstance.waterMat
+          && landscapeEngineInstance.waterMat.uniforms
+          && landscapeEngineInstance.waterMat.uniforms.uEnhance) {
+        landscapeEngineInstance.waterMat.uniforms.uEnhance.value = 1.0;
+      }
+      renderStarVault = true;
+      renderStarVaultStrength = 0.92;
+      renderCloudRimLight = 0.78;
+      renderAccentLights = 0.65;
+      if (typeof applyStarlitAtmosphereSettings === 'function') applyStarlitAtmosphereSettings();
+      if (typeof applyCloudRimLightSetting === 'function') applyCloudRimLightSetting();
+      if (typeof applyAccentLightingSettings === 'function') applyAccentLightingSettings();
+      applyCloudSettings();
+      if (typeof applyCloudHeight === 'function') applyCloudHeight();
+      if (typeof setCloudSeaEnabled === 'function') setCloudSeaEnabled(renderCloudSea);
+      if (typeof setCloudStyle === 'function') setCloudStyle(renderCloudStyle);
+      renderDistanceMist = 0.28;
+      applyDistanceMistSettings();
+      renderBackdrop = 0.78;
+      renderBackdropVignette = 0.18;
+      applyBackdropSettings();
+    }
+    function resetCrowdSettings() {
+      crowdCount = 12;
+      crowdScale = 0.75;
+      crowdSpeedMul = 1;
+      crowdBob = 2.4;
+      crowdSway = 1.4;
+      crowdLean = 0.07;
+      crowdZoneRadius = 0.16;
+      crowdShowZones = false;
+      crowdPaused = false;
+      crowdDebug = true;
+      crowdMode = 'wander';
+      crowdShowArrows = true;
+      crowdEnabled = false;
+      applyCrowdSettings({ reseed: true });
+      if (crowdEnabled && !crowdLayer) {
+        initCrowdLayer();
+      }
+    }
+    const RESET_GROUPS = {
+      rendering: resetRenderingSettings,
+      world: resetWorldSettings,
+      materials: resetMaterialsSettings,
+      environment: resetEnvironmentSettings,
+      crowd: resetCrowdSettings,
+    };
+
     function settingsSearchTerms() {
       return (settingsSearchEl && settingsSearchEl.value || '')
         .trim()
@@ -855,100 +981,18 @@
       });
     }
     resetBtn.addEventListener('click', () => {
-      setShadowQuality('balanced');
-      setRenderResolutionScale(0.75);
-      setRenderVisibleDistance(0);
-      setRenderVisibleSize(0);
-      renderBrightness = 0.80;
-      renderLighting = 0.50;
-      renderAmbientFill = 1.00;
-      renderFrontFill = 0.10;
-      renderSideFill = 0.10;
-      renderBackFill = 0.10;
-      applyLightingSettings();
-      renderSaturation = 1.09;
-      renderContrast = 1.20;
-      renderCloudAmount = 0.40;
-      renderCloudSpeed = 0.35;
-      renderCloudHeight = 9.5;
-      renderCloudShadow = 0;
-      renderCloudSea = true;
-      renderCloudStyle = 'soft';
-      renderPlanesEnabled = false;
-      if (typeof setPlanesEnabled === 'function') setPlanesEnabled(false);
-      renderEnhancedWater = true;
-      if (typeof refreshWaterShaderMaterials === 'function') refreshWaterShaderMaterials();
-      if (landscapeEngineInstance && landscapeEngineInstance.waterMat
-          && landscapeEngineInstance.waterMat.uniforms
-          && landscapeEngineInstance.waterMat.uniforms.uEnhance) {
-        landscapeEngineInstance.waterMat.uniforms.uEnhance.value = 1.0;
+      // Reset only the settings owned by the currently visible tab, not every
+      // setting across all tabs. The active panel's data-settings-panel name
+      // selects the matching group in RESET_GROUPS.
+      const activePanel = settingsPanels.find(panel => panel.classList.contains('active'));
+      const name = activePanel && activePanel.dataset.settingsPanel;
+      const resetGroup = name && RESET_GROUPS[name];
+      if (!resetGroup) {
+        if (status) status.textContent = 'Nothing to reset on this tab';
+        return;
       }
-      renderStarVault = true;
-      renderStarVaultStrength = 0.92;
-      renderCloudRimLight = 0.78;
-      renderAccentLights = 0.65;
-      if (typeof applyStarlitAtmosphereSettings === 'function') applyStarlitAtmosphereSettings();
-      if (typeof applyCloudRimLightSetting === 'function') applyCloudRimLightSetting();
-      if (typeof applyAccentLightingSettings === 'function') applyAccentLightingSettings();
-      applyCloudSettings();
-      if (typeof applyCloudHeight === 'function') applyCloudHeight();
-      if (typeof setCloudSeaEnabled === 'function') setCloudSeaEnabled(renderCloudSea);
-      if (typeof setCloudStyle === 'function') setCloudStyle(renderCloudStyle);
-      renderDistanceMist = 0.28;
-      applyDistanceMistSettings();
-      renderBackdrop = 0.78;
-      renderBackdropVignette = 0.18;
-      applyBackdropSettings();
-      renderPixelSize = 1;
-      renderPixelDepthEdge = 0;
-      renderPixelNormalEdge = 0;
-      renderShaderAntialias = 0;
-      renderTiltBlur = 10.5;
-      renderTiltFocus = 21;
-      applyTiltShiftSettings();
-      renderGhostOpacity = 0;
-      renderFloorOpacity = 0;
-      renderObjectOpacity = 0;
-      renderVoxelGap = 0;
-      renderVoxelBevel = parseFloat(RENDER_DEFAULTS.voxelBevel);
-      renderVoxelTerrain = true;
-      renderTexturedGrass = true;
-      showCrowns = false;
-      renderSurfaceLinkedMaterials = true;
-      renderTerrainMaterialAdjustments = {};
-      renderTerrainColorTarget = 'grass';
-      renderPartMaterialAdjustments = {};
-      renderMaterialTarget = 'walls';
-      renderMaterialWear = 0;
-      if (typeof texCottageGrass !== 'undefined') {
-        applySurfaceTextureDefaults();
-      }
-      commitTerrainMaterialAdjustments();
-      commitPartMaterialAdjustments();
-      customMaterialCache.clear();
-      renderTerrainVoxelResolution = 'mixed';
-      crowdCount = 12;
-      crowdScale = 0.75;
-      crowdSpeedMul = 1;
-      crowdBob = 2.4;
-      crowdSway = 1.4;
-      crowdLean = 0.07;
-      crowdZoneRadius = 0.16;
-      crowdShowZones = false;
-      crowdPaused = false;
-      crowdDebug = true;
-      crowdMode = 'wander';
-      crowdShowArrows = true;
-      crowdEnabled = false;
-      applyCrowdSettings({ reseed: true });
-      if (crowdEnabled && !crowdLayer) {
-        initCrowdLayer();
-      }
-      renderAutoExpand = false;
-      const autoExpandEl = document.getElementById('minimap-autoexpand');
-      if (autoExpandEl) autoExpandEl.checked = false;
-      if (voxelTerrainEl) voxelTerrainEl.checked = true;
-      if (terrainVoxelResolutionEl) terrainVoxelResolutionEl.value = renderTerrainVoxelResolution;
+      resetGroup();
+      // Shared refresh + persistence after any group reset.
       rebuildTerrainRender();
       rebuildObjectsRender();
       scheduleVoxelStampRefresh();
@@ -956,6 +1000,12 @@
       applyColorFilterFallback();
       persistSettings();
       syncControls();
+      if (status) {
+        const tab = settingsTabs.find(t => t.dataset.settingsTab === name);
+        const labelEl = tab && tab.querySelector('.settings-tab-label');
+        const label = ((labelEl && labelEl.textContent) || (tab && tab.dataset.settingsLabel) || name).trim();
+        status.textContent = label + ' settings reset';
+      }
     });
     if (crowdDebugLiveEl) crowdDebugLiveEl.addEventListener('click', () => {
       crowdDebug = !crowdDebug;

@@ -235,6 +235,9 @@
     'settings.language': 'Idioma',
     'settings.showGroups': 'Mostrar grupos',
     'settings.showGroups.hint': 'al desactivarlo, cambia la barra agrupada por una paleta flotante con todos los bloques',
+    'settings.controls': 'Controles',
+    'settings.invertY': 'Invertir la mirada (eje Y)',
+    'settings.invertY.hint': 'mueve el ratón hacia arriba para mirar hacia abajo — se aplica a la vista en primera persona y a la cámara de desplazamiento',
 
     'tool.auto': 'Auto',
     'tool.select': 'Seleccionar',

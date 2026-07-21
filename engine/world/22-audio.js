@@ -309,6 +309,11 @@
   // Distance falloff curve. Audible from ~3m, silent past ~35m.
   const POSITIONAL_NEAR = 3.0;
   const POSITIONAL_FAR  = 35.0;
+  // Max stereo width for positional sources. A StereoPanner value of ±1 is a
+  // full hard pan (sound vanishes from one ear). Cap well under that so a
+  // source off to the side still reads directional but stays audible in both
+  // ears as you walk past it.
+  const POSITIONAL_PAN_WIDTH = 0.65;
 
   const _camFwd = new THREE.Vector3();
   const _camRight = new THREE.Vector3();
@@ -353,7 +358,7 @@
         // Pan: horizontal offset projected onto camera-right.
         const px = dx * _camRight.x + dz * _camRight.z;
         const norm = dist > 0.5 ? px / dist : 0;
-        pan = Math.max(-1, Math.min(1, norm * 1.3));
+        pan = Math.max(-POSITIONAL_PAN_WIDTH, Math.min(POSITIONAL_PAN_WIDTH, norm * POSITIONAL_PAN_WIDTH));
         const busOn = e.bus === 'engines' ? !audioEnginesMuted : !audioAmbientMuted;
         const busLvl = e.bus === 'engines' ? audioEnginesVolume : audioAmbientVolume;
         finalVol = busOn ? vol * busLvl : 0;

@@ -235,6 +235,9 @@
     'settings.language': 'Langue',
     'settings.showGroups': 'Afficher les groupes',
     'settings.showGroups.hint': 'désactivé, remplace la barre groupée par une palette flottante de tous les blocs',
+    'settings.controls': 'Commandes',
+    'settings.invertY': 'Inverser la visée (axe Y)',
+    'settings.invertY.hint': 'déplacez la souris vers le haut pour regarder vers le bas — s\'applique à la vue subjective et à la caméra de déplacement',
 
     'tool.auto': 'Auto',
     'tool.select': 'Sélection',

@@ -6343,23 +6343,20 @@
   }
   .world-menu-foot {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
     padding: 8px;
     border-top: 1px solid var(--line-soft);
     background: var(--bg);
-    scrollbar-width: none;
   }
-  .world-menu-foot::-webkit-scrollbar { display: none; }
   .world-menu-foot-btn {
     --chrome-outline: #2f3b57;
     --chrome-bg: rgba(255, 255, 255, 0.42);
     --chrome-hover-bg: rgba(255, 255, 255, 0.62);
     --chrome-bevel: rgba(47, 59, 87, 0.20);
-    flex: 0 0 auto;
-    min-width: 116px;
-    max-width: 148px;
+    flex: 1 1 auto;
+    min-width: max-content;
+    max-width: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -6771,7 +6768,16 @@
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;            /* no stray horizontal scrollbar from a wide control */
     padding-right: 4px;
+    scrollbar-width: thin;         /* consistent thin bar, not the flickering OS overlay */
+  }
+  .settings-panels::-webkit-scrollbar {
+    width: 6px;
+  }
+  .settings-panels::-webkit-scrollbar-thumb {
+    background: rgba(120, 130, 150, 0.35);
+    border-radius: 3px;
   }
   .settings-panel {
     display: none;
