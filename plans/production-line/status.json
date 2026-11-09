@@ -1,6 +1,11 @@
 {
   "feed": [
     {
+      "ts": "2026-11-09T05:22:12.196Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-11-09T05-22-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-11-09T04:23:46.185Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-11-09T04-23-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -194,12 +199,7 @@
       "ts": "2026-11-07T14:20:18.489Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-11-07T14-20-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
-    },
-    {
-      "ts": "2026-11-07T13:20:35.753Z",
-      "kind": "tick",
-      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-11-07T13-20-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
     }
   ],
-  "lastTick": "2026-11-09T04:23:46.185Z"
+  "lastTick": "2026-11-09T05:22:12.196Z"
 }
